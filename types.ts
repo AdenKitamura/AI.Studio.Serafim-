@@ -42,8 +42,16 @@ export interface Thought {
     url?: string;
     fileName?: string;
     fileType?: string;
+    fileData?: string; // Base64
     isTaskSynced?: boolean;
   };
+}
+
+export interface DailyReflection {
+  mainFocus: string;
+  gratitude: string;
+  blockers: string;
+  tomorrowGoal: string;
 }
 
 export interface JournalEntry {
@@ -52,6 +60,8 @@ export interface JournalEntry {
   content: string;
   notes?: string;
   mood?: string;
+  tags?: string[];
+  reflection?: DailyReflection;
 }
 
 export interface Habit {
@@ -80,8 +90,12 @@ export interface ChatSession {
 }
 
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects';
-export type CalendarMode = 'day' | 'week' | 'month' | 'quarter';
+export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbon' | 'amethyst' | 'crimson' | 'neon' | 'polar' | 'paper' | 'lilac';
 
+// Added missing exported member 'CalendarMode' for CalendarView.tsx
+export type CalendarMode = 'week' | 'month';
+
+// Added missing exported member 'AppState' for ProfileModal.tsx
 export interface AppState {
   tasks: Task[];
   thoughts: Thought[];
@@ -90,5 +104,3 @@ export interface AppState {
   habits: Habit[];
   view: ViewState;
 }
-
-export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbon' | 'amethyst' | 'crimson' | 'neon' | 'polar' | 'paper' | 'lilac';

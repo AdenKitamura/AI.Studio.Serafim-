@@ -1,143 +1,193 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Thought } from '../types';
-import { Brain, Lightbulb, Plus, Trash2, Quote as QuoteIcon, Library, Download, X, User } from 'lucide-react';
+import { Brain, Lightbulb, Plus, Trash2, Quote as QuoteIcon, Library, Download, X, User, Link as LinkIcon, File as FileIcon, Globe, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
-import { getQuotesByCategory, CATEGORIES, QuoteCategory, Quote } from '../services/quotesService';
 
 interface ThoughtsViewProps {
   thoughts: Thought[];
-  onAdd: (content: string, type: 'thought' | 'idea' | 'quote', tags: string[], author?: string) => void;
+  onAdd: (content: string, type: 'thought' | 'idea' | 'quote' | 'link' | 'file', tags: string[], metadata?: any) => void;
   onDelete: (id: string) => void;
 }
 
 const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onDelete }) => {
-  const [activeTab, setActiveTab] = useState<'personal' | 'library'>('personal');
-  const [personalFilter, setPersonalFilter] = useState<'all' | 'thought' | 'idea' | 'quote'>('all');
-  const [libraryCategory, setLibraryCategory] = useState<QuoteCategory | 'all'>('all');
-
+  const [activeFilter, setActiveFilter] = useState<'all' | 'thought' | 'link' | 'file'>('all');
   const [isAdding, setIsAdding] = useState(false);
+  const [addType, setAddType] = useState<'thought' | 'link' | 'file'>('thought');
+  
   const [newContent, setNewContent] = useState('');
-  const [newType, setNewType] = useState<'thought'|'idea'|'quote'>('thought');
-  const [newAuthor, setNewAuthor] = useState('');
-  const [newTag, setNewTag] = useState(''); 
-
-  const handleSaveToMyThoughts = (quote: Quote) => {
-      onAdd(quote.text, 'quote', [quote.category], quote.author);
-  };
+  const [newUrl, setNewUrl] = useState('');
+  const [tagInput, setTagInput] = useState('');
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleManualAdd = () => {
-      if(!newContent.trim()) return;
-      const tags = newTag.trim() ? [newTag.trim()] : [];
-      onAdd(newContent, newType, tags, newAuthor.trim() || undefined);
-      
-      setNewContent('');
-      setNewAuthor('');
-      setNewTag('');
-      setIsAdding(false);
+    if (!newContent.trim() && !newUrl.trim()) return;
+    const tags = tagInput.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+    
+    if (addType === 'link') {
+      onAdd(newContent || newUrl, 'link', tags, { url: newUrl });
+    } else {
+      onAdd(newContent, 'thought', tags);
+    }
+    
+    resetForm();
   };
 
-  // Only show library/archived items or quotes
-  const filteredThoughts = thoughts.filter(t => 
-    (t.isArchived || t.type === 'quote') && (personalFilter === 'all' || t.type === personalFilter)
-  );
-  const libraryQuotes = getQuotesByCategory(libraryCategory);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      onAdd(file.name, 'file', [file.type.split('/')[0]], { 
+        fileName: file.name, 
+        fileType: file.type, 
+        fileData: reader.result 
+      });
+      setIsAdding(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const resetForm = () => {
+    setNewContent('');
+    setNewUrl('');
+    setTagInput('');
+    setIsAdding(false);
+  };
+
+  const filteredThoughts = thoughts.filter(t => activeFilter === 'all' || t.type === activeFilter);
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300 relative bg-[var(--bg-main)]">
-       <div className="p-4 flex gap-4 border-b border-[var(--bg-card)] sticky top-0 bg-[var(--bg-main)] z-20">
-           <button 
-                onClick={() => setActiveTab('personal')}
-                className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all ${activeTab === 'personal' ? 'bg-[var(--bg-item)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}
-           >
-               <Brain size={18} />
-               Архив
-           </button>
-           <button 
-                onClick={() => setActiveTab('library')}
-                className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all ${activeTab === 'library' ? 'bg-[var(--bg-item)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}
-           >
-               <Library size={18} />
-               Мудрость
-           </button>
-       </div>
+    <div className="flex flex-col h-full bg-[var(--bg-main)]">
+      {/* Header */}
+      <div className="p-6 border-b border-white/5 bg-[var(--bg-main)]/80 backdrop-blur-md sticky top-0 z-20">
+        <h2 className="text-2xl font-black text-white tracking-tighter mb-4 uppercase">Архив Знаний</h2>
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'all', label: 'Все', icon: <Globe size={12}/> },
+            { id: 'thought', label: 'Мысли', icon: <Brain size={12}/> },
+            { id: 'link', label: 'Ссылки', icon: <LinkIcon size={12}/> },
+            { id: 'file', label: 'Файлы', icon: <FileIcon size={12}/> }
+          ].map(f => (
+            <button 
+              key={f.id} 
+              onClick={() => setActiveFilter(f.id as any)}
+              className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeFilter === f.id ? 'bg-indigo-600 text-white' : 'bg-white/5 text-white/40 border border-white/5 hover:bg-white/10'}`}
+            >
+              {f.icon} {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-       <div className="flex-1 overflow-y-auto relative pb-24">
-          {activeTab === 'personal' && (
-              <>
-                <div className="p-4 flex gap-2 overflow-x-auto no-scrollbar sticky top-0 bg-[var(--bg-main)]/95 backdrop-blur z-10">
-                    <button onClick={() => setPersonalFilter('all')} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${personalFilter === 'all' ? 'bg-[var(--text-main)] text-[var(--bg-main)]' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border border-[var(--bg-card)]'}`}>Все</button>
-                    <button onClick={() => setPersonalFilter('thought')} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${personalFilter === 'thought' ? 'bg-[var(--accent)] text-white' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border border-[var(--bg-card)]'}`}>Мысли</button>
-                    <button onClick={() => setPersonalFilter('quote')} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${personalFilter === 'quote' ? 'bg-pink-500 text-white' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border border-[var(--bg-card)]'}`}>Цитаты</button>
+      <div className="flex-1 overflow-y-auto p-6 no-scrollbar pb-32">
+        <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
+          {filteredThoughts.map(t => (
+            <div key={t.id} className="break-inside-avoid group bg-white/5 border border-white/5 rounded-3xl p-6 relative hover:border-indigo-500/30 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-xl bg-black/20 ${t.type === 'link' ? 'text-blue-400' : t.type === 'file' ? 'text-amber-400' : 'text-indigo-400'}`}>
+                    {t.type === 'link' ? <LinkIcon size={14}/> : t.type === 'file' ? <FileIcon size={14}/> : <Brain size={14}/>}
+                  </div>
+                  <span className="text-[10px] font-black uppercase text-white/30 tracking-widest">{t.type}</span>
                 </div>
-
-                <div className="p-4 pt-0 columns-1 md:columns-2 gap-3 space-y-3">
-                    {filteredThoughts.length === 0 && (
-                        <div className="text-center py-20 text-[var(--text-muted)]">
-                            <Brain size={48} className="mx-auto mb-4 opacity-10" />
-                            <p className="text-sm font-medium">Здесь хранятся ваши идеи вне доски планов.</p>
-                        </div>
-                    )}
-                    {filteredThoughts.map(thought => (
-                        <div key={thought.id} className="break-inside-avoid mb-3 group bg-[var(--bg-item)] p-5 rounded-2xl border border-[var(--border-color)] relative hover:border-[var(--accent)]/50 transition-all">
-                            <div className="flex items-center gap-2 mb-3">
-                                {thought.type === 'quote' ? <QuoteIcon size={14} className="text-pink-500"/> : <Brain size={14} className="text-[var(--accent)]"/>}
-                                <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase">{thought.type}</span>
-                            </div>
-                            <p className={`text-[var(--text-main)] leading-relaxed font-serif ${thought.type === 'quote' ? 'italic text-lg' : 'text-base'}`}>
-                                {thought.content}
-                            </p>
-                            {thought.author && <div className="mt-3 text-right"><span className="text-xs font-bold text-[var(--text-muted)] uppercase">— {thought.author}</span></div>}
-                            <div className="mt-3 pt-3 border-t border-[var(--bg-card)] flex justify-between items-center opacity-40">
-                                <span className="text-[9px] text-[var(--text-muted)]">{format(new Date(thought.createdAt), 'd MMM yyyy', { locale: ru })}</span>
-                                <button onClick={() => onDelete(thought.id)} className="text-[var(--text-muted)] hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-              </>
-          )}
-
-          {activeTab === 'library' && (
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {libraryQuotes.map(quote => (
-                      <div key={quote.id} className="bg-[var(--bg-item)] p-6 rounded-2xl border border-[var(--border-color)] relative group hover:border-pink-500/50 transition-all">
-                          <p className="relative z-10 text-lg font-serif italic text-[var(--text-main)] mb-4 leading-relaxed">"{quote.text}"</p>
-                          <div className="flex justify-between items-center">
-                              <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide">{quote.author}</span>
-                              <button onClick={() => handleSaveToMyThoughts(quote)} className="p-2 bg-[var(--bg-card)] text-[var(--text-muted)] rounded-lg hover:text-pink-500 transition-colors"><Download size={14} /></button>
-                          </div>
-                      </div>
-                  ))}
+                <button onClick={() => onDelete(t.id)} className="opacity-0 group-hover:opacity-100 p-2 text-white/20 hover:text-rose-500 transition-all"><Trash2 size={14}/></button>
               </div>
-          )}
-       </div>
 
-       {activeTab === 'personal' && !isAdding && (
-           <div className="fixed bottom-28 right-6">
-                <button onClick={() => setIsAdding(true)} className="bg-[var(--accent)] text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform"><Plus size={24} /></button>
-           </div>
-       )}
-
-       {isAdding && (
-           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in">
-                <div className="bg-[var(--bg-main)] w-full max-w-md p-6 rounded-3xl border border-[var(--border-color)] shadow-2xl animate-in zoom-in-95">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-[var(--text-main)]">Добавить в архив</h3>
-                        <button onClick={() => setIsAdding(false)}><X size={20}/></button>
-                    </div>
-                    <textarea 
-                        autoFocus
-                        value={newContent}
-                        onChange={(e) => setNewContent(e.target.value)}
-                        placeholder="О чем вы думаете?"
-                        className="w-full bg-[var(--bg-item)] rounded-xl p-4 text-[var(--text-main)] min-h-[150px] mb-4 focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-none"
-                    />
-                    <button onClick={handleManualAdd} className="w-full py-3 bg-[var(--accent)] text-white rounded-xl font-bold">Сохранить</button>
+              {t.type === 'link' ? (
+                <a href={t.metadata?.url} target="_blank" rel="noopener noreferrer" className="block">
+                  <p className="text-sm font-bold text-white mb-2 hover:text-indigo-400 transition-colors">{t.content}</p>
+                  <p className="text-[10px] text-blue-400 truncate opacity-60 underline">{t.metadata?.url}</p>
+                </a>
+              ) : t.type === 'file' ? (
+                <div className="flex items-center gap-3">
+                   <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{t.content}</p>
+                      <p className="text-[10px] text-white/30 uppercase font-black">{t.metadata?.fileType?.split('/')[1] || 'FILE'}</p>
+                   </div>
+                   <button className="p-2 bg-white/5 rounded-lg text-white/40 hover:text-white"><Download size={14}/></button>
                 </div>
-           </div>
-       )}
+              ) : (
+                <p className="text-sm text-white/80 leading-relaxed">{t.content}</p>
+              )}
+
+              {t.tags.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-1">
+                  {t.tags.map(tag => <span key={tag} className="text-[9px] font-bold text-indigo-400">#{tag}</span>)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="fixed bottom-28 right-6 z-40">
+        <button onClick={() => setIsAdding(true)} className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"><Plus size={24}/></button>
+      </div>
+
+      {isAdding && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in">
+          <div className="bg-[var(--bg-item)] w-full max-w-md p-8 rounded-[3rem] border border-white/10 shadow-3xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-lg font-black uppercase tracking-tighter">Добавить в архив</h3>
+              <button onClick={resetForm}><X size={24}/></button>
+            </div>
+
+            <div className="flex bg-white/5 p-1 rounded-2xl mb-6">
+              {[
+                { id: 'thought', label: 'Мысль', icon: <Brain size={14}/> },
+                { id: 'link', label: 'Ссылка', icon: <LinkIcon size={14}/> },
+                { id: 'file', label: 'Файл', icon: <Paperclip size={14}/> }
+              ].map(opt => (
+                <button key={opt.id} onClick={() => setAddType(opt.id as any)} className={`flex-1 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${addType === opt.id ? 'bg-indigo-600 text-white' : 'text-white/40'}`}>
+                  {opt.icon} {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-4">
+              {addType === 'file' ? (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-12 border-2 border-dashed border-white/10 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all"
+                >
+                  <Paperclip size={32} className="text-white/20 mb-4" />
+                  <p className="text-xs font-bold text-white/40 uppercase tracking-widest">Кликни для загрузки</p>
+                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                </div>
+              ) : (
+                <>
+                  {addType === 'link' && (
+                    <input 
+                      autoFocus
+                      value={newUrl} 
+                      onChange={e => setNewUrl(e.target.value)} 
+                      placeholder="URL ссылки..." 
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-indigo-500/50 outline-none"
+                    />
+                  )}
+                  <textarea 
+                    autoFocus={addType === 'thought'}
+                    value={newContent} 
+                    onChange={e => setNewContent(e.target.value)} 
+                    placeholder={addType === 'link' ? "Заголовок ссылки (необязательно)..." : "О чем ты думаешь?"} 
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white min-h-[120px] focus:border-indigo-500/50 outline-none resize-none"
+                  />
+                  <input 
+                    value={tagInput} 
+                    onChange={e => setTagInput(e.target.value)} 
+                    placeholder="Теги через запятую..." 
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white focus:border-indigo-500/50 outline-none"
+                  />
+                  <button onClick={handleManualAdd} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95 transition-all">Сохранить</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
