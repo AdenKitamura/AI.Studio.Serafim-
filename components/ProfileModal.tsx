@@ -3,9 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey } from '../types';
 import Settings from './Settings';
 import { 
-  User, Settings as SettingsIcon, X, Smartphone, 
-  Database, Activity, Info, CheckCircle2, AlertCircle, 
-  Zap, Cpu, HardDrive, HelpCircle, Download, RefreshCw
+  X, Cpu, Database, Settings as SettingsIcon, Activity, CheckCircle2, RefreshCw
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -15,16 +13,13 @@ interface ProfileModalProps {
   setTheme: (t: ThemeKey) => void;
   onClose: () => void;
   onImport: (data: any) => void;
-  canInstall?: boolean;
-  onInstall?: () => void;
-  swStatus?: 'loading' | 'active' | 'error';
   hasAiKey: boolean;
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
-    appState, userName, currentTheme, setTheme, onClose, onImport, canInstall, onInstall, swStatus, hasAiKey 
+    appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey 
 }) => {
-  const [activeTab, setActiveTab] = useState<'settings' | 'install' | 'system'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'system'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
   const [dbStatus, setDbStatus] = useState<'connected' | 'error' | 'checking'>('checking');
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
@@ -57,34 +52,33 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   useEffect(() => {
     runDiagnostics();
-    const interval = setInterval(runDiagnostics, 10000);
+    const interval = setInterval(runDiagnostics, 30000);
     return () => clearInterval(interval);
   }, [runDiagnostics]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center animate-in fade-in duration-200">
-        <div className="w-full sm:max-w-md h-[85vh] sm:h-[75vh] bg-[var(--bg-main)] sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden border border-[var(--border-color)]">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center animate-in fade-in duration-300">
+        <div className="w-full sm:max-w-md h-[80vh] bg-[var(--bg-main)] sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden border border-white/5">
             
-            <div className="flex-none p-4 border-b border-[var(--bg-card)] flex justify-between items-center bg-[var(--bg-main)]">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="flex-none p-5 border-b border-white/5 flex justify-between items-center bg-[var(--bg-main)]">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">
                         {userName.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <h3 className="font-bold text-[var(--text-main)]">Настройки</h3>
-                        <p className="text-xs text-[var(--text-muted)]">Конфигурация ядра</p>
+                        <h3 className="font-extrabold text-lg text-white tracking-tight">{userName}</h3>
+                        <p className="text-[10px] font-black uppercase text-white/30 tracking-widest">Serafim OS Core</p>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-white border border-[var(--border-color)]">
+                <button onClick={onClose} className="p-2 bg-white/5 rounded-full text-white/40 hover:text-white border border-white/5 transition-colors">
                     <X size={20} />
                 </button>
             </div>
 
             <div className="flex-none p-4 pb-0 bg-[var(--bg-main)]">
-                <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--bg-card)] gap-1">
-                    <button onClick={() => setActiveTab('settings')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-1.5 transition-all ${activeTab === 'settings' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}><SettingsIcon size={14} /> Опции</button>
-                    <button onClick={() => setActiveTab('system')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-1.5 transition-all ${activeTab === 'system' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}><Cpu size={14} /> Система</button>
-                    <button onClick={() => setActiveTab('install')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-1.5 transition-all ${activeTab === 'install' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}><Smartphone size={14} /> PWA</button>
+                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 gap-1">
+                    <button onClick={() => setActiveTab('settings')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><SettingsIcon size={14} /> Параметры</button>
+                    <button onClick={() => setActiveTab('system')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><Cpu size={14} /> Состояние</button>
                 </div>
             </div>
 
@@ -92,44 +86,56 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {activeTab === 'settings' && <Settings currentTheme={currentTheme} setTheme={setTheme} onClose={onClose} exportData={{ ...appState, user: userName }} onImport={onImport} />}
                 
                 {activeTab === 'system' && (
-                  <div className="p-6 h-full overflow-y-auto space-y-4 no-scrollbar pb-20">
-                    <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Состояние системы</h4>
-                        <div className="flex items-center gap-1.5 text-[8px] font-bold text-indigo-500/50 uppercase">
-                            Обновление: {lastCheck}
-                        </div>
+                  <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-24">
+                    <div className="flex justify-between items-center">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white/30">Диагностика ядра</h4>
+                        <button onClick={runDiagnostics} className="p-2 bg-white/5 rounded-lg text-indigo-400 hover:text-white transition-colors">
+                            <RefreshCw size={14} />
+                        </button>
                     </div>
                     
-                    <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl"><Database size={20} /></div>
-                        <span className="text-sm font-bold text-[var(--text-main)]">IndexedDB</span>
-                      </div>
-                      <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                    <div className="space-y-3">
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-blue-500/10 text-blue-500 rounded-2xl"><Database size={20} /></div>
+                                <div>
+                                    <p className="text-sm font-bold text-white">База данных</p>
+                                    <p className="text-[10px] font-medium text-white/30">IndexedDB Local</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black uppercase text-emerald-500">{dbStatus}</span>
+                                <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 animate-pulse'}`}></div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl"><Activity size={20} /></div>
+                                    <div>
+                                        <p className="text-sm font-bold text-white">Память</p>
+                                        <p className="text-[10px] font-medium text-white/30">{storageInfo?.used} использовано</p>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-mono font-bold text-white/40">{storageInfo?.percent.toFixed(1)}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${storageInfo?.percent || 0}%` }}></div>
+                            </div>
+                        </div>
+
+                        <div className="bg-indigo-600/5 border border-indigo-500/10 rounded-2xl p-5 flex flex-col items-center text-center">
+                            <Cpu size={32} className="text-indigo-500 mb-3 opacity-50" />
+                            <h5 className="text-xs font-black uppercase tracking-widest text-white/80 mb-2">Статус AI</h5>
+                            <p className="text-[10px] text-white/40 leading-relaxed px-4">
+                                Ядро Gemini 3 Flash активно. Все функции анализа и планирования доступны в полном объеме.
+                            </p>
+                        </div>
                     </div>
 
-                    <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-sm font-bold text-[var(--text-main)]">Хранилище</span>
-                        <span className="text-[10px] font-mono text-[var(--text-muted)]">{storageInfo?.used || '...'}</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-[var(--bg-main)] rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-500" style={{ width: `${storageInfo?.percent || 0}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {activeTab === 'install' && (
-                  <div className="p-6 h-full overflow-y-auto space-y-6">
-                    <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-5 text-center">
-                      <Smartphone className="mx-auto mb-3 text-indigo-500" size={40} />
-                      <h4 className="text-lg font-bold text-white mb-4">Установка</h4>
-                      {canInstall ? (
-                        <button onClick={onInstall} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"><Download size={18} /> Установить PWA</button>
-                      ) : (
-                        <p className="text-xs text-[var(--text-muted)] leading-relaxed text-center">Для iOS: нажмите "Поделиться" &rarr; "На экран Домой".</p>
-                      )}
+                    <div className="pt-6 border-t border-white/5">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/20 text-center">Serafim OS v2.5.1 • Последняя проверка: {lastCheck}</p>
                     </div>
                   </div>
                 )}

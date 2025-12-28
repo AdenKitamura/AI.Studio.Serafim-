@@ -2,7 +2,7 @@
 import React, { useRef } from 'react';
 import { themes } from '../themes';
 import { ThemeKey } from '../types';
-import { CheckCircle, X, Sun, Moon, Database, Download, Upload, AlertTriangle, FileJson } from 'lucide-react';
+import { CheckCircle, X, Sun, Moon, Database, Download, Upload, AlertTriangle, Palette } from 'lucide-react';
 
 interface SettingsProps {
   currentTheme: ThemeKey;
@@ -36,66 +36,91 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
         try {
             const json = JSON.parse(e.target?.result as string);
             onImport(json);
-            alert('Резервная копия успешно восстановлена!');
+            alert('Данные успешно импортированы!');
         } catch (err) {
-            alert('Ошибка чтения файла. Убедитесь, что это корректный файл JSON от Serafim.');
+            alert('Ошибка импорта. Некорректный формат файла.');
         }
     };
     reader.readAsText(file);
-    // Reset input so same file can be selected again
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-main)] p-6 animate-in fade-in slide-in-from-right-4 duration-300 relative z-50">
-      <div className="flex justify-between items-center mb-6 pb-4 border-b border-[var(--border-color)] flex-none">
-          <div>
-            <h2 className="text-2xl font-bold text-[var(--text-main)]">Настройки</h2>
-            <p className="text-sm text-[var(--text-muted)]">Конфигурация системы</p>
-          </div>
-          <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-[var(--border-color)]">
-              <X size={24} />
-          </button>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-20 space-y-8">
+    <div className="flex flex-col h-full bg-transparent p-6 animate-in fade-in slide-in-from-bottom-4 duration-300 relative z-50 overflow-hidden">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-32 space-y-10">
         
-        {/* === DATA & SECURITY === */}
+        {/* ВНЕШНИЙ ВИД */}
         <section>
-             <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Database size={16} />
-                Данные и Безопасность
-            </h3>
+            <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg"><Palette size={18} /></div>
+                <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em]">Визуальный стиль</h3>
+            </div>
             
-            <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-5 space-y-4">
-                <div className="flex items-start gap-3 p-3 bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)]">
-                    <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
-                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                        Все данные хранятся <strong>локально</strong> в вашем браузере. Регулярно делайте резервные копии, чтобы не потерять мысли при очистке кэша или смене устройства.
+            <div className="grid grid-cols-2 gap-3">
+            {(Object.keys(themes) as ThemeKey[]).map((key) => {
+                const theme = themes[key];
+                const isActive = currentTheme === key;
+                return (
+                <button
+                    key={key}
+                    onClick={() => setTheme(key)}
+                    className={`
+                    relative p-4 rounded-2xl flex flex-col gap-3 transition-all text-left border
+                    ${isActive ? 'bg-white/10 border-indigo-500 shadow-lg' : 'bg-white/5 border-white/5 hover:border-white/20'}
+                    `}
+                >
+                    <div className="flex justify-between items-center w-full">
+                        <div className="w-8 h-8 rounded-xl border border-white/10 flex items-center justify-center shadow-inner" style={{ backgroundColor: theme.colors['--bg-main'] }}>
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: theme.colors['--accent'] }}></div>
+                        </div>
+                        {isActive && <CheckCircle size={14} className="text-indigo-500" />}
+                    </div>
+                    
+                    <div>
+                        <span className={`block text-[10px] font-black uppercase tracking-tighter ${isActive ? 'text-white' : 'text-white/40'}`}>
+                            {theme.name}
+                        </span>
+                    </div>
+                </button>
+                );
+            })}
+            </div>
+        </section>
+
+        {/* УПРАВЛЕНИЕ ДАННЫМИ */}
+        <section>
+             <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg"><Database size={18} /></div>
+                <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em]">Данные</h3>
+            </div>
+            
+            <div className="bg-white/5 border border-white/5 rounded-[2rem] p-6 space-y-6">
+                <div className="flex items-start gap-4 p-4 bg-amber-500/5 rounded-2xl border border-amber-500/10">
+                    <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={16} />
+                    <p className="text-[10px] text-amber-500/60 leading-relaxed font-bold uppercase tracking-tight">
+                        Все записи хранятся локально. Делайте бэкап перед очисткой браузера.
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-3">
                     <button 
                         onClick={handleExport}
-                        className="flex flex-col items-center justify-center gap-2 p-6 bg-[var(--bg-main)] hover:bg-[var(--bg-card)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-xl transition-all group"
+                        className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl transition-all"
                     >
-                        <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full group-hover:scale-110 transition-transform">
-                            <Download size={24} />
+                        <div className="flex items-center gap-4">
+                            <Download size={18} className="text-indigo-400" />
+                            <span className="text-xs font-bold text-white uppercase tracking-widest">Экспорт JSON</span>
                         </div>
-                        <span className="font-bold text-[var(--text-main)]">Скачать бэкап</span>
-                        <span className="text-[10px] text-[var(--text-muted)]">Сохранить JSON файл</span>
                     </button>
 
                     <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex flex-col items-center justify-center gap-2 p-6 bg-[var(--bg-main)] hover:bg-[var(--bg-card)] border border-[var(--border-color)] hover:border-emerald-500 rounded-xl transition-all group"
+                        className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl transition-all"
                     >
-                        <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-full group-hover:scale-110 transition-transform">
-                            <Upload size={24} />
+                        <div className="flex items-center gap-4">
+                            <Upload size={18} className="text-emerald-400" />
+                            <span className="text-xs font-bold text-white uppercase tracking-widest">Импорт JSON</span>
                         </div>
-                        <span className="font-bold text-[var(--text-main)]">Восстановить</span>
-                        <span className="text-[10px] text-[var(--text-muted)]">Загрузить JSON файл</span>
                     </button>
                     <input 
                         type="file" 
@@ -105,53 +130,6 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
                         onChange={handleFileImport}
                     />
                 </div>
-            </div>
-        </section>
-
-        {/* === APPEARANCE === */}
-        <section>
-            <h3 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Sun size={16} />
-                Внешний вид
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(Object.keys(themes) as ThemeKey[]).map((key) => {
-                const theme = themes[key];
-                const isActive = currentTheme === key;
-                return (
-                <button
-                    key={key}
-                    onClick={() => setTheme(key)}
-                    className={`
-                    relative p-4 rounded-2xl flex items-center gap-4 transition-all text-left
-                    ${isActive ? 'bg-[var(--bg-item)] border-2 border-[var(--accent)] shadow-lg' : 'bg-[var(--bg-item)] border border-[var(--border-color)] hover:bg-[var(--bg-card)] hover:border-[var(--text-muted)]'}
-                    `}
-                >
-                    <div className="relative">
-                        <div className="w-10 h-10 rounded-full border border-white/10 shadow-inner flex items-center justify-center" style={{ backgroundColor: theme.colors['--bg-main'] }}>
-                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: theme.colors['--accent'] }}></div>
-                        </div>
-                        <div className="absolute -bottom-1 -right-1 bg-[var(--bg-card)] rounded-full p-0.5 shadow-sm border border-[var(--border-color)]">
-                            {theme.type === 'light' ? <Sun size={10} className="text-[var(--text-muted)]"/> : <Moon size={10} className="text-[var(--text-muted)]"/>}
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <span className={`block text-sm font-bold ${isActive ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>
-                            {theme.name}
-                        </span>
-                        <span className="text-[10px] text-[var(--text-muted)] opacity-70 uppercase">{theme.type === 'light' ? 'Светлая' : 'Темная'}</span>
-                    </div>
-
-                    {isActive && (
-                    <div className="ml-auto text-[var(--accent)] animate-in zoom-in">
-                        <CheckCircle size={20} />
-                    </div>
-                    )}
-                </button>
-                );
-            })}
             </div>
         </section>
 

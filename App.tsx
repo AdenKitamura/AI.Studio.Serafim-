@@ -12,23 +12,21 @@ import FocusTimer from './components/FocusTimer';
 import Dashboard from './components/Dashboard';
 import InteractiveTour from './components/InteractiveTour';
 import Onboarding from './components/Onboarding';
-import Settings from './components/Settings';
 import AnalyticsView from './components/AnalyticsView';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { 
-  CheckCircle, 
   Zap, 
   BookOpen, 
   Loader2, 
   LayoutDashboard, 
   Mic, 
-  Brain, 
   Folder, 
   Settings as SettingsIcon,
   Archive,
   Activity,
-  Download
+  Download,
+  CheckCircle
 } from 'lucide-react';
 
 const App = () => {
@@ -87,7 +85,11 @@ const App = () => {
           dbService.getAll<Habit>('habits'),
           dbService.getAll<ChatSession>('chat_sessions')
         ]);
-        setTasks(t); setThoughts(th); setJournal(j); setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#6366f1', createdAt: new Date().toISOString() }]); setHabits(h);
+        setTasks(t); 
+        setThoughts(th); 
+        setJournal(j); 
+        setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#6366f1', createdAt: new Date().toISOString() }]); 
+        setHabits(h);
         if (s.length > 0) {
           const sorted = s.sort((a, b) => b.lastInteraction - a.lastInteraction);
           setSessions(sorted); setActiveSessionId(sorted[0].id);
@@ -102,7 +104,16 @@ const App = () => {
     loadData();
   }, [userName]);
 
-  useEffect(() => { if (isDataReady) { dbService.saveAll('tasks', tasks); dbService.saveAll('thoughts', thoughts); dbService.saveAll('journal', journal); dbService.saveAll('projects', projects); dbService.saveAll('habits', habits); dbService.saveAll('chat_sessions', sessions); } }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
+  useEffect(() => { 
+    if (isDataReady) { 
+      dbService.saveAll('tasks', tasks); 
+      dbService.saveAll('thoughts', thoughts); 
+      dbService.saveAll('journal', journal); 
+      dbService.saveAll('projects', projects); 
+      dbService.saveAll('habits', habits); 
+      dbService.saveAll('chat_sessions', sessions); 
+    } 
+  }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
 
   const themeColors = useMemo(() => themes[currentTheme]?.colors || themes.slate.colors, [currentTheme]);
 
@@ -112,13 +123,13 @@ const App = () => {
   return (
     <div className={`h-[100dvh] w-full overflow-hidden flex flex-col relative transition-colors duration-500`} style={themeColors as any}>
       <header className="flex-none flex items-center justify-between px-6 py-5 z-40 bg-[var(--bg-main)]/60 backdrop-blur-3xl border-b border-white/5">
-        <div className="flex items-center gap-3" onClick={() => setView('dashboard')}>
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-lg cursor-pointer active:scale-90 transition-transform"><span className="font-black text-xl text-white">S</span></div>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('dashboard')}>
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-lg active:scale-90 transition-transform"><span className="font-black text-xl text-white">S</span></div>
           <h1 className="font-extrabold text-2xl tracking-tighter opacity-90 hidden sm:block">Serafim OS</h1>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => setShowTimer(!showTimer)} className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-indigo-400 hover:text-white transition-all"><Zap size={18} /></button>
-          <button onClick={handleExport} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-all border border-white/5" title="Бэкап данных">
+          <button onClick={handleExport} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-all border border-white/5" title="Бэкап">
             <Download size={18} />
           </button>
           <button onClick={() => setShowSettings(true)} className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 transition-all hover:bg-indigo-600/20" title="Настройки">
