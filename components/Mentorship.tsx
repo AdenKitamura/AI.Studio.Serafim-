@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory } from '../types';
 import { createMentorChat } from '../services/geminiService';
-import { Loader2, ArrowUp, Zap, Plus, History, X, Trash2, Tag, ChevronLeft, Sparkles, ShieldAlert } from 'lucide-react';
+import { Loader2, ArrowUp, Zap, Plus, History, X, Trash2, Tag, ChevronLeft, Sparkles, ShieldAlert, Mic } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
 
@@ -24,6 +24,8 @@ interface MentorshipProps {
   onAddThought: (thought: Thought) => void;
   hasAiKey: boolean;
   onConnectAI: () => void;
+  prefilledMessage?: string;
+  onClearPrefilled?: () => void;
 }
 
 const CATEGORY_MAP: Record<ChatCategory, { label: string, color: string }> = {
@@ -37,7 +39,7 @@ const CATEGORY_MAP: Record<ChatCategory, { label: string, color: string }> = {
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits = [], 
     sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession,
-    hasAiKey, onConnectAI
+    hasAiKey, onConnectAI, prefilledMessage, onClearPrefilled
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -53,6 +55,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const thinkTimeoutRef = useRef<number | null>(null);
+
+  // Prefill handler
+  useEffect(() => {
+    if (prefilledMessage) {
+      setInput(prefilledMessage);
+      onClearPrefilled?.();
+    }
+  }, [prefilledMessage]);
 
   useEffect(() => {
     chatSessionRef.current = null;
@@ -96,7 +106,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } catch (e: any) {
       console.error(e);
       if (e.message?.includes("Requested entity was not found") || e.status === 404) {
-        // Force re-auth if key is invalid
         onConnectAI();
       } else {
         onUpdateMessages([...messages, userMsg, { id: 'err-' + Date.now(), role: 'model', content: "Ошибка связи. Попробуйте еще раз.", timestamp: Date.now() }]);
@@ -261,14 +270,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-[var(--text-main)] border border-white/5 backdrop-blur-md'}`}>
               <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
-              {msg.id === 'err-key' && (
-                <button 
-                  onClick={onConnectAI}
-                  className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-indigo-500 text-white rounded-xl text-xs font-bold"
-                >
-                  <Zap size={14} /> Выбрать ключ
-                </button>
-              )}
             </div>
           </div>
         ))}
@@ -284,11 +285,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
       <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/90 to-transparent pt-10">
         <div className="flex items-center gap-2 max-w-2xl mx-auto bg-[var(--bg-item)]/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl focus-within:border-indigo-500/50 transition-all">
           <button 
-            onClick={() => setShowHistory(true)}
+            onClick={() => {
+              // Contextual voice input inside chat if needed
+              const startVoice = (window as any).startGlobalVoice;
+              if (startVoice) startVoice();
+            }}
             className="p-3 text-[var(--text-muted)] hover:text-indigo-400 transition-colors"
-            title="История чатов"
           >
-            <History size={18} className="opacity-50" />
+            <Mic size={18} className="opacity-50" />
           </button>
           <textarea
             rows={1}

@@ -34,18 +34,16 @@ import {
   FileJson,
   Save,
   AlertTriangle,
-  // Fix: Added missing AlertCircle export used in App.tsx
   AlertCircle,
-  // Added Loader2 export
   Loader2,
   Flame,
   Zap,
   Repeat,
-  // Fix: Added missing Key export used in App.tsx
-  Key
+  Key,
+  Mic,
+  MicOff
 } from 'lucide-react';
 
-// Re-exporting for easier imports
 export { 
   CheckCircle, 
   Circle, 
@@ -80,13 +78,12 @@ export {
   FileJson,
   Save,
   AlertTriangle,
-  // Fix: Added missing AlertCircle export used in App.tsx
   AlertCircle,
-  // Added Loader2 export
   Loader2,
   Flame,
   Zap,
   Repeat,
-  // Fix: Added missing Key export used in App.tsx
-  Key
+  Key,
+  Mic,
+  MicOff
 };

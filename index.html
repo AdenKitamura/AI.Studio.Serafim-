@@ -22,22 +22,21 @@
     <link rel="manifest" href="manifest.json" />
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
     <style>
       :root {
-        --dot-size: 1px;
-        --dot-space: 32px;
+        --dot-size: 1.5px;
+        --dot-space: 40px;
       }
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Plus Jakarta Sans', sans-serif;
         -webkit-tap-highlight-color: transparent;
-        background-color: #09090b;
-        color: #f4f4f5;
+        background-color: #000000;
         overscroll-behavior-y: none;
         position: fixed;
         width: 100%;
-        height: 100dvh; /* Dynamic viewport height */
+        height: 100dvh;
         overflow: hidden;
         margin: 0;
         padding: 0;
@@ -45,7 +44,15 @@
       #root {
         height: 100%;
         width: 100%;
+        background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+        background-size: var(--dot-space) var(--dot-space);
+        transition: background-color 0.5s ease;
       }
+      
+      .light-theme #root {
+        background-image: radial-gradient(circle, rgba(0,0,0,0.05) 1px, transparent 1px);
+      }
+
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       
@@ -63,6 +70,33 @@
       }
       .animate-ticker {
         animation: ticker 120s linear infinite;
+      }
+
+      /* Transitions */
+      .page-enter {
+        animation: fadeInScale 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      @keyframes fadeInScale {
+        from { opacity: 0; transform: translateY(15px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      /* OS-like Blur (Refined for both themes) */
+      .glass {
+        background: var(--bg-item);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        box-shadow: 0 4px 32px 0 rgba(0, 0, 0, 0.2);
+      }
+      .light-theme .glass {
+        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.05);
+      }
+      
+      /* Unified Card Shape */
+      .os-card {
+        border-radius: 2rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
       }
     </style>
     <script type="importmap">
@@ -82,15 +116,6 @@
     }
     </script>
     <script type="module" src="./index.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('Serafim SW registered'))
-            .catch(err => console.log('SW reg error:', err));
-        });
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>
