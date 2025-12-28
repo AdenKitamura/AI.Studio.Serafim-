@@ -21,8 +21,7 @@ import {
   Loader2,
   LayoutDashboard,
   AlertCircle,
-  Mic,
-  X
+  Mic
 } from './components/Icons';
 
 const App = () => {
@@ -43,11 +42,8 @@ const App = () => {
   const [showTimer, setShowTimer] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   
-  // Voice State
-  const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [prefilledMessage, setPrefilledMessage] = useState('');
-  const recognitionRef = useRef<any>(null);
+  // Signal for Mentorship component to start recording immediately
+  const [voiceTrigger, setVoiceTrigger] = useState(0);
 
   const [hasAiKey, setHasAiKey] = useState(() => {
     const envKey = process.env.API_KEY;
@@ -120,56 +116,8 @@ const App = () => {
       }).catch(() => setSwStatus('error'));
     }
 
-    // Setup Recognition
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'ru-RU';
-
-      recognitionRef.current.onresult = (event: any) => {
-        let currentTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            currentTranscript += event.results[i][0].transcript;
-          } else {
-            currentTranscript += event.results[i][0].transcript;
-          }
-        }
-        setTranscript(currentTranscript);
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-      };
-    }
-
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
-
-  const startVoiceInput = () => {
-    if (!recognitionRef.current) {
-      alert("Голосовой ввод не поддерживается вашим браузером.");
-      return;
-    }
-    setTranscript('');
-    setIsRecording(true);
-    recognitionRef.current.start();
-    if (navigator.vibrate) navigator.vibrate(50);
-  };
-
-  const stopVoiceInput = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    setIsRecording(false);
-    
-    if (transcript.trim()) {
-      setPrefilledMessage(transcript);
-      setView('chat');
-    }
-  };
 
   useEffect(() => {
     const checkKey = async () => {
@@ -247,6 +195,12 @@ const App = () => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
   };
 
+  const handleMicClick = () => {
+    setView('chat');
+    setVoiceTrigger(prev => prev + 1);
+    if (navigator.vibrate) navigator.vibrate(50);
+  };
+
   if (!isDataReady) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-[#000000] text-white">
@@ -265,15 +219,6 @@ const App = () => {
         body { 
           background: ${themeColors['--bg-main']}; 
           color: ${themeColors['--text-main']}; 
-        }
-        @keyframes pulse-ring {
-          0% { transform: scale(.33); }
-          80%, 100% { opacity: 0; }
-        }
-        @keyframes pulse-circle {
-          0% { transform: scale(.8); }
-          50% { transform: scale(1); }
-          100% { transform: scale(.8); }
         }
       `}</style>
       
@@ -330,8 +275,7 @@ const App = () => {
             onAddThought={t => setThoughts([t, ...thoughts])}
             hasAiKey={hasAiKey}
             onConnectAI={handleConnectAI}
-            prefilledMessage={prefilledMessage}
-            onClearPrefilled={() => setPrefilledMessage('')}
+            voiceTrigger={voiceTrigger}
           />
         )}
         {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
@@ -339,79 +283,50 @@ const App = () => {
         {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onAddHabit={h => setHabits([...habits, h])} onToggleHabit={(id, d) => setHabits(habits.map(h => h.id === id ? {...h, completedDates: h.completedDates.includes(d) ? h.completedDates.filter(cd => cd !== d) : [...h.completedDates, d]} : h))} onDeleteHabit={id => setHabits(habits.filter(h => h.id !== id))} />}
       </main>
 
-      {/* OS Dock Navigation */}
+      {/* OS Dock Navigation - Centralized and Balanced */}
       <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-8" id="nav-container">
         <nav className="pointer-events-auto flex items-center gap-1.5 p-2 glass bg-[var(--bg-item)]/70 border border-white/10 rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-10 duration-700">
           <button 
             onClick={() => setView('dashboard')} 
             className={`transition-all duration-300 w-12 h-12 rounded-[1.75rem] flex items-center justify-center ${view === 'dashboard' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}
+            aria-label="Dashboard"
           >
             <LayoutDashboard size={20} />
           </button>
           <button 
             onClick={() => setView('projects')} 
             className={`transition-all duration-300 w-12 h-12 rounded-[1.75rem] flex items-center justify-center ${view === 'projects' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}
+            aria-label="Projects"
           >
             <Folder size={20} />
           </button>
 
-          {/* VOIVE CORE BUTTON */}
+          {/* ACTION BUTTON: MIC */}
           <button 
-            onClick={startVoiceInput}
-            className="mx-1 w-16 h-16 rounded-[2rem] bg-indigo-600 text-white flex items-center justify-center shadow-[0_0_30px_rgba(79,70,229,0.4)] transition-all hover:scale-110 active:scale-90 group relative overflow-hidden"
+            onClick={handleMicClick}
+            className="mx-2 w-16 h-16 rounded-[2rem] bg-indigo-600 text-white flex items-center justify-center shadow-[0_0_40px_rgba(79,70,229,0.5)] transition-all hover:scale-110 active:scale-90 group relative overflow-hidden"
+            aria-label="Voice Input"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-transparent opacity-30"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-40"></div>
             <Mic size={28} className="relative z-10" />
-            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
           </button>
 
           <button 
             onClick={() => setView('planner')} 
             className={`transition-all duration-300 w-12 h-12 rounded-[1.75rem] flex items-center justify-center ${view === 'planner' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}
+            aria-label="Planner"
           >
             <CheckCircle size={20} />
           </button>
           <button 
-            onClick={() => setView('journal')} 
-            className={`transition-all duration-300 w-12 h-12 rounded-[1.75rem] flex items-center justify-center ${view === 'journal' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}
+            onClick={() => setView('chat')} 
+            className={`transition-all duration-300 w-12 h-12 rounded-[1.75rem] flex items-center justify-center ${view === 'chat' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}
+            aria-label="Mentorship Chat"
           >
-            <BookOpen size={20} />
+            <MessageSquare size={20} />
           </button>
         </nav>
       </div>
-
-      {/* Voice Recognition Overlay */}
-      {isRecording && (
-        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
-          <div className="absolute top-10 right-10">
-            <button onClick={stopVoiceInput} className="p-4 bg-white/5 rounded-full text-white/40 hover:text-white">
-              <X size={32} />
-            </button>
-          </div>
-          
-          <div className="relative mb-20">
-             <div className="w-32 h-32 bg-indigo-600 rounded-full flex items-center justify-center relative z-10 shadow-[0_0_60px_rgba(79,70,229,0.6)] animate-[pulse-circle_2s_infinite]">
-               <Mic size={48} className="text-white" />
-             </div>
-             <div className="absolute inset-0 w-32 h-32 border-4 border-indigo-500 rounded-full animate-[pulse-ring_1.25s_cubic-bezier(0.215,0.61,0.355,1)_infinite]"></div>
-             <div className="absolute inset-0 w-32 h-32 border-4 border-indigo-400 rounded-full animate-[pulse-ring_1.25s_cubic-bezier(0.215,0.61,0.355,1)_.25s_infinite]"></div>
-          </div>
-
-          <div className="max-w-xl w-full text-center">
-            <h2 className="text-xs font-black uppercase tracking-[0.5em] text-indigo-400 mb-8 animate-pulse">Слушаю Серафим...</h2>
-            <p className="text-2xl font-bold text-white leading-relaxed min-h-[120px]">
-              {transcript || 'Начните говорить...'}
-            </p>
-          </div>
-
-          <button 
-            onClick={stopVoiceInput}
-            className="mt-12 px-12 py-5 bg-white text-black rounded-full font-black uppercase tracking-widest text-sm hover:scale-105 transition-all shadow-2xl active:scale-95"
-          >
-            Готово
-          </button>
-        </div>
-      )}
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
       {showProfile && (

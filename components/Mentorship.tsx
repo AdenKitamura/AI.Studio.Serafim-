@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory } from '../types';
 import { createMentorChat } from '../services/geminiService';
-import { Loader2, ArrowUp, Zap, Plus, History, X, Trash2, Tag, ChevronLeft, Sparkles, ShieldAlert, Mic } from 'lucide-react';
+import { Loader2, ArrowUp, Zap, Plus, History, X, Trash2, Tag, ChevronLeft, Sparkles, ShieldAlert, Mic, MicOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
 
@@ -24,8 +24,7 @@ interface MentorshipProps {
   onAddThought: (thought: Thought) => void;
   hasAiKey: boolean;
   onConnectAI: () => void;
-  prefilledMessage?: string;
-  onClearPrefilled?: () => void;
+  voiceTrigger?: number; // Signal to start voice recognition
 }
 
 const CATEGORY_MAP: Record<ChatCategory, { label: string, color: string }> = {
@@ -39,13 +38,17 @@ const CATEGORY_MAP: Record<ChatCategory, { label: string, color: string }> = {
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits = [], 
     sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession,
-    hasAiKey, onConnectAI, prefilledMessage, onClearPrefilled
+    hasAiKey, onConnectAI, voiceTrigger = 0
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   
+  // Voice Recognition States
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<ChatCategory>('general');
 
@@ -56,13 +59,45 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const thinkTimeoutRef = useRef<number | null>(null);
 
-  // Prefill handler
+  // Initialize Recognition
   useEffect(() => {
-    if (prefilledMessage) {
-      setInput(prefilledMessage);
-      onClearPrefilled?.();
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'ru-RU';
+
+      recognitionRef.current.onresult = (event: any) => {
+        let currentTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          currentTranscript += event.results[i][0].transcript;
+        }
+        setInput(currentTranscript);
+      };
+
+      recognitionRef.current.onend = () => setIsRecording(false);
     }
-  }, [prefilledMessage]);
+  }, []);
+
+  // Handle external voice trigger
+  useEffect(() => {
+    if (voiceTrigger > 0 && recognitionRef.current && !isRecording) {
+      toggleVoice();
+    }
+  }, [voiceTrigger]);
+
+  const toggleVoice = () => {
+    if (!recognitionRef.current) return;
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      setInput('');
+      recognitionRef.current.start();
+      setIsRecording(true);
+    }
+  };
 
   useEffect(() => {
     chatSessionRef.current = null;
@@ -80,6 +115,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!hasAiKey) {
       onConnectAI();
       return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop();
     }
 
     setInput('');
@@ -125,6 +164,24 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-transparent relative z-10 overflow-hidden">
+      <style>{`
+        .voice-wave {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          height: 12px;
+        }
+        .voice-bar {
+          width: 2px;
+          background: #6366f1;
+          border-radius: 4px;
+          animation: wave-anim 1s ease-in-out infinite;
+        }
+        @keyframes wave-anim {
+          0%, 100% { height: 4px; }
+          50% { height: 12px; }
+        }
+      `}</style>
       
       {/* Sessions Browser Sidebar / Overlay */}
       {showHistory && (
@@ -210,7 +267,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       )}
 
       {/* Header for Active Session */}
-      <div className="flex-none px-6 py-3 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-sm">
+      <div className="flex-none px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => setShowHistory(true)} className="p-2 hover:bg-white/5 rounded-full text-white/50 hover:text-white transition-colors">
             <History size={20} />
@@ -241,27 +298,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
               </div>
               <h3 className="text-xl font-bold text-white mb-2">ИИ не подключен</h3>
               <p className="text-sm text-white/60 mb-8 max-w-xs mx-auto leading-relaxed">
-                {!window.aistudio 
-                  ? "В данном окружении (GitHub/Vercel) для работы ИИ необходимо установить переменную API_KEY в настройках вашего проекта." 
-                  : "Для работы цифрового ментора необходимо выбрать ваш персональный API ключ."}
+                Для работы цифрового ментора необходимо выбрать ваш персональный API ключ.
               </p>
               <button 
                 onClick={onConnectAI}
                 className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-3"
               >
-                <Zap size={18} /> {window.aistudio ? "Выбрать ключ" : "Как подключить?"}
+                <Zap size={18} /> Выбрать ключ
               </button>
-              <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest font-black">
-                Требуется платный проект GCP
-              </p>
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="block mt-2 text-[10px] text-indigo-400 hover:underline"
-              >
-                Документация по биллингу
-              </a>
             </div>
           </div>
         )}
@@ -282,36 +326,45 @@ const Mentorship: React.FC<MentorshipProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Improved Input Area with Voice Visualizer */}
       <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/90 to-transparent pt-10">
-        <div className="flex items-center gap-2 max-w-2xl mx-auto bg-[var(--bg-item)]/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl focus-within:border-indigo-500/50 transition-all">
+        
+        {isRecording && (
+          <div className="flex items-center justify-center gap-3 mb-3 animate-in slide-in-from-bottom-2 duration-300">
+             <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Serafim Слушает</span>
+             <div className="voice-wave">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="voice-bar" style={{ animationDelay: `${i * 0.1}s` }} />
+                ))}
+             </div>
+          </div>
+        )}
+
+        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-[var(--bg-item)]/80 backdrop-blur-2xl border ${isRecording ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-white/10'} rounded-[1.5rem] p-1.5 shadow-2xl transition-all`}>
           <button 
-            onClick={() => {
-              // Contextual voice input inside chat if needed
-              const startVoice = (window as any).startGlobalVoice;
-              if (startVoice) startVoice();
-            }}
-            className="p-3 text-[var(--text-muted)] hover:text-indigo-400 transition-colors"
+            onClick={toggleVoice}
+            className={`p-3 transition-colors rounded-xl ${isRecording ? 'bg-indigo-500 text-white' : 'text-[var(--text-muted)] hover:text-indigo-400 hover:bg-white/5'}`}
           >
-            <Mic size={18} className="opacity-50" />
+            {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
           <textarea
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={hasAiKey ? "Ваша мысль или вопрос..." : "Сначала подключите ИИ..."}
+            placeholder={isRecording ? "Говорите..." : "Ваша мысль или вопрос..."}
             className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/20"
             disabled={!hasAiKey}
           />
           <button 
             onClick={handleSend} 
             disabled={!input.trim() || isThinking || !hasAiKey} 
-            className={`p-3 rounded-xl transition-all shadow-lg ${!input.trim() || isThinking || !hasAiKey ? 'bg-white/5 text-white/20' : 'bg-indigo-600 text-white active:scale-95'}`}
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all shadow-lg ${!input.trim() || isThinking || !hasAiKey ? 'bg-white/5 text-white/20' : 'bg-indigo-600 text-white active:scale-95'}`}
           >
             <ArrowUp size={20} strokeWidth={3} />
           </button>
         </div>
-        <div className="h-20" />
+        <div className="h-24" />
       </div>
     </div>
   );
