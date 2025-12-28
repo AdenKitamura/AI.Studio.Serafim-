@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection } from '../types';
-import { format, isValid } from 'date-fns';
+import { format, isValid, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
-import { Calendar as CalendarIcon, Mic, MicOff, Sparkles, Tag } from 'lucide-react';
+import { Calendar as CalendarIcon, Mic, MicOff, Sparkles, Tag, Save } from 'lucide-react';
 
 interface JournalViewProps {
   journal: JournalEntry[];
@@ -14,6 +14,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isRecording, setIsRecording] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
+  const [lastSpeechResult, setLastSpeechResult] = useState('');
   const datePickerRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -43,7 +44,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = false; // Отключаем промежуточные результаты для стабильности
+      recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = 'ru-RU';
 
       recognitionRef.current.onresult = (event: any) => {
@@ -59,21 +60,23 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           setContent(prev => {
             const current = prev.trim();
             if (!current) return newText;
-            // Проверка на дублирование (если браузер повторно прислал тот же фрагмент)
-            if (current.toLowerCase().endsWith(newText.toLowerCase())) return current;
-            return current + ' ' + newText;
+            
+            // Фикс дублирования: проверяем, не заканчивается ли текст уже этими словами
+            // Очищаем от знаков препинания для более точного сравнения
+            const cleanCurrent = current.toLowerCase().replace(/[.,!?;:]/g, '');
+            const cleanNew = newText.toLowerCase().replace(/[.,!?;:]/g, '');
+            
+            if (cleanCurrent.endsWith(cleanNew)) {
+                return current;
+            }
+            
+            return current + '. ' + newText;
           });
         }
       };
 
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-      };
-
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
-        setIsRecording(false);
-      };
+      recognitionRef.current.onend = () => setIsRecording(false);
+      recognitionRef.current.onerror = () => setIsRecording(false);
     }
   }, []);
 
@@ -106,11 +109,10 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-main)]">
-      {/* Header */}
       <div className="p-6 flex justify-between items-center border-b border-white/5 bg-[var(--bg-main)]/80 backdrop-blur-md sticky top-0 z-30">
         <div>
-          <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter">ДНЕВНИК</h2>
-          <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-60">
+          <h2 className="text-2xl font-black text-white tracking-tighter">ДНЕВНИК</h2>
+          <p className="text-[10px] font-black uppercase text-white/40 tracking-widest">
             {format(selectedDate, 'eeee, d MMMM', { locale: ru })}
           </p>
         </div>
@@ -119,11 +121,11 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
             onClick={() => setShowReflection(!showReflection)} 
             className={`p-3 rounded-2xl flex items-center gap-2 text-xs font-bold transition-all ${showReflection ? 'bg-indigo-600 text-white' : 'bg-white/5 text-indigo-400 border border-indigo-500/20'}`}
           >
-            <Sparkles size={16} /> <span className="hidden sm:inline">Рефлексия</span>
+            <Sparkles size={16} /> <span className="hidden sm:inline">Итоги</span>
           </button>
           <button 
             onClick={() => datePickerRef.current?.showPicker()} 
-            className="p-3 bg-white/5 rounded-2xl text-[var(--text-main)] border border-white/5"
+            className="p-3 bg-white/5 rounded-2xl text-white border border-white/5"
           >
             <CalendarIcon size={20} />
           </button>
@@ -134,18 +136,17 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       <div className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar">
         <div className="max-w-2xl mx-auto py-8 space-y-10">
           
-          {/* Reflection Section */}
           {showReflection && (
             <div className="bg-indigo-600/5 border border-indigo-500/20 rounded-[2.5rem] p-8 space-y-6 animate-in slide-in-from-top-4 duration-500">
-              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-400 mb-4">Итоги дня</h3>
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-400">Ретроспектива</h3>
               {[
-                { label: 'Главный фокус', key: 'mainFocus', placeholder: 'Что было самым важным?' },
-                { label: 'Благодарность', key: 'gratitude', placeholder: 'Кому или за что ты благодарен?' },
-                { label: 'Трудности', key: 'blockers', placeholder: 'Что мешало прогрессу?' },
-                { label: 'Цель на завтра', key: 'tomorrowGoal', placeholder: 'Один главный шаг завтра...' }
+                { label: 'Главный фокус', key: 'mainFocus', placeholder: 'Что было в центре внимания?' },
+                { label: 'Благодарность', key: 'gratitude', placeholder: 'За что ты благодарен сегодня?' },
+                { label: 'Препятствия', key: 'blockers', placeholder: 'Что мешало двигаться вперед?' },
+                { label: 'Цель на завтра', key: 'tomorrowGoal', placeholder: 'Один ключевой шаг завтра...' }
               ].map((q) => (
                 <div key={q.key}>
-                  <label className="block text-[10px] font-black uppercase text-white/30 mb-2 tracking-widest">{q.label}</label>
+                  <label className="block text-[10px] font-black uppercase text-white/20 mb-2 tracking-widest">{q.label}</label>
                   <input 
                     className="w-full bg-black/20 border border-white/5 rounded-xl p-4 text-sm text-white focus:border-indigo-500/50 outline-none transition-all"
                     placeholder={q.placeholder}
@@ -161,7 +162,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
             </div>
           )}
 
-          {/* Mood & Tags */}
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex gap-2">
               {moods.map((m) => (
@@ -185,38 +185,35 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
                   value={tagInput}
                   onChange={e => setTagInput(e.target.value)}
                   onKeyDown={handleAddTag}
-                  placeholder="Добавить тег..."
+                  placeholder="Тег..."
                   className="bg-transparent border-none outline-none text-[10px] text-white placeholder:text-white/20 py-1"
                 />
               </div>
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="relative group">
-            <div className="absolute -left-12 top-0 hidden md:block">
-              <button 
-                onClick={toggleRecording} 
-                className={`p-3 rounded-full transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/5 text-[var(--text-muted)] hover:text-white'}`}
-              >
-                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-              </button>
-            </div>
-            
+          <div className="relative group min-h-[500px]">
             <textarea
-              className="w-full bg-transparent text-[var(--text-main)] text-xl font-medium leading-relaxed focus:outline-none placeholder:text-white/5 min-h-[400px] resize-none no-scrollbar"
-              placeholder="Начни писать или надиктовывать свои мысли..."
+              className="w-full bg-transparent text-white text-xl font-medium leading-relaxed focus:outline-none placeholder:text-white/5 min-h-[400px] resize-none no-scrollbar"
+              placeholder="О чем ты думаешь? Дай волю потоку сознания..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onBlur={handleSave}
             />
             
-            {/* Mobile Recording Button */}
-            <div className="md:hidden fixed bottom-32 right-6 z-40">
+            <div className="fixed bottom-32 right-6 z-40 flex flex-col gap-3">
+               <button 
+                onClick={handleSave}
+                className="w-14 h-14 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center hover:scale-110 transition-all"
+                title="Сохранить"
+               >
+                 <Save size={24} />
+               </button>
                <button 
                 onClick={toggleRecording} 
-                className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all ${isRecording ? 'bg-rose-500 text-white scale-110' : 'bg-indigo-600 text-white'}`}
-              >
+                className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110' : 'bg-white/10 text-white border border-white/10'}`}
+                title="Голосовой ввод"
+               >
                 {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
               </button>
             </div>
