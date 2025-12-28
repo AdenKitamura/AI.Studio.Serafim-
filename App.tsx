@@ -19,7 +19,8 @@ import {
   Zap,
   BookOpen,
   Loader2,
-  LayoutDashboard
+  LayoutDashboard,
+  AlertCircle
 } from './components/Icons';
 
 const App = () => {
@@ -80,7 +81,6 @@ const App = () => {
           setActiveSessionId(initialSession.id);
         }
 
-        // Check for first run tutorial
         const onboarded = localStorage.getItem('serafim_onboarded');
         if (!onboarded) {
           setShowTutorial(true);
@@ -103,12 +103,27 @@ const App = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
+      // Fix: Removed assignment to navigator.workerReady as it is not a standard property of the Navigator interface.
+      navigator.serviceWorker.ready.then(() => {
         setSwStatus('active');
       }).catch(() => setSwStatus('error'));
     }
 
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  // Check AI Key status
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasAiKey(hasKey);
+      }
+    };
+    checkKey();
+    // Re-check periodically
+    const interval = setInterval(checkKey, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // AUTO-SAVES
@@ -120,12 +135,6 @@ const App = () => {
   useEffect(() => { if (isDataReady) dbService.saveAll('chat_sessions', sessions); }, [sessions, isDataReady]);
   
   useEffect(() => { localStorage.setItem('sb_theme', currentTheme); }, [currentTheme]);
-
-  useEffect(() => {
-    if (window.aistudio) {
-      window.aistudio.hasSelectedApiKey().then(setHasAiKey).catch(() => setHasAiKey(false));
-    }
-  }, []);
 
   const handleUpdateSessionMessages = (sessionId: string, newMessages: ChatMessage[]) => {
     setSessions(prev => prev.map(s => 
@@ -171,6 +180,14 @@ const App = () => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
   };
 
+  const handleConnectAI = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Assume success as per race condition rules
+      setHasAiKey(true);
+    }
+  };
+
   if (!isDataReady) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-[#09090b] text-white">
@@ -193,13 +210,17 @@ const App = () => {
         <div className="flex items-center gap-2">
           <span className="font-black text-xl tracking-tighter text-indigo-500">S.</span>
           <h1 className="font-bold text-lg opacity-90 hidden sm:block">Serafim</h1>
-          {!hasAiKey && (
+          {!hasAiKey ? (
             <button 
-              onClick={() => window.aistudio?.openSelectKey().then(() => setHasAiKey(true))}
-              className="ml-2 px-3 py-1 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-[10px] font-bold uppercase"
+              onClick={handleConnectAI}
+              className="ml-2 px-3 py-1 bg-rose-600/20 text-rose-400 border border-rose-500/30 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1.5 animate-pulse"
             >
-              AI OFF
+              <AlertCircle size={10} /> Подключить ИИ
             </button>
+          ) : (
+            <div className="ml-2 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md text-[8px] font-black uppercase tracking-widest">
+              AI ONLINE
+            </div>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -214,7 +235,6 @@ const App = () => {
 
       <main className="flex-1 relative overflow-hidden z-10 pb-20">
         {view === 'dashboard' && (
-          // Fix: Removed sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession from Dashboard props
           <Dashboard 
             tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
             onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])}
@@ -237,7 +257,6 @@ const App = () => {
         {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onAddHabit={h => setHabits([...habits, h])} onToggleHabit={(id, d) => setHabits(habits.map(h => h.id === id ? {...h, completedDates: h.completedDates.includes(d) ? h.completedDates.filter(cd => cd !== d) : [...h.completedDates, d]} : h))} onDeleteHabit={id => setHabits(habits.filter(h => h.id !== id))} />}
       </main>
 
-      {/* FIXED NAVIGATION BAR */}
       <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-6 pb-8" id="nav-container">
         <nav className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-[var(--bg-item)]/90 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl">
           {navItems.map(item => (
