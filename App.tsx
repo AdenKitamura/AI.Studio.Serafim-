@@ -146,7 +146,7 @@ const App = () => {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-[#000000] text-white">
         <Loader2 className="animate-spin text-indigo-500 mb-6" size={48} />
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Initializing OS...</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Initializing OS Core...</p>
       </div>
     );
   }
@@ -171,8 +171,36 @@ const App = () => {
 
       <main className="flex-1 relative overflow-hidden z-10 page-enter">
         {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={setView} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} />}
-        {/* Fix: explicit cast for role: 'model' in onNewSession to satisfy ChatSession typing */}
-        {view === 'chat' && <Mentorship tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId} onUpdateMessages={(msgs) => handleUpdateSessionMessages(activeSessionId!, msgs)} onNewSession={(title, cat) => { const ns: ChatSession = { id: Date.now().toString(), title, category: cat, messages: [{id:'i', role:'model' as const, content:'Готов к работе.', timestamp:Date.now()}], lastInteraction:Date.now(), createdAt:new Date().toISOString() }; setSessions([ns, ...sessions]); setActiveSessionId(ns.id); }} onDeleteSession={id => { const next = sessions.filter(s => s.id !== id); setSessions(next); if(activeSessionId === id) setActiveSessionId(next[0]?.id || null); }} hasAiKey={hasAiKey} onConnectAI={handleConnectAI} voiceTrigger={voiceTrigger} onAddTask={t => setTasks([t, ...tasks])} onAddThought={t => setThoughts([t, ...thoughts])} />}
+        {view === 'chat' && (
+          <Mentorship 
+            tasks={tasks} 
+            thoughts={thoughts} 
+            journal={journal} 
+            projects={projects} 
+            habits={habits} 
+            sessions={sessions} 
+            activeSessionId={activeSessionId} 
+            onSelectSession={setActiveSessionId} 
+            onUpdateMessages={(msgs) => handleUpdateSessionMessages(activeSessionId!, msgs)} 
+            onNewSession={(title, cat) => { 
+              const ns: ChatSession = { id: Date.now().toString(), title, category: cat, messages: [{id:'i', role:'model' as const, content:'Готов к работе.', timestamp:Date.now()}], lastInteraction:Date.now(), createdAt:new Date().toISOString() }; 
+              setSessions([ns, ...sessions]); 
+              setActiveSessionId(ns.id); 
+            }} 
+            onDeleteSession={id => { 
+              const next = sessions.filter(s => s.id !== id); 
+              setSessions(next); 
+              if(activeSessionId === id) setActiveSessionId(next[0]?.id || null); 
+            }} 
+            hasAiKey={hasAiKey} 
+            onConnectAI={handleConnectAI} 
+            voiceTrigger={voiceTrigger} 
+            onAddTask={t => setTasks([t, ...tasks])} 
+            onAddThought={t => setThoughts([t, ...thoughts])} 
+            onAddProject={p => setProjects([p, ...projects])}
+            onAddHabit={h => setHabits([h, ...habits])}
+          />
+        )}
         {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
         {view === 'journal' && <JournalView journal={journal} onSave={(d, c, n, m) => { const i = journal.findIndex(j => j.date === d); if (i >= 0) { const next = [...journal]; next[i] = {...next[i], content: c, notes: n, mood: m}; setJournal(next); } else { setJournal([...journal, {id: Date.now().toString(), date: d, content: c, notes: n, mood: m}]); } }} />}
         {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onAddHabit={h => setHabits([...habits, h])} onToggleHabit={(id, d) => setHabits(habits.map(h => h.id === id ? {...h, completedDates: h.completedDates.includes(d) ? h.completedDates.filter(cd => cd !== d) : [...h.completedDates, d]} : h))} onDeleteHabit={id => setHabits(habits.filter(h => h.id !== id))} />}
@@ -181,18 +209,18 @@ const App = () => {
 
       <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-8">
         <nav className="pointer-events-auto flex items-center gap-1 p-1.5 glass bg-[var(--bg-item)]/70 border border-white/10 rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-10 duration-700">
-          <button onClick={() => setView('dashboard')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'dashboard' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}><LayoutDashboard size={18} /></button>
-          <button onClick={() => setView('projects')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'projects' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}><Folder size={18} /></button>
-          <button onClick={() => setView('thoughts')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'thoughts' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}><Brain size={18} /></button>
+          <button onClick={() => setView('dashboard')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'dashboard' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`} title="Dashboard"><LayoutDashboard size={18} /></button>
+          <button onClick={() => setView('projects')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'projects' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`} title="Projects"><Folder size={18} /></button>
+          <button onClick={() => setView('thoughts')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'thoughts' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`} title="Knowledge Archive"><Brain size={18} /></button>
           
           <button onClick={() => { setView('chat'); setVoiceTrigger(v => v + 1); if(navigator.vibrate) navigator.vibrate(50); }} className="mx-2 w-14 h-14 rounded-[1.75rem] bg-indigo-600 text-white flex items-center justify-center shadow-[0_0_30px_rgba(79,70,229,0.4)] transition-all hover:scale-110 active:scale-90 group relative overflow-hidden"><div className="absolute inset-0 bg-white/10 opacity-30"></div><Mic size={24} className="relative z-10" /></button>
           
-          <button onClick={() => setView('planner')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'planner' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}><CheckCircle size={18} /></button>
-          <button onClick={() => setView('journal')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'journal' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}><BookOpen size={18} /></button>
-          <button onClick={() => setView('chat')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'chat' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`}><MessageSquare size={18} /></button>
+          <button onClick={() => setView('planner')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'planner' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`} title="Planner"><CheckCircle size={18} /></button>
+          <button onClick={() => setView('journal')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'journal' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`} title="Journal"><BookOpen size={18} /></button>
+          <button onClick={() => setView('chat')} className={`transition-all duration-300 w-11 h-11 rounded-[1.5rem] flex items-center justify-center ${view === 'chat' ? 'text-indigo-400 bg-indigo-500/10' : 'text-[var(--text-muted)] hover:text-white'}`} title="Mentor Chat"><MessageSquare size={18} /></button>
         </nav>
       </div>
-      {/* Fix: change setTheme={setTheme} to setTheme={setCurrentTheme} */}
+      {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
       {showProfile && <ProfileModal appState={{tasks, thoughts, journal, projects, habits, view}} userName={userName} currentTheme={currentTheme} setTheme={setCurrentTheme} onClose={() => setShowProfile(false)} onImport={d => { if(d.tasks) setTasks(d.tasks); }} hasAiKey={hasAiKey} swStatus={swStatus} canInstall={!!deferredPrompt} onInstall={() => deferredPrompt?.prompt()} />}
       {showTutorial && <InteractiveTour onComplete={() => { localStorage.setItem('serafim_onboarded', 'true'); setShowTutorial(false); }} />}
     </div>

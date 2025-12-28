@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority } from '../types';
 import { createMentorChat } from '../services/geminiService';
-import { Loader2, ArrowUp, Zap, Plus, History, X, Trash2, Tag, ChevronLeft, Sparkles, ShieldAlert, Mic, MicOff } from 'lucide-react';
+import { Loader2, ArrowUp, Zap, Plus, History, X, Trash2, Tag, ChevronLeft, Sparkles, ShieldAlert, Mic, MicOff, CheckCircle, FolderPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
 
@@ -20,6 +20,8 @@ interface MentorshipProps {
   onDeleteSession: (id: string) => void;
   onAddTask: (task: Task) => void;
   onAddThought: (thought: Thought) => void;
+  onAddProject: (project: Project) => void;
+  onAddHabit: (habit: Habit) => void;
   hasAiKey: boolean;
   onConnectAI: () => void;
   voiceTrigger?: number;
@@ -28,13 +30,13 @@ interface MentorshipProps {
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits = [], 
     sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession,
-    onAddTask, onAddThought, hasAiKey, onConnectAI, voiceTrigger = 0
+    onAddTask, onAddThought, onAddProject, onAddHabit, hasAiKey, onConnectAI, voiceTrigger = 0
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{msg: string, type: 'success' | 'project'} | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const chatSessionRef = useRef<any>(null);
@@ -88,9 +90,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
       if (!chatSessionRef.current) {
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
+      
       const response = await chatSessionRef.current.sendMessage({ message: text });
       
-      // Handle Tool Calls
+      let acted = false;
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
           if (fc.name === 'create_task') {
@@ -103,6 +106,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
               createdAt: new Date().toISOString()
             };
             onAddTask(t);
+            setActionFeedback({ msg: `Задача "${t.title}" создана`, type: 'success' });
+            acted = true;
           } else if (fc.name === 'add_thought') {
             const th: Thought = {
               id: Date.now().toString(),
@@ -112,15 +117,42 @@ const Mentorship: React.FC<MentorshipProps> = ({
               createdAt: new Date().toISOString()
             };
             onAddThought(th);
+            setActionFeedback({ msg: `Мысль зафиксирована в архиве`, type: 'success' });
+            acted = true;
+          } else if (fc.name === 'create_project') {
+            const p: Project = {
+              id: Date.now().toString(),
+              title: fc.args.title,
+              description: fc.args.description,
+              color: fc.args.color || '#6366f1',
+              createdAt: new Date().toISOString()
+            };
+            onAddProject(p);
+            setActionFeedback({ msg: `Проект "${p.title}" развернут`, type: 'project' });
+            acted = true;
+          } else if (fc.name === 'add_habit') {
+            const h: Habit = {
+              id: Date.now().toString(),
+              title: fc.args.title,
+              color: fc.args.color || '#10b981',
+              completedDates: [],
+              createdAt: new Date().toISOString()
+            };
+            onAddHabit(h);
+            setActionFeedback({ msg: `Привычка "${h.title}" добавлена в трекер`, type: 'success' });
+            acted = true;
           }
         }
+        if (acted) setTimeout(() => setActionFeedback(null), 4000);
       }
 
-      const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: response.text || "Запрос выполнен.", timestamp: Date.now() };
+      const modelContent = response.text || (acted ? "Системное подтверждение: действие выполнено." : "Хм, возникла заминка. Повторите еще раз?");
+      const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: modelContent, timestamp: Date.now() };
       onUpdateMessages([...currentMessages, modelMsg]);
-    } catch (e) {
-      console.error(e);
-      onUpdateMessages([...currentMessages, { id: 'e', role: 'model', content: "Ошибка соединения.", timestamp: Date.now() }]);
+
+    } catch (e: any) {
+      console.error("Gemini Error:", e);
+      onUpdateMessages([...currentMessages, { id: 'e', role: 'model', content: "Ошибка соединения. Проверьте API ключ.", timestamp: Date.now() }]);
     } finally {
       setIsThinking(false);
     }
@@ -154,6 +186,16 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       )}
 
+      {/* Action Toast Feedback */}
+      {actionFeedback && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[50] animate-in slide-in-from-top-4 fade-in duration-500">
+           <div className={`${actionFeedback.type === 'project' ? 'bg-indigo-600' : 'bg-emerald-600'} text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10`}>
+              {actionFeedback.type === 'project' ? <FolderPlus size={18} /> : <CheckCircle size={18} />}
+              <span className="text-xs font-bold whitespace-nowrap">{actionFeedback.msg}</span>
+           </div>
+        </div>
+      )}
+
       <div className="flex-none px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <button onClick={() => setShowHistory(true)} className="p-2 hover:bg-white/5 rounded-full opacity-50 hover:opacity-100"><History size={20} /></button>
@@ -166,7 +208,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 border border-white/5 backdrop-blur-md'}`}>
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
             </div>
           </div>
         ))}
@@ -178,7 +220,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         {isRecording && (
           <div className="flex items-center justify-center gap-4 mb-4 animate-in slide-in-from-bottom-2">
              <div className="voice-wave">{[1,2,3,4,5].map(i => <div key={i} className="voice-bar" style={{ animationDelay: `${i*0.1}s` }} />)}</div>
-             <span className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.3em]">Listening OS Core...</span>
+             <span className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.3em]">Listening OS...</span>
              <div className="voice-wave">{[1,2,3,4,5].map(i => <div key={i} className="voice-bar" style={{ animationDelay: `${i*0.1}s` }} />)}</div>
           </div>
         )}
