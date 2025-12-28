@@ -57,6 +57,28 @@ const addHabitTool: FunctionDeclaration = {
   }
 };
 
+// GPT-like polishing with aggressive stutter removal
+export const polishTranscript = async (text: string): Promise<string> => {
+  if (!text || text.length < 3) return text;
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `ИНСТРУКЦИЯ: Текст ниже получен через некачественный голосовой ввод. Он содержит "заикания", повторы слов (например: "создай создай создай новый проект проект") и ошибки распознавания. 
+ЗАДАЧА: Исправь его. Удали ВСЕ повторы, расставь знаки препинания и исправь орфографию. Сделай текст естественным и чистым, сохранив смысл.
+ВЕРНИ ТОЛЬКО ИСПРАВЛЕННЫЙ ТЕКСТ БЕЗ КОММЕНТАРИЕВ.
+
+ТЕКСТ:
+"${text}"`,
+    });
+    return response.text?.trim() || text;
+  } catch (e) {
+    console.error("Polishing error", e);
+    return text;
+  }
+};
+
 export const createMentorChat = (
   tasks: Task[], 
   thoughts: Thought[], 
@@ -64,7 +86,6 @@ export const createMentorChat = (
   projects: Project[],
   habits: Habit[]
 ): Chat => {
-  // Use process.env.API_KEY directly as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const today = format(new Date(), 'eeee, d MMMM yyyy', { locale: ru });
 
@@ -72,13 +93,12 @@ export const createMentorChat = (
 Ты — Serafim OS, интеллектуальное ядро системы управления знаниями. 
 Твоя задача — помогать пользователю организовывать его "Второй мозг".
 
-ПРАВИЛА ДЕЙСТВИЙ (КРИТИЧЕСКИ ВАЖНО):
-1. ПРЕЖДЕ ЧЕМ ОТВЕТИТЬ ТЕКСТОМ, ТЫ ДОЛЖЕН ВЫЗВАТЬ СООТВЕТСТВУЮЩИЙ ИНСТРУМЕНТ, ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ О ДЕЙСТВИИ.
-2. Если пользователь хочет что-то запланировать или напоминание — ОБЯЗАТЕЛЬНО вызывай 'create_task'.
-3. Если пользователь хочет начать проект или сферу — ОБЯЗАТЕЛЬНО вызывай 'create_project'.
-4. Если нужно что-то вспомнить или найти в старых записях — ОБЯЗАТЕЛЬНО вызывай 'query_memory'.
+ПРАВИЛА ДЕЙСТВИЙ:
+1. ПРЕЖДЕ ЧЕМ ОТВЕТИТЬ ТЕКСТОМ, ВЫЗЫВАЙ ИНСТРУМЕНТ, ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ О ДЕЙСТВИИ.
+2. Если нужно что-то запланировать — используй 'create_task'.
+3. Если нужно начать проект — 'create_project'.
+4. Если нужно вспомнить — 'query_memory'.
 
-НИКОГДА не имитируй действие текстом ("Я создал задачу"), если не вызвал соответствующую функцию инструмента.
 Сегодняшняя дата: ${today}.
 `;
 
@@ -86,7 +106,6 @@ export const createMentorChat = (
     model: 'gemini-3-flash-preview',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      thinkingConfig: { thinkingBudget: 4000 },
       tools: [{ functionDeclarations: [
         queryMemoryTool, 
         createTaskTool, 
@@ -102,7 +121,6 @@ export const getSystemAnalysis = async (
   habits: Habit[],
   journal: JournalEntry[]
 ): Promise<{ status: string; insight: string; focusArea: string }> => {
-  // Use process.env.API_KEY directly as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Проанализируй состояние: Задач ${tasks.length}, Привычек ${habits.length}. Верни JSON: status, insight, focusArea.`;
   try {
@@ -110,11 +128,9 @@ export const getSystemAnalysis = async (
       model: 'gemini-3-flash-preview', 
       contents: prompt, 
       config: { 
-        responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 }
+        responseMimeType: "application/json"
       } 
     });
-    // Correct extraction from response.text property
     return JSON.parse(response.text || '{}');
   } catch (e) {
     return { status: "Норма", insight: "Система стабильна.", focusArea: "Текущие дела" };
