@@ -9,25 +9,25 @@ interface OnboardingProps {
 const slides = [
   {
     id: 1,
-    icon: <Brain size={48} className="text-indigo-400" />,
+    icon: <Brain size={48} color="#818cf8" />,
     title: "Твой Второй Мозг",
     desc: "Serafim — это не просто список задач. Это цифровое расширение твоего сознания. Храни здесь мысли, идеи и планы, освобождая голову для творчества."
   },
   {
     id: 2,
-    icon: <Sparkles size={48} className="text-yellow-500" />,
+    icon: <Sparkles size={48} color="#eab308" />,
     title: "ИИ-Наставник",
     desc: "Встроенный искусственный интеллект помнит контекст твоей жизни. Обсуждай с ним решения, декомпозируй сложные цели и получай поддержку 24/7."
   },
   {
     id: 3,
-    icon: <Calendar size={48} className="text-emerald-500" />,
+    icon: <Calendar size={48} color="#10b981" />,
     title: "Осознанное Планирование",
     desc: "Управляй временем через гибкий календарь и потоки задач. Система помогает фокусироваться на главном, отсекая шум."
   },
   {
     id: 4,
-    icon: <Shield size={48} className="text-pink-500" />,
+    icon: <Shield size={48} color="#ec4899" />,
     title: "Приватность и Уют",
     desc: "Твои данные хранятся локально. Настрой тему оформления под своё настроение и создай идеальное цифровое пространство."
   }
@@ -46,58 +46,66 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-      <div className="max-w-md w-full">
+    <div className="fixed inset-0 z-[100] bg-[#000000] flex flex-col items-center justify-center p-6 text-center overflow-hidden">
+      <div className="max-w-md w-full relative z-10">
         
         {/* Progress Dots */}
-        <div className="flex justify-center gap-2 mb-8">
+        <div className="flex justify-center gap-2 mb-10">
           {[...slides, { id: 5 }].map((_, idx) => (
             <div 
               key={idx} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${idx === step ? 'w-8 bg-indigo-500' : 'w-2 bg-zinc-800'}`} 
+              className={`h-1.5 rounded-full transition-all duration-300 ${idx === step ? 'w-10 bg-[#6366f1]' : 'w-2 bg-[#27272a]'}`} 
             />
           ))}
         </div>
 
         {step < slides.length ? (
-          <div key={step} className="animate-in slide-in-from-right-8 fade-in duration-300">
-            <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6 border border-zinc-800 shadow-xl">
+          <div key={step} className="animate-in fade-in slide-in-from-right-10 duration-500">
+            <div className="w-24 h-24 bg-[#09090b] rounded-full flex items-center justify-center mx-auto mb-8 border border-[#27272a] shadow-[0_0_40px_rgba(99,102,241,0.15)]">
               {slides[step].icon}
             </div>
-            <h1 className="text-3xl font-black text-white mb-4 tracking-tight">{slides[step].title}</h1>
-            <p className="text-zinc-400 text-lg leading-relaxed">{slides[step].desc}</p>
+            <h1 className="text-3xl font-black text-[#ffffff] mb-6 tracking-tight leading-tight">
+              {slides[step].title}
+            </h1>
+            <p className="text-[#a1a1aa] text-lg leading-relaxed font-medium px-4">
+              {slides[step].desc}
+            </p>
           </div>
         ) : (
-          <div className="animate-in zoom-in fade-in duration-300">
-            <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Давай знакомиться</h1>
-            <p className="text-zinc-400 mb-8">Как к тебе обращаться?</p>
+          <div className="animate-in zoom-in-95 fade-in duration-500">
+            <h1 className="text-3xl font-black text-[#ffffff] mb-4 tracking-tight">Давай знакомиться</h1>
+            <p className="text-[#71717a] text-lg mb-10">Как к тебе обращаться?</p>
             
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Твое имя..."
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-5 text-center text-2xl text-white font-bold focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none mb-8 placeholder:text-zinc-700"
+              className="w-full bg-[#09090b] border border-[#27272a] rounded-[2rem] p-6 text-center text-2xl text-[#ffffff] font-bold focus:border-[#6366f1] focus:ring-4 focus:ring-[#6366f1]/20 outline-none mb-4 shadow-xl transition-all placeholder:text-[#3f3f46]"
               onKeyDown={(e) => e.key === 'Enter' && name.trim() && handleNext()}
             />
+            <p className="text-[#52525b] text-[10px] uppercase font-black tracking-widest">нажми Enter чтобы продолжить</p>
           </div>
         )}
 
-        <div className="mt-12">
+        <div className="mt-16">
           <button
             onClick={handleNext}
             disabled={step === slides.length && !name.trim()}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-500/20 active:scale-[0.98]"
+            className="w-full py-5 bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all disabled:opacity-20 disabled:scale-95 shadow-[0_20px_50px_rgba(99,102,241,0.3)] active:scale-95"
           >
             {step < slides.length ? (
-              <>Продолжить <ArrowRight size={20} /></>
+              <>Продолжить <ArrowRight size={24} strokeWidth={3} /></>
             ) : (
-              <>Начать работу <Check size={20} /></>
+              <>Начать работу <Check size={24} strokeWidth={3} /></>
             )}
           </button>
         </div>
 
       </div>
+      
+      {/* Visual background element */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#6366f1] opacity-[0.03] blur-[120px] rounded-full pointer-events-none"></div>
     </div>
   );
 };

@@ -39,54 +39,37 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Track last processed voice index to avoid duplicates in chat too
-  const lastProcessedVoiceIndex = useRef(-1);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'ru-RU';
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'ru-RU';
       
-      recognitionRef.current.onresult = (e: any) => {
-        let finalStr = '';
-        let interimStr = '';
-        
+      rec.onresult = (e: any) => {
+        let finalTranscript = '';
         for (let i = e.resultIndex; i < e.results.length; ++i) {
           if (e.results[i].isFinal) {
-            if (i > lastProcessedVoiceIndex.current) {
-              finalStr += e.results[i][0].transcript;
-              lastProcessedVoiceIndex.current = i;
-            }
-          } else {
-            interimStr += e.results[i][0].transcript;
+            finalTranscript += e.results[i][0].transcript;
           }
         }
         
-        if (finalStr) {
+        if (finalTranscript) {
           setInput(prev => {
-            const tPrev = prev.trim();
-            const tNew = finalStr.trim();
-            return tPrev ? `${tPrev} ${tNew}` : tNew;
+            const trimmedPrev = prev.trim();
+            const trimmedNew = finalTranscript.trim();
+            if (trimmedPrev.toLowerCase().endsWith(trimmedNew.toLowerCase())) return prev;
+            return trimmedPrev ? `${trimmedPrev} ${trimmedNew}` : trimmedNew;
           });
         }
-        // We don't force interim into state to keep Send button logic clean, 
-        // but it makes the UI reactive.
       };
 
-      recognitionRef.current.onend = () => {
-        setIsRecording(false);
-        lastProcessedVoiceIndex.current = -1;
-      };
-      recognitionRef.current.onerror = () => setIsRecording(false);
+      rec.onend = () => setIsRecording(false);
+      rec.onerror = () => setIsRecording(false);
+      recognitionRef.current = rec;
     }
-    
-    return () => {
-      if (recognitionRef.current) recognitionRef.current.stop();
-    };
   }, []);
 
   useEffect(() => { 
@@ -95,48 +78,53 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
-    if (isRecording) {
-      recognitionRef.current.stop();
-    } else {
-      lastProcessedVoiceIndex.current = -1;
-      recognitionRef.current.start();
-      setIsRecording(true);
+    try {
+      if (isRecording) {
+        recognitionRef.current.stop();
+      } else {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      }
+    } catch (e) {
+      console.warn("Speech session management error", e);
+      setIsRecording(false);
     }
   };
 
   const handleSend = async () => {
-    // 1. Get current text and validate
     const textToSend = input.trim();
     if (!textToSend || isThinking) return;
     
-    // 2. Check API Key
-    if (!hasAiKey) { onConnectAI(); return; }
+    // Check key before anything else
+    if (!hasAiKey) {
+      onConnectAI();
+      return;
+    }
     
-    // 3. Stop recording immediately
+    // Stop recording and reset state
     if (isRecording) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current?.stop(); } catch(e){}
       setIsRecording(false);
     }
 
-    // 4. Update UI to thinking state
     setIsThinking(true);
-    setInput(''); // Clear input for next message
+    setInput('');
     
-    const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() };
-    const currentMessages = [...(activeSession?.messages || []), userMsg];
-    onUpdateMessages(currentMessages);
-
     try {
-      // 5. Initialize or get session
+      const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() };
+      const currentMessages = [...(activeSession?.messages || []), userMsg];
+      
+      // Update local state first for responsiveness
+      onUpdateMessages(currentMessages);
+
+      // Ensure session is initialized
       if (!chatSessionRef.current) {
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
       
-      // 6. Send message to AI
       const response = await chatSessionRef.current.sendMessage({ message: textToSend });
       
-      // 7. Handle tools
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
@@ -150,14 +138,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
             onAddHabit({ id: Date.now().toString(), title: args.title, color: args.color || '#10b981', completedDates: [], createdAt: new Date().toISOString() });
             setActionFeedback({ msg: `Привычка создана`, type: 'success' });
           } else if (fc.name === 'query_memory') {
-            const term = (args.searchTerm || '').toLowerCase();
             setActionFeedback({ msg: `Синхронизация с памятью...`, type: 'search' });
           }
         }
         setTimeout(() => setActionFeedback(null), 3000);
       }
 
-      // 8. Display AI response
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
@@ -167,25 +153,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
       onUpdateMessages([...currentMessages, modelMsg]);
 
     } catch (e) {
-      console.error("Serafim AI Error:", e);
-      const errMsg: ChatMessage = { 
+      console.error("Critical Send Error:", e);
+      // Reset AI session on error to prevent broken state
+      chatSessionRef.current = null;
+      onUpdateMessages([...(sessions.find(s => s.id === activeSessionId)?.messages || []), { 
         id: 'err-' + Date.now(), 
         role: 'model', 
-        content: "Произошла ошибка в когнитивном модуле. Попробуйте еще раз или проверьте API ключ.", 
+        content: "Критическая ошибка нейромодуля. Мы сбросили сессию, попробуйте еще раз.", 
         timestamp: Date.now() 
-      };
-      onUpdateMessages([...currentMessages, errMsg]);
+      }]);
     } finally { 
       setIsThinking(false); 
-      if (inputRef.current) inputRef.current.focus();
+      // Refocus input
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [sessions, activeSessionId, isThinking]);
-
-  const canSend = input.trim().length > 0 && !isThinking;
 
   return (
     <div className="flex flex-col h-full bg-transparent relative z-10 overflow-hidden">
@@ -209,7 +195,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <Activity size={20} className="text-indigo-500" />
           <div>
             <h2 className="text-sm font-bold text-white uppercase tracking-tighter">Serafim AI</h2>
-            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core Engine</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core Online</p>
           </div>
         </div>
         <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all"><Plus size={20} /></button>
@@ -218,7 +204,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-32">
         {sessions.find(s => s.id === activeSessionId)?.messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 border border-white/5 backdrop-blur-md text-white/90'}`}>
+            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white/5 border border-white/5 backdrop-blur-md text-white/90'}`}>
               <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
             </div>
           </div>
@@ -231,11 +217,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 z-20">
-        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
+      <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/90 to-transparent pt-12 z-20">
+        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-[0_0_25px_rgba(79,70,229,0.3)]' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
           <button 
             onClick={toggleVoice} 
-            className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white shadow-lg' : 'text-indigo-400/70 hover:bg-white/5'}`}
+            className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white' : 'text-indigo-400/70 hover:bg-white/5'}`}
           >
             {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
@@ -245,13 +231,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
             value={input} 
             onChange={e => setInput(e.target.value)} 
             onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
-            placeholder="Задай вопрос..." 
+            placeholder="Спроси Серафима..." 
             className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 
           />
           <button 
             onClick={handleSend} 
-            disabled={!canSend} 
-            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all ${!canSend ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 active:scale-90 hover:bg-indigo-500 cursor-pointer'}`}
+            disabled={!input.trim() || isThinking} 
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all ${!input.trim() || isThinking ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg active:scale-90 hover:bg-indigo-500 cursor-pointer'}`}
           >
             {isThinking ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
           </button>

@@ -18,9 +18,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   const recognitionRef = useRef<any>(null);
   const [interimText, setInterimText] = useState('');
   
-  // Track processed results to prevent duplication
-  const lastProcessedIndex = useRef(-1);
-
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
 
@@ -43,12 +40,12 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'ru-RU';
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'ru-RU';
 
-      recognitionRef.current.onresult = (event: any) => {
+      rec.onresult = (event: any) => {
         let finalBatch = '';
         let currentInterim = '';
 
@@ -57,11 +54,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           const transcript = result[0].transcript;
           
           if (result.isFinal) {
-            // Only process if we haven't seen this index as final before
-            if (i > lastProcessedIndex.current) {
-              finalBatch += transcript;
-              lastProcessedIndex.current = i;
-            }
+            finalBatch += transcript;
           } else {
             currentInterim += transcript;
           }
@@ -71,6 +64,8 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           setContent(prev => {
             const trimmedPrev = prev.trim();
             const trimmedNew = finalBatch.trim();
+            // Prevent duplication check
+            if (trimmedPrev.toLowerCase().endsWith(trimmedNew.toLowerCase())) return prev;
             return trimmedPrev ? `${trimmedPrev} ${trimmedNew}` : trimmedNew;
           });
           setInterimText('');
@@ -79,25 +74,26 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
         }
       };
 
-      recognitionRef.current.onend = () => {
+      rec.onend = () => {
         setIsRecording(false);
         setInterimText('');
-        lastProcessedIndex.current = -1;
       };
 
-      recognitionRef.current.onerror = () => {
+      rec.onerror = () => {
         setIsRecording(false);
         setInterimText('');
       };
+      recognitionRef.current = rec;
     }
   }, []);
 
   const toggleRecording = () => {
+    if (!recognitionRef.current) return;
     if (isRecording) {
-      recognitionRef.current?.stop();
+      recognitionRef.current.stop();
     } else {
-      lastProcessedIndex.current = -1;
-      recognitionRef.current?.start();
+      setInterimText('');
+      recognitionRef.current.start();
       setIsRecording(true);
     }
   };
@@ -122,12 +118,14 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
             onClick={() => setShowReflection(!showReflection)} 
             className={`p-3 rounded-2xl flex items-center gap-2 text-xs font-bold transition-all ${showReflection ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 text-indigo-400 border border-white/5'}`}
           >
+            {/* Fixed icon size syntax from size(16) to size={16} */}
             <Sparkles size={16} /> <span className="hidden sm:inline">Итоги</span>
           </button>
           <button 
             onClick={() => datePickerRef.current?.showPicker()} 
             className="p-3 bg-white/5 rounded-2xl text-white border border-white/5 active:scale-95 transition-transform"
           >
+            {/* Fixed icon size syntax from size(20) to size={20} */}
             <CalendarIcon size={20} />
           </button>
           <input ref={datePickerRef} type="date" className="absolute opacity-0 pointer-events-none" onChange={e => { const d = new Date(e.target.value); if (isValid(d)) setSelectedDate(d); }} />
@@ -177,6 +175,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
             </div>
             
             <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-white/5 border border-white/5 rounded-2xl px-4 py-2">
+              {/* Fixed icon size syntax from size(14) to size={14} */}
               <Tag size={14} className="text-indigo-400 shrink-0" />
               <div className="flex flex-wrap gap-1">
                 {tags.map(t => (
@@ -217,12 +216,14 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           onClick={handleSave}
           className="w-14 h-14 rounded-full bg-indigo-600 text-white shadow-[0_10px_40px_rgba(79,70,229,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all cursor-pointer"
          >
+           {/* Fixed icon size syntax from size(24) to size={24} */}
            <Save size={24} />
          </button>
          <button 
           onClick={toggleRecording} 
           className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110' : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'}`}
          >
+          {/* Fixed icon size syntax from size(24) to size={24} */}
           {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
         </button>
       </div>

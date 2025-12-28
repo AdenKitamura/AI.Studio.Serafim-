@@ -64,7 +64,8 @@ export const createMentorChat = (
   projects: Project[],
   habits: Habit[]
 ): Chat => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Use process.env.API_KEY directly as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const today = format(new Date(), 'eeee, d MMMM yyyy', { locale: ru });
 
   const SYSTEM_INSTRUCTION = `
@@ -101,7 +102,8 @@ export const getSystemAnalysis = async (
   habits: Habit[],
   journal: JournalEntry[]
 ): Promise<{ status: string; insight: string; focusArea: string }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // Use process.env.API_KEY directly as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Проанализируй состояние: Задач ${tasks.length}, Привычек ${habits.length}. Верни JSON: status, insight, focusArea.`;
   try {
     const response = await ai.models.generateContent({ 
@@ -112,6 +114,7 @@ export const getSystemAnalysis = async (
         thinkingConfig: { thinkingBudget: 0 }
       } 
     });
+    // Correct extraction from response.text property
     return JSON.parse(response.text || '{}');
   } catch (e) {
     return { status: "Норма", insight: "Система стабильна.", focusArea: "Текущие дела" };
