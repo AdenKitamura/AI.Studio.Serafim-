@@ -22,6 +22,8 @@ interface MentorshipProps {
   onAddTask: (task: Task) => void;
   onAddProject: (project: Project) => void;
   onAddThought: (thought: Thought) => void;
+  hasAiKey: boolean;
+  onConnectAI: () => void;
 }
 
 const CATEGORY_MAP: Record<ChatCategory, { label: string, color: string }> = {
@@ -34,11 +36,11 @@ const CATEGORY_MAP: Record<ChatCategory, { label: string, color: string }> = {
 
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits = [], 
-    sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession
+    sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession,
+    hasAiKey, onConnectAI
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   
@@ -52,17 +54,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const thinkTimeoutRef = useRef<number | null>(null);
 
-  const checkKey = async () => {
-    if (window.aistudio) {
-      const keyExists = await window.aistudio.hasSelectedApiKey();
-      setHasKey(keyExists);
-      return keyExists;
-    }
-    return false;
-  };
-
   useEffect(() => {
-    checkKey();
     chatSessionRef.current = null;
     return () => { if (thinkTimeoutRef.current) clearTimeout(thinkTimeoutRef.current); };
   }, [activeSessionId]);
@@ -71,22 +63,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  const handleConnectAI = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasKey(true);
-      // Immediately try to initialize chat if possible
-      chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
-    }
-  };
-
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isThinking) return;
     
-    const active = await checkKey();
-    if (!active) {
-      await handleConnectAI();
+    if (!hasAiKey) {
+      onConnectAI();
       return;
     }
 
@@ -113,9 +95,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
       onUpdateMessages([...messages, userMsg, modelMsg]);
     } catch (e: any) {
       console.error(e);
-      if (e.message?.includes("Requested entity was not found")) {
-        setHasKey(false);
-        onUpdateMessages([...messages, userMsg, { id: 'err-key', role: 'model', content: "Ошибка авторизации API. Пожалуйста, выберите ключ повторно.", timestamp: Date.now() }]);
+      if (e.message?.includes("Requested entity was not found") || e.status === 404) {
+        // Force re-auth if key is invalid
+        onConnectAI();
       } else {
         onUpdateMessages([...messages, userMsg, { id: 'err-' + Date.now(), role: 'model', content: "Ошибка связи. Попробуйте еще раз.", timestamp: Date.now() }]);
       }
@@ -242,7 +224,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-32">
-        {!hasKey && (
+        {!hasAiKey && (
           <div className="animate-in zoom-in-95 duration-500">
             <div className="bg-gradient-to-br from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 rounded-3xl p-8 text-center shadow-xl backdrop-blur-md">
               <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -253,7 +235,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 Для работы цифрового ментора необходимо подключить ваш персональный API ключ.
               </p>
               <button 
-                onClick={handleConnectAI}
+                onClick={onConnectAI}
                 className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-3"
               >
                 <Zap size={18} /> Подключить сейчас
@@ -279,7 +261,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
               <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
               {msg.id === 'err-key' && (
                 <button 
-                  onClick={handleConnectAI}
+                  onClick={onConnectAI}
                   className="mt-3 flex items-center gap-2 px-3 py-1.5 bg-indigo-500 text-white rounded-xl text-xs font-bold"
                 >
                   <Zap size={14} /> Выбрать ключ
@@ -311,14 +293,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={hasKey ? "Ваша мысль или вопрос..." : "Сначала подключите ИИ..."}
+            placeholder={hasAiKey ? "Ваша мысль или вопрос..." : "Сначала подключите ИИ..."}
             className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/20"
-            disabled={!hasKey}
+            disabled={!hasAiKey}
           />
           <button 
             onClick={handleSend} 
-            disabled={!input.trim() || isThinking || !hasKey} 
-            className={`p-3 rounded-xl transition-all shadow-lg ${!input.trim() || isThinking || !hasKey ? 'bg-white/5 text-white/20' : 'bg-indigo-600 text-white active:scale-95'}`}
+            disabled={!input.trim() || isThinking || !hasAiKey} 
+            className={`p-3 rounded-xl transition-all shadow-lg ${!input.trim() || isThinking || !hasAiKey ? 'bg-white/5 text-white/20' : 'bg-indigo-600 text-white active:scale-95'}`}
           >
             <ArrowUp size={20} strokeWidth={3} />
           </button>

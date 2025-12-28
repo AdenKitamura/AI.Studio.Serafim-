@@ -103,7 +103,6 @@ const App = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
     if ('serviceWorker' in navigator) {
-      // Fix: Removed assignment to navigator.workerReady as it is not a standard property of the Navigator interface.
       navigator.serviceWorker.ready.then(() => {
         setSwStatus('active');
       }).catch(() => setSwStatus('error'));
@@ -112,19 +111,35 @@ const App = () => {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
 
-  // Check AI Key status
+  // Check AI Key status periodically
   useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasAiKey(hasKey);
+      } else if (process.env.API_KEY) {
+        // Fallback for non-AI Studio environments where the key might be in env
+        setHasAiKey(true);
       }
     };
     checkKey();
-    // Re-check periodically
     const interval = setInterval(checkKey, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleConnectAI = async () => {
+    if (window.aistudio) {
+      try {
+        await window.aistudio.openSelectKey();
+        // Rule: Assume success after trigger to avoid race condition
+        setHasAiKey(true);
+      } catch (err) {
+        console.error("Failed to open key selector", err);
+      }
+    } else if (process.env.API_KEY) {
+      setHasAiKey(true);
+    }
+  };
 
   // AUTO-SAVES
   useEffect(() => { if (isDataReady) dbService.saveAll('tasks', tasks); }, [tasks, isDataReady]);
@@ -178,14 +193,6 @@ const App = () => {
 
   const handleToggleTask = (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
-  };
-
-  const handleConnectAI = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Assume success as per race condition rules
-      setHasAiKey(true);
-    }
   };
 
   if (!isDataReady) {
@@ -249,7 +256,9 @@ const App = () => {
             onUpdateMessages={(msgs) => handleUpdateSessionMessages(activeSessionId!, msgs)}
             onNewSession={handleCreateNewSession} onDeleteSession={handleDeleteSession}
             onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} 
-            onAddThought={t => setThoughts([t, ...thoughts])} 
+            onAddThought={t => setThoughts([t, ...thoughts])}
+            hasAiKey={hasAiKey}
+            onConnectAI={handleConnectAI}
           />
         )}
         {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
