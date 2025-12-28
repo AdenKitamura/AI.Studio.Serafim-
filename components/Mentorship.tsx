@@ -42,7 +42,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
-  const sessionTranscriptRef = useRef('');
+  const baselineInputRef = useRef('');
+  const isPendingSendRef = useRef(false);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -56,48 +57,56 @@ const Mentorship: React.FC<MentorshipProps> = ({
         let finalSpeech = '';
         let interimSpeech = '';
 
-        // Полная пересборка текста из результатов для предотвращения дублей
         for (let i = 0; i < e.results.length; ++i) {
-          const result = e.results[i];
-          if (result.isFinal) {
-            finalSpeech += result[0].transcript;
+          if (e.results[i].isFinal) {
+            finalSpeech += e.results[i][0].transcript;
           } else {
-            interimSpeech += result[0].transcript;
+            interimSpeech += e.results[i][0].transcript;
           }
         }
         
-        sessionTranscriptRef.current = finalSpeech;
+        // Обновляем текст в реальном времени, добавляя к тому, что было до записи
+        const currentText = (baselineInputRef.current + ' ' + finalSpeech).trim();
+        setInput(currentText);
         setInterimText(interimSpeech);
       };
 
       rec.onstart = () => {
         setIsRecording(true);
-        sessionTranscriptRef.current = '';
+        baselineInputRef.current = input;
+        isPendingSendRef.current = false;
       };
 
       rec.onend = async () => {
         setIsRecording(false);
         setInterimText('');
         
-        const rawText = sessionTranscriptRef.current.trim();
-        if (rawText.length > 2) {
+        // Если текста достаточно много, "причесываем" его через ИИ
+        if (input.length > 5) {
           setIsPolishing(true);
-          const cleanText = await polishTranscript(rawText);
-          setInput(prev => {
-            const base = prev.trim();
-            return base ? `${base} ${cleanText}` : cleanText;
-          });
+          const cleanText = await polishTranscript(input);
+          setInput(cleanText);
           setIsPolishing(false);
+          
+          // Если была нажата кнопка "Отправить" во время записи, отправляем сейчас
+          if (isPendingSendRef.current) {
+            isPendingSendRef.current = false;
+            performSend(cleanText);
+          }
+        } else if (isPendingSendRef.current) {
+          isPendingSendRef.current = false;
+          performSend(input);
         }
       };
 
       rec.onerror = () => {
         setIsRecording(false);
         setInterimText('');
+        isPendingSendRef.current = false;
       };
       recognitionRef.current = rec;
     }
-  }, []);
+  }, [input]);
 
   useEffect(() => { 
     if (voiceTrigger > 0 && !isRecording) toggleVoice(); 
@@ -108,22 +117,24 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (isRecording) {
       recognitionRef.current.stop();
     } else {
+      setInterimText('');
       recognitionRef.current.start();
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (isRecording) {
-      recognitionRef.current?.stop();
-      setTimeout(() => proceedSend(), 600);
+      // Ставим флаг "Отправить после завершения" и останавливаем микрофон
+      isPendingSendRef.current = true;
+      recognitionRef.current.stop();
       return;
     }
-    proceedSend();
+    performSend(input);
   };
 
-  const proceedSend = async () => {
-    const textToSend = input.trim();
-    if (!textToSend || isThinking || isPolishing) return;
+  const performSend = async (textToSend: string) => {
+    const trimmed = textToSend.trim();
+    if (!trimmed || isThinking) return;
     
     if (!hasAiKey) {
       onConnectAI();
@@ -132,10 +143,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     setIsThinking(true);
     setInput('');
+    baselineInputRef.current = '';
     
     try {
       const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() };
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: trimmed, timestamp: Date.now() };
       const currentMessages = [...(activeSession?.messages || []), userMsg];
       
       onUpdateMessages(currentMessages);
@@ -144,7 +156,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
       
-      const response = await chatSessionRef.current.sendMessage({ message: textToSend });
+      const response = await chatSessionRef.current.sendMessage({ message: trimmed });
       
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
@@ -174,7 +186,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } catch (e) {
       console.error(e);
       onUpdateMessages([...(sessions.find(s => s.id === activeSessionId)?.messages || []), { 
-        id: 'err-' + Date.now(), role: 'model', content: "Ошибка связи с ядром.", timestamp: Date.now() 
+        id: 'err-' + Date.now(), role: 'model', content: "Ошибка связи с ядром. Попробуйте снова.", timestamp: Date.now() 
       }]);
     } finally { 
       setIsThinking(false); 
@@ -208,7 +220,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <Activity size={20} className="text-indigo-500" />
           <div>
             <h2 className="text-sm font-bold text-white uppercase tracking-tighter">Serafim AI</h2>
-            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core Engine</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core Online</p>
           </div>
         </div>
         <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all"><Plus size={20} /></button>
@@ -224,7 +236,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
         {(isThinking || isPolishing) && (
           <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse">
-            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Очистка повторов...' : 'Serafim думает...'}
+            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Интеллектуальная обработка...' : 'Анализ...'}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -248,7 +260,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
               ref={inputRef}
               rows={1} 
               value={input} 
-              onChange={e => setInput(e.target.value)} 
+              onChange={e => {
+                const val = e.target.value;
+                setInput(val);
+                baselineInputRef.current = val;
+              }} 
               onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
               placeholder="Спроси Серафима..." 
               className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 

@@ -20,7 +20,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   
   const datePickerRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
-  const sessionTranscriptRef = useRef('');
+  const baselineContentRef = useRef('');
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
@@ -35,7 +35,9 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
 
   useEffect(() => {
     const e = journal.find(j => j.date === format(selectedDate, 'yyyy-MM-dd'));
-    setContent(e?.content || '');
+    const newContent = e?.content || '';
+    setContent(newContent);
+    baselineContentRef.current = newContent;
     setMood(e?.mood || '');
     setTags(e?.tags || []);
     setReflection(e?.reflection || { mainFocus: '', gratitude: '', blockers: '', tomorrowGoal: '' });
@@ -49,58 +51,52 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       rec.interimResults = true;
       rec.lang = 'ru-RU';
 
-      rec.onresult = (e: any) => {
+      rec.onresult = (event: any) => {
         let finalSpeech = '';
         let interimSpeech = '';
 
-        for (let i = 0; i < e.results.length; ++i) {
-          const result = e.results[i];
-          if (result.isFinal) {
-            finalSpeech += result[0].transcript;
+        for (let i = 0; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalSpeech += event.results[i][0].transcript;
           } else {
-            interimSpeech += result[0].transcript;
+            interimSpeech += event.results[i][0].transcript;
           }
         }
 
-        sessionTranscriptRef.current = finalSpeech;
+        const updatedContent = (baselineContentRef.current + ' ' + finalSpeech).trim();
+        setContent(updatedContent);
         setInterimText(interimSpeech);
       };
 
       rec.onstart = () => {
+        baselineContentRef.current = content;
         setIsRecording(true);
-        sessionTranscriptRef.current = '';
       };
 
       rec.onend = async () => {
         setIsRecording(false);
         setInterimText('');
         
-        const rawText = sessionTranscriptRef.current.trim();
-        if (rawText.length > 2) {
+        if (content.length > baselineContentRef.current.length + 5) {
           setIsPolishing(true);
-          const cleanText = await polishTranscript(rawText);
-          setContent(prev => {
-            const base = prev.trim();
-            return base ? `${base} ${cleanText}` : cleanText;
-          });
+          const cleanText = await polishTranscript(content);
+          setContent(cleanText);
           setIsPolishing(false);
-          onSave(dateStr, content + ' ' + cleanText, '', mood, reflection, tags);
+          onSave(dateStr, cleanText, '', mood, reflection, tags);
         }
       };
 
-      rec.onerror = () => {
-        setIsRecording(false);
-        setInterimText('');
-      };
+      rec.onerror = () => setIsRecording(false);
       recognitionRef.current = rec;
     }
-  }, [dateStr, mood, reflection, tags, onSave, content]);
+  }, [content]);
 
   const toggleRecording = () => {
     if (!recognitionRef.current || isPolishing) return;
     if (isRecording) {
       recognitionRef.current.stop();
     } else {
+      setInterimText('');
       recognitionRef.current.start();
     }
   };
@@ -122,7 +118,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           {isPolishing && (
             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 rounded-full animate-pulse">
                 <Loader2 size={12} className="text-indigo-400 animate-spin" />
-                <span className="text-[10px] font-black text-indigo-400 uppercase">Чистим запись...</span>
+                <span className="text-[10px] font-black text-indigo-400 uppercase">Очистка...</span>
             </div>
           )}
           <button 
@@ -167,7 +163,11 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
             <textarea 
                className="absolute inset-0 w-full h-full opacity-0 cursor-text resize-none"
                value={content}
-               onChange={e => setContent(e.target.value)}
+               onChange={e => {
+                 const val = e.target.value;
+                 setContent(val);
+                 baselineContentRef.current = val;
+               }}
                onBlur={handleSave}
                disabled={isPolishing || isRecording}
             />
