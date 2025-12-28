@@ -8,13 +8,12 @@ import ProjectsView from './components/ProjectsView';
 import Ticker from './components/Ticker';
 import ProfileModal from './components/ProfileModal';
 import FocusTimer from './components/FocusTimer';
-import ThoughtsView from './components/ThoughtsView';
 import Dashboard from './components/Dashboard';
+import InteractiveTour from './components/InteractiveTour';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { 
   MessageSquare,
-  Brain,
   CheckCircle,
   Folder,
   Zap,
@@ -39,6 +38,7 @@ const App = () => {
 
   const [showProfile, setShowProfile] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [hasAiKey, setHasAiKey] = useState(false);
   
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -79,6 +79,13 @@ const App = () => {
           setSessions([initialSession]);
           setActiveSessionId(initialSession.id);
         }
+
+        // Check for first run tutorial
+        const onboarded = localStorage.getItem('serafim_onboarded');
+        if (!onboarded) {
+          setShowTutorial(true);
+        }
+
         setIsDataReady(true);
       } catch (e) {
         console.error("Failed to load data from IndexedDB", e);
@@ -228,7 +235,7 @@ const App = () => {
       </main>
 
       {/* FIXED NAVIGATION BAR */}
-      <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-6 pb-8">
+      <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-6 pb-8" id="nav-container">
         <nav className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-[var(--bg-item)]/90 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl">
           {navItems.map(item => (
             <button 
@@ -254,7 +261,15 @@ const App = () => {
           canInstall={!!deferredPrompt}
           onInstall={() => { if(deferredPrompt) deferredPrompt.prompt(); }}
           swStatus={swStatus}
+          hasAiKey={hasAiKey}
         />
+      )}
+
+      {showTutorial && (
+        <InteractiveTour onComplete={() => {
+          localStorage.setItem('serafim_onboarded', 'true');
+          setShowTutorial(false);
+        }} />
       )}
     </div>
   );
