@@ -167,6 +167,10 @@ const App = () => {
     { id: 'journal', icon: <BookOpen size={20} /> },
   ];
 
+  const handleToggleTask = (id: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
+  };
+
   if (!isDataReady) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-[#09090b] text-white">
@@ -210,13 +214,12 @@ const App = () => {
 
       <main className="flex-1 relative overflow-hidden z-10 pb-20">
         {view === 'dashboard' && (
+          // Fix: Removed sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession from Dashboard props
           <Dashboard 
             tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
-            sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
-            onUpdateMessages={(msgs) => handleUpdateSessionMessages(activeSessionId!, msgs)}
-            onNewSession={handleCreateNewSession} onDeleteSession={handleDeleteSession}
             onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])}
             onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={setView}
+            onToggleTask={handleToggleTask}
           />
         )}
         {view === 'chat' && (
