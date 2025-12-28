@@ -46,14 +46,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'ru-RU';
+      
       recognitionRef.current.onresult = (e: any) => {
-        let t = ''; 
+        let transcript = '';
         for (let i = e.resultIndex; i < e.results.length; ++i) {
-          if (e.results[i].isFinal) t += e.results[i][0].transcript;
+          transcript += e.results[i][0].transcript;
         }
-        if (t) setInput(t);
+        if (transcript) {
+          setInput(transcript);
+        }
       };
+
       recognitionRef.current.onend = () => setIsRecording(false);
+      recognitionRef.current.onerror = () => setIsRecording(false);
     }
   }, []);
 
@@ -61,18 +66,29 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
-    if (isRecording) { recognitionRef.current.stop(); setIsRecording(false); }
-    else { setInput(''); recognitionRef.current.start(); setIsRecording(true); }
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      setInput('');
+      recognitionRef.current.start();
+      setIsRecording(true);
+    }
   };
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isThinking) return;
     if (!hasAiKey) { onConnectAI(); return; }
-    if (isRecording) recognitionRef.current.stop();
+    
+    // Stop recording and wait a beat to ensure state is clear
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
 
     setInput('');
     setIsThinking(true);
+    
     const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: Date.now() };
     const currentMessages = [...(activeSession?.messages || []), userMsg];
@@ -83,60 +99,38 @@ const Mentorship: React.FC<MentorshipProps> = ({
       
       let response = await chatSessionRef.current.sendMessage({ message: text });
       
-      // CRITICAL: Handle function calls before displaying final model content
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
-          
           if (fc.name === 'create_task') {
-            onAddTask({
-              id: Date.now().toString(),
-              title: args.title,
-              priority: (args.priority as Priority) || Priority.MEDIUM,
-              dueDate: args.dueDate || new Date().toISOString(),
-              isCompleted: false,
-              createdAt: new Date().toISOString()
-            });
+            onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || new Date().toISOString(), isCompleted: false, createdAt: new Date().toISOString() });
             setActionFeedback({ msg: `Задача создана: ${args.title}`, type: 'task' });
-          }
-          else if (fc.name === 'create_project') {
-            onAddProject({
-              id: Date.now().toString(),
-              title: args.title,
-              color: args.color || '#6366f1',
-              createdAt: new Date().toISOString()
-            });
-            setActionFeedback({ msg: `Проект развернут: ${args.title}`, type: 'project' });
-          }
-          else if (fc.name === 'add_habit') {
-            onAddHabit({
-              id: Date.now().toString(),
-              title: args.title,
-              color: args.color || '#10b981',
-              completedDates: [],
-              createdAt: new Date().toISOString()
-            });
-            setActionFeedback({ msg: `Привычка зафиксирована`, type: 'success' });
-          }
-          else if (fc.name === 'query_memory') {
+          } else if (fc.name === 'create_project') {
+            onAddProject({ id: Date.now().toString(), title: args.title, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
+            setActionFeedback({ msg: `Проект создан`, type: 'project' });
+          } else if (fc.name === 'add_habit') {
+            onAddHabit({ id: Date.now().toString(), title: args.title, color: args.color || '#10b981', completedDates: [], createdAt: new Date().toISOString() });
+            setActionFeedback({ msg: `Привычка добавлена`, type: 'success' });
+          } else if (fc.name === 'query_memory') {
             const term = (args.searchTerm || '').toLowerCase();
             let results = [];
             results.push(...journal.filter(j => j.content.toLowerCase().includes(term)).map(j => `[Дневник ${j.date}]: ${j.content}`));
             results.push(...thoughts.filter(t => t.content.toLowerCase().includes(term)).map(t => `[Архив]: ${t.content}`));
-            
-            setActionFeedback({ msg: `Поиск по памяти: ${term}`, type: 'search' });
+            setActionFeedback({ msg: `Поиск в памяти...`, type: 'search' });
             response = await chatSessionRef.current.sendMessage({ message: `Системная выборка: ${results.length > 0 ? results.join('\n') : 'Совпадений нет'}. Сформулируй ответ.` });
           }
         }
         setTimeout(() => setActionFeedback(null), 3000);
       }
 
-      const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: response.text || "Принято. Что дальше?", timestamp: Date.now() };
+      const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: response.text || "Принято.", timestamp: Date.now() };
       onUpdateMessages([...currentMessages, modelMsg]);
     } catch (e) {
       console.error("Serafim Core Error:", e);
-      onUpdateMessages([...currentMessages, { id: 'err', role: 'model', content: "Ошибка нейроинтерфейса. Попробуйте обновить страницу.", timestamp: Date.now() }]);
-    } finally { setIsThinking(false); }
+      onUpdateMessages([...currentMessages, { id: 'err', role: 'model', content: "Ошибка связи. Проверьте подключение.", timestamp: Date.now() }]);
+    } finally { 
+      setIsThinking(false); 
+    }
   };
 
   useEffect(() => {
@@ -174,7 +168,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-32">
         {sessions.find(s => s.id === activeSessionId)?.messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 border border-white/5 backdrop-blur-md text-white'}`}>
+            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white/5 border border-white/5 backdrop-blur-md text-white'}`}>
               <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
             </div>
           </div>
@@ -184,10 +178,28 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </div>
 
       <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/95 to-transparent pt-10">
-        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-white/5 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
-          <button onClick={toggleVoice} className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-indigo-500 text-white' : 'text-indigo-400/50 hover:bg-white/5'}`}>{isRecording ? <MicOff size={20} /> : <Mic size={20} />}</button>
-          <textarea rows={1} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} placeholder="Поставь задачу или задай вопрос..." className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" />
-          <button onClick={handleSend} disabled={!input.trim() || isThinking} className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all ${!input.trim() || isThinking ? 'opacity-20' : 'bg-indigo-600 text-white shadow-lg active:scale-90'}`}><ArrowUp size={20} strokeWidth={3} /></button>
+        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-white/10 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
+          <button 
+            onClick={toggleVoice} 
+            className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white' : 'text-indigo-400/50 hover:bg-white/5'}`}
+          >
+            {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
+          <textarea 
+            rows={1} 
+            value={input} 
+            onChange={e => setInput(e.target.value)} 
+            onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
+            placeholder="Спроси о чем угодно..." 
+            className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 
+          />
+          <button 
+            onClick={handleSend} 
+            disabled={!input.trim() || isThinking} 
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all cursor-pointer ${!input.trim() || isThinking ? 'opacity-20 cursor-not-allowed' : 'bg-indigo-600 text-white shadow-lg active:scale-90 hover:bg-indigo-500'}`}
+          >
+            <ArrowUp size={20} strokeWidth={3} />
+          </button>
         </div>
         <div className="h-20" />
       </div>
