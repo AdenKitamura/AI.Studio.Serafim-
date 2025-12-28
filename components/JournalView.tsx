@@ -95,7 +95,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
     
     let textToSave = content;
     
-    // Если текст длинный и свежий, пробуем почистить его
     if (textToSave.length > 20) {
       setIsPolishing(true);
       try {
@@ -125,7 +124,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           {isPolishing && (
             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 rounded-full animate-pulse">
                 <Loader2 size={12} className="text-indigo-400 animate-spin" />
-                <span className="text-[10px] font-black text-indigo-400 uppercase">Полировка...</span>
+                <span className="text-[10px] font-black text-indigo-400 uppercase">Очистка...</span>
             </div>
           )}
           <button 

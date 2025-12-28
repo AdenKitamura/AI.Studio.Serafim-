@@ -27,7 +27,8 @@ import {
   Folder, 
   Settings as SettingsIcon,
   Archive,
-  Activity
+  Activity,
+  Download
 } from 'lucide-react';
 
 const App = () => {
@@ -60,6 +61,20 @@ const App = () => {
       return !!(key && key !== 'undefined');
     } catch { return false; }
   }, []);
+
+  const handleExport = () => {
+    const data = { tasks, thoughts, journal, projects, habits, user: userName };
+    const dataStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `serafim-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -101,10 +116,13 @@ const App = () => {
           <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-lg cursor-pointer active:scale-90 transition-transform"><span className="font-black text-xl text-white">S</span></div>
           <h1 className="font-extrabold text-2xl tracking-tighter opacity-90 hidden sm:block">Serafim OS</h1>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center bg-white/5 text-indigo-400 hover:text-white transition-all"><Zap size={20} /></button>
-          <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 transition-all hover:bg-indigo-600/20">
-            <SettingsIcon size={20} />
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowTimer(!showTimer)} className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-indigo-400 hover:text-white transition-all"><Zap size={18} /></button>
+          <button onClick={handleExport} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-all border border-white/5" title="Бэкап данных">
+            <Download size={18} />
+          </button>
+          <button onClick={() => setShowSettings(true)} className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 transition-all hover:bg-indigo-600/20" title="Настройки">
+            <SettingsIcon size={18} />
           </button>
         </div>
       </header>
@@ -119,7 +137,6 @@ const App = () => {
         {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onAddHabit={h => setHabits([h, ...habits])} onToggleHabit={(id, d) => setHabits(habits.map(h => h.id === id ? {...h, completedDates: h.completedDates.includes(d) ? h.completedDates.filter(cd => cd !== d) : [...h.completedDates, d]} : h))} onDeleteHabit={id => setHabits(habits.filter(h => h.id !== id))} />}
         {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
         {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => setView('dashboard')} />}
-        {view === 'settings' && <Settings currentTheme={currentTheme} setTheme={setTheme} onClose={() => setView('dashboard')} exportData={{tasks, thoughts, journal, projects, habits}} onImport={data => {setTasks(data.tasks || tasks); setThoughts(data.thoughts || thoughts);}} />}
       </main>
 
       <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-6">

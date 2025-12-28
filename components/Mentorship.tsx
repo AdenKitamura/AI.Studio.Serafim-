@@ -42,7 +42,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
-  // Рефы для работы внутри коллбэков (предотвращение stale closures)
   const inputRefState = useRef('');
   const isPendingSendRef = useRef(false);
 
@@ -72,7 +71,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         }
         
         if (finalForEvent) {
-          // Чистим и склеиваем только новый финальный текст
           setInput(prev => (prev + ' ' + finalForEvent).replace(/\s+/g, ' ').trim());
         }
         setInterimText(interimForEvent);
@@ -86,8 +84,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
       rec.onend = () => {
         setIsRecording(false);
         setInterimText('');
-        
-        // Если была команда на отправку - запускаем процесс
         if (isPendingSendRef.current) {
           isPendingSendRef.current = false;
           executeFinalProcess();
@@ -118,6 +114,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const handleSendRequest = () => {
+    if (isThinking || isPolishing) return;
+    
     if (isRecording) {
       isPendingSendRef.current = true;
       recognitionRef.current.stop();
@@ -127,41 +125,45 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const executeFinalProcess = async () => {
-    const textSnapshot = inputRefState.current.trim();
-    if (!textSnapshot || isThinking || isPolishing) return;
+    // Получаем текущий текст максимально надежно
+    let currentText = inputRefState.current.trim();
+    if (!currentText) return;
 
-    let textToSend = textSnapshot;
+    let textToSend = currentText;
 
-    // Очистка если текста много
-    if (textSnapshot.length > 10) {
+    // 1. ПОЛИРОВКА (ЕСЛИ ТЕКСТ ДЛИННЫЙ)
+    if (currentText.length > 10) {
       setIsPolishing(true);
       try {
-        const polished = await polishTranscript(textSnapshot);
+        const polished = await polishTranscript(currentText);
         textToSend = polished;
         setInput(polished);
+        inputRefState.current = polished;
       } catch (err) {
-        console.warn("Polishing error, using raw");
+        console.warn("Polishing error, using raw", err);
       } finally {
         setIsPolishing(false);
       }
     }
 
-    performApiSend(textToSend);
+    // 2. ОТПРАВКА (ГАРАНТИРОВАННО СЛЕДУЕТ ПОСЛЕ ПОЛИРОВКИ)
+    await performApiSend(textToSend);
   };
 
   const performApiSend = async (text: string) => {
-    if (!text.trim() || !hasAiKey) {
+    const finalMsg = text.trim();
+    if (!finalMsg || !hasAiKey) {
       if (!hasAiKey) onConnectAI();
       return;
     }
 
     setIsThinking(true);
-    setInput(''); // Очищаем поле сразу
+    setInput('');
     inputRefState.current = '';
     
     try {
       const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: Date.now() };
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: finalMsg, timestamp: Date.now() };
       const currentMessages = [...(activeSession?.messages || []), userMsg];
       
       onUpdateMessages(currentMessages);
@@ -170,7 +172,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
       
-      const response = await chatSessionRef.current.sendMessage({ message: text });
+      const response = await chatSessionRef.current.sendMessage({ message: finalMsg });
       
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
