@@ -231,14 +231,16 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 <Sparkles size={32} className="text-indigo-400" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">ИИ не подключен</h3>
-              <p className="text-sm text-white/60 mb-8 max-w-xs mx-auto">
-                Для работы цифрового ментора необходимо подключить ваш персональный API ключ.
+              <p className="text-sm text-white/60 mb-8 max-w-xs mx-auto leading-relaxed">
+                {!window.aistudio 
+                  ? "В данном окружении (GitHub/Vercel) для работы ИИ необходимо установить переменную API_KEY в настройках вашего проекта." 
+                  : "Для работы цифрового ментора необходимо выбрать ваш персональный API ключ."}
               </p>
               <button 
                 onClick={onConnectAI}
                 className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-3"
               >
-                <Zap size={18} /> Подключить сейчас
+                <Zap size={18} /> {window.aistudio ? "Выбрать ключ" : "Как подключить?"}
               </button>
               <p className="mt-4 text-[10px] text-white/20 uppercase tracking-widest font-black">
                 Требуется платный проект GCP

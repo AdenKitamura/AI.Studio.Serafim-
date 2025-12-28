@@ -40,7 +40,9 @@ const App = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [hasAiKey, setHasAiKey] = useState(false);
+  
+  // Initialize from env if present
+  const [hasAiKey, setHasAiKey] = useState(!!process.env.API_KEY && process.env.API_KEY !== 'undefined');
   
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [swStatus, setSwStatus] = useState<'loading' | 'active' | 'error'>('loading');
@@ -117,14 +119,15 @@ const App = () => {
       if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasAiKey(hasKey);
-      } else if (process.env.API_KEY) {
-        // Fallback for non-AI Studio environments where the key might be in env
+      } else if (process.env.API_KEY && process.env.API_KEY !== 'undefined') {
         setHasAiKey(true);
       }
     };
     checkKey();
-    const interval = setInterval(checkKey, 5000);
-    return () => clearInterval(interval);
+    if (window.aistudio) {
+      const interval = setInterval(checkKey, 5000);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   const handleConnectAI = async () => {
@@ -136,8 +139,12 @@ const App = () => {
       } catch (err) {
         console.error("Failed to open key selector", err);
       }
-    } else if (process.env.API_KEY) {
-      setHasAiKey(true);
+    } else {
+      // User is on GitHub/Vercel - inform them about the environment variable
+      alert(
+        "Serafim OS: Для активации ИИ на GitHub/Vercel необходимо добавить ваш Gemini API Key в переменные окружения (Settings -> Environment Variables) под именем API_KEY.\n\n" +
+        "Если вы используете Google AI Studio, запустите приложение внутри платформы."
+      );
     }
   };
 
