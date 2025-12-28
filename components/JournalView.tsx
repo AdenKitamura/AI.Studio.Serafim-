@@ -17,12 +17,14 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   const datePickerRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const [interimText, setInterimText] = useState('');
+  
+  // Track processed results to prevent duplication
+  const lastProcessedIndex = useRef(-1);
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
 
   const [content, setContent] = useState(entry?.content || '');
-  const [notes, setNotes] = useState(entry?.notes || '');
   const [mood, setMood] = useState(entry?.mood || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(entry?.tags || []);
@@ -33,7 +35,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   useEffect(() => {
     const e = journal.find(j => j.date === format(selectedDate, 'yyyy-MM-dd'));
     setContent(e?.content || '');
-    setNotes(e?.notes || '');
     setMood(e?.mood || '');
     setTags(e?.tags || []);
     setReflection(e?.reflection || { mainFocus: '', gratitude: '', blockers: '', tomorrowGoal: '' });
@@ -48,37 +49,42 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       recognitionRef.current.lang = 'ru-RU';
 
       recognitionRef.current.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
+        let finalBatch = '';
+        let currentInterim = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
+          const result = event.results[i];
+          const transcript = result[0].transcript;
+          
+          if (result.isFinal) {
+            // Only process if we haven't seen this index as final before
+            if (i > lastProcessedIndex.current) {
+              finalBatch += transcript;
+              lastProcessedIndex.current = i;
+            }
           } else {
-            interimTranscript += transcript;
+            currentInterim += transcript;
           }
         }
 
-        if (finalTranscript) {
+        if (finalBatch) {
           setContent(prev => {
-            const lastPart = prev.trim();
-            const newPart = finalTranscript.trim();
-            // Prevent same string from being appended twice
-            if (lastPart.toLowerCase().endsWith(newPart.toLowerCase())) return prev;
-            return lastPart ? `${lastPart} ${newPart}` : newPart;
+            const trimmedPrev = prev.trim();
+            const trimmedNew = finalBatch.trim();
+            return trimmedPrev ? `${trimmedPrev} ${trimmedNew}` : trimmedNew;
           });
           setInterimText('');
         } else {
-          setInterimText(interimTranscript);
+          setInterimText(currentInterim);
         }
       };
 
       recognitionRef.current.onend = () => {
         setIsRecording(false);
         setInterimText('');
+        lastProcessedIndex.current = -1;
       };
-      
+
       recognitionRef.current.onerror = () => {
         setIsRecording(false);
         setInterimText('');
@@ -90,13 +96,14 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
     if (isRecording) {
       recognitionRef.current?.stop();
     } else {
+      lastProcessedIndex.current = -1;
       recognitionRef.current?.start();
       setIsRecording(true);
     }
   };
 
   const handleSave = () => {
-    onSave(dateStr, content, notes, mood, reflection, tags);
+    onSave(dateStr, content, '', mood, reflection, tags);
   };
 
   const moods = ['😔', '😐', '🙂', '😃', '🤩'];
@@ -148,7 +155,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
                     onChange={(e) => {
                       const next = { ...reflection, [q.key]: e.target.value };
                       setReflection(next);
-                      onSave(dateStr, content, notes, mood, next, tags);
+                      onSave(dateStr, content, '', mood, next, tags);
                     }}
                   />
                 </div>
@@ -182,7 +189,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
                     if (e.key === 'Enter' && tagInput.trim()) {
                       const newTags = [...tags, tagInput.trim().toLowerCase()];
                       setTags(newTags);
-                      onSave(dateStr, content, notes, mood, reflection, newTags);
+                      onSave(dateStr, content, '', mood, reflection, newTags);
                       setTagInput('');
                     }
                   }}
@@ -205,19 +212,16 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
         </div>
       </div>
 
-      {/* Action Buttons with high z-index and explicit area */}
       <div className="fixed bottom-32 right-6 z-[60] flex flex-col gap-4 pointer-events-auto">
          <button 
           onClick={handleSave}
           className="w-14 h-14 rounded-full bg-indigo-600 text-white shadow-[0_10px_40px_rgba(79,70,229,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all cursor-pointer"
-          title="Сохранить изменения"
          >
            <Save size={24} />
          </button>
          <button 
           onClick={toggleRecording} 
           className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110' : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'}`}
-          title="Голосовой ввод"
          >
           {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
         </button>

@@ -4,14 +4,6 @@ import { Task, Thought, JournalEntry, Project, Habit } from "../types";
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-const getApiKey = () => {
-  try {
-    return (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-  } catch (e) {
-    return '';
-  }
-};
-
 const queryMemoryTool: FunctionDeclaration = {
   name: "query_memory",
   description: "Ищет данные в дневнике, мыслях или архиве ссылок. Обязательно используй, если пользователь спрашивает о прошлом или своих записях.",
@@ -72,8 +64,7 @@ export const createMentorChat = (
   projects: Project[],
   habits: Habit[]
 ): Chat => {
-  const apiKey = getApiKey();
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const today = format(new Date(), 'eeee, d MMMM yyyy', { locale: ru });
 
   const SYSTEM_INSTRUCTION = `
@@ -85,9 +76,8 @@ export const createMentorChat = (
 2. Если пользователь хочет что-то запланировать или напоминание — ОБЯЗАТЕЛЬНО вызывай 'create_task'.
 3. Если пользователь хочет начать проект или сферу — ОБЯЗАТЕЛЬНО вызывай 'create_project'.
 4. Если нужно что-то вспомнить или найти в старых записях — ОБЯЗАТЕЛЬНО вызывай 'query_memory'.
-5. Если пользователь дает ссылку — сохрани её.
 
-НИКОГДА не имитируй действие текстом ("Я создал задачу"), если не вызвал соответствующую функцию инструмента. Если ты не вызовешь функцию, действие НЕ БУДЕТ совершено.
+НИКОГДА не имитируй действие текстом ("Я создал задачу"), если не вызвал соответствующую функцию инструмента.
 Сегодняшняя дата: ${today}.
 `;
 
@@ -100,8 +90,7 @@ export const createMentorChat = (
         queryMemoryTool, 
         createTaskTool, 
         createProjectTool, 
-        addHabitTool,
-        { name: "save_link", parameters: { type: Type.OBJECT, properties: { url: { type: Type.STRING }, title: { type: Type.STRING } }, required: ["url", "title"] } }
+        addHabitTool
       ]}]
     }
   });
@@ -112,8 +101,7 @@ export const getSystemAnalysis = async (
   habits: Habit[],
   journal: JournalEntry[]
 ): Promise<{ status: string; insight: string; focusArea: string }> => {
-  const apiKey = getApiKey();
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const prompt = `Проанализируй состояние: Задач ${tasks.length}, Привычек ${habits.length}. Верни JSON: status, insight, focusArea.`;
   try {
     const response = await ai.models.generateContent({ 

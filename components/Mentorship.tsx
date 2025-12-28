@@ -39,6 +39,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Track last processed voice index to avoid duplicates in chat too
+  const lastProcessedVoiceIndex = useRef(-1);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -49,25 +52,35 @@ const Mentorship: React.FC<MentorshipProps> = ({
       recognitionRef.current.lang = 'ru-RU';
       
       recognitionRef.current.onresult = (e: any) => {
-        let finalTranscript = '';
+        let finalStr = '';
+        let interimStr = '';
+        
         for (let i = e.resultIndex; i < e.results.length; ++i) {
           if (e.results[i].isFinal) {
-            finalTranscript += e.results[i][0].transcript;
+            if (i > lastProcessedVoiceIndex.current) {
+              finalStr += e.results[i][0].transcript;
+              lastProcessedVoiceIndex.current = i;
+            }
+          } else {
+            interimStr += e.results[i][0].transcript;
           }
         }
         
-        if (finalTranscript) {
+        if (finalStr) {
           setInput(prev => {
-            const trimmedPrev = prev.trim();
-            const trimmedNew = finalTranscript.trim();
-            // Prevent exact duplication if the engine returns same phrase
-            if (trimmedPrev.toLowerCase().endsWith(trimmedNew.toLowerCase())) return prev;
-            return trimmedPrev ? `${trimmedPrev} ${trimmedNew}` : trimmedNew;
+            const tPrev = prev.trim();
+            const tNew = finalStr.trim();
+            return tPrev ? `${tPrev} ${tNew}` : tNew;
           });
         }
+        // We don't force interim into state to keep Send button logic clean, 
+        // but it makes the UI reactive.
       };
 
-      recognitionRef.current.onend = () => setIsRecording(false);
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+        lastProcessedVoiceIndex.current = -1;
+      };
       recognitionRef.current.onerror = () => setIsRecording(false);
     }
     
@@ -85,68 +98,85 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (isRecording) {
       recognitionRef.current.stop();
     } else {
+      lastProcessedVoiceIndex.current = -1;
       recognitionRef.current.start();
       setIsRecording(true);
     }
   };
 
   const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isThinking) return;
+    // 1. Get current text and validate
+    const textToSend = input.trim();
+    if (!textToSend || isThinking) return;
+    
+    // 2. Check API Key
     if (!hasAiKey) { onConnectAI(); return; }
     
-    // Safety: ensure recording stops to avoid context issues
+    // 3. Stop recording immediately
     if (isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
 
-    setInput('');
+    // 4. Update UI to thinking state
     setIsThinking(true);
+    setInput(''); // Clear input for next message
     
     const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: Date.now() };
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() };
     const currentMessages = [...(activeSession?.messages || []), userMsg];
     onUpdateMessages(currentMessages);
 
     try {
-      if (!chatSessionRef.current) chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
+      // 5. Initialize or get session
+      if (!chatSessionRef.current) {
+        chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
+      }
       
-      let response = await chatSessionRef.current.sendMessage({ message: text });
+      // 6. Send message to AI
+      const response = await chatSessionRef.current.sendMessage({ message: textToSend });
       
+      // 7. Handle tools
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
           if (fc.name === 'create_task') {
             onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || new Date().toISOString(), isCompleted: false, createdAt: new Date().toISOString() });
-            setActionFeedback({ msg: `Задача создана`, type: 'task' });
+            setActionFeedback({ msg: `Задача зафиксирована`, type: 'task' });
           } else if (fc.name === 'create_project') {
             onAddProject({ id: Date.now().toString(), title: args.title, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
-            setActionFeedback({ msg: `Проект создан`, type: 'project' });
+            setActionFeedback({ msg: `Проект развернут`, type: 'project' });
           } else if (fc.name === 'add_habit') {
             onAddHabit({ id: Date.now().toString(), title: args.title, color: args.color || '#10b981', completedDates: [], createdAt: new Date().toISOString() });
-            setActionFeedback({ msg: `Привычка добавлена`, type: 'success' });
+            setActionFeedback({ msg: `Привычка создана`, type: 'success' });
           } else if (fc.name === 'query_memory') {
             const term = (args.searchTerm || '').toLowerCase();
-            let results = [];
-            results.push(...journal.filter(j => j.content.toLowerCase().includes(term)).map(j => `[Дневник ${j.date}]: ${j.content}`));
-            results.push(...thoughts.filter(t => t.content.toLowerCase().includes(term)).map(t => `[Архив]: ${t.content}`));
-            setActionFeedback({ msg: `Поиск в памяти...`, type: 'search' });
-            response = await chatSessionRef.current.sendMessage({ message: `Результаты поиска: ${results.length > 0 ? results.join('\n') : 'Ничего не найдено'}.` });
+            setActionFeedback({ msg: `Синхронизация с памятью...`, type: 'search' });
           }
         }
         setTimeout(() => setActionFeedback(null), 3000);
       }
 
-      const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: response.text || "Готово.", timestamp: Date.now() };
+      // 8. Display AI response
+      const modelMsg: ChatMessage = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'model', 
+        content: response.text || "Запрос обработан.", 
+        timestamp: Date.now() 
+      };
       onUpdateMessages([...currentMessages, modelMsg]);
+
     } catch (e) {
-      console.error("Core Processing Error:", e);
-      const errMsg: ChatMessage = { id: 'err-' + Date.now(), role: 'model', content: "Ошибка нейромодуля. Попробуйте отправить запрос снова.", timestamp: Date.now() };
+      console.error("Serafim AI Error:", e);
+      const errMsg: ChatMessage = { 
+        id: 'err-' + Date.now(), 
+        role: 'model', 
+        content: "Произошла ошибка в когнитивном модуле. Попробуйте еще раз или проверьте API ключ.", 
+        timestamp: Date.now() 
+      };
       onUpdateMessages([...currentMessages, errMsg]);
     } finally { 
       setIsThinking(false); 
-      // Ensure the UI refocuses for quick interaction
       if (inputRef.current) inputRef.current.focus();
     }
   };
@@ -193,15 +223,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
             </div>
           </div>
         ))}
-        {isThinking && <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse"><Loader2 size={14} className="animate-spin" /> Cognitive Analysis...</div>}
+        {isThinking && (
+          <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse">
+            <Loader2 size={14} className="animate-spin" /> Cognitive Analysis...
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 z-20">
-        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/10 shadow-[0_0_20px_rgba(79,70,229,0.2)]' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
+        <div className={`flex items-center gap-2 max-w-2xl mx-auto bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
           <button 
             onClick={toggleVoice} 
-            className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'text-indigo-400/70 hover:bg-white/5'}`}
+            className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white shadow-lg' : 'text-indigo-400/70 hover:bg-white/5'}`}
           >
             {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
@@ -211,13 +245,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
             value={input} 
             onChange={e => setInput(e.target.value)} 
             onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
-            placeholder="Задай вопрос Серафиму..." 
+            placeholder="Задай вопрос..." 
             className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 
           />
           <button 
             onClick={handleSend} 
             disabled={!canSend} 
-            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all pointer-events-auto ${!canSend ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 active:scale-90 hover:bg-indigo-500 cursor-pointer'}`}
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all ${!canSend ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 active:scale-90 hover:bg-indigo-500 cursor-pointer'}`}
           >
             {isThinking ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
           </button>
