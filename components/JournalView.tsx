@@ -20,24 +20,26 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   
   const datePickerRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
-  const baselineContentRef = useRef('');
+  const contentStateRef = useRef('');
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
 
   const [content, setContent] = useState(entry?.content || '');
   const [mood, setMood] = useState(entry?.mood || '');
-  const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(entry?.tags || []);
   const [reflection, setReflection] = useState<DailyReflection>(entry?.reflection || {
     mainFocus: '', gratitude: '', blockers: '', tomorrowGoal: ''
   });
 
   useEffect(() => {
+    contentStateRef.current = content;
+  }, [content]);
+
+  useEffect(() => {
     const e = journal.find(j => j.date === format(selectedDate, 'yyyy-MM-dd'));
     const newContent = e?.content || '';
     setContent(newContent);
-    baselineContentRef.current = newContent;
     setMood(e?.mood || '');
     setTags(e?.tags || []);
     setReflection(e?.reflection || { mainFocus: '', gratitude: '', blockers: '', tomorrowGoal: '' });
@@ -52,24 +54,25 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       rec.lang = 'ru-RU';
 
       rec.onresult = (event: any) => {
-        let finalSpeech = '';
-        let interimSpeech = '';
+        let currentFinal = '';
+        let currentInterim = '';
 
-        for (let i = 0; i < event.results.length; ++i) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalSpeech += event.results[i][0].transcript;
+            currentFinal += event.results[i][0].transcript;
           } else {
-            interimSpeech += event.results[i][0].transcript;
+            currentInterim += event.results[i][0].transcript;
           }
         }
 
-        const updatedContent = (baselineContentRef.current + ' ' + finalSpeech).trim();
-        setContent(updatedContent);
-        setInterimText(interimSpeech);
+        if (currentFinal) {
+          const updatedContent = (contentStateRef.current + ' ' + currentFinal).replace(/\s+/g, ' ').trim();
+          setContent(updatedContent);
+        }
+        setInterimText(currentInterim);
       };
 
       rec.onstart = () => {
-        baselineContentRef.current = content;
         setIsRecording(true);
       };
 
@@ -77,19 +80,25 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
         setIsRecording(false);
         setInterimText('');
         
-        if (content.length > baselineContentRef.current.length + 5) {
+        const currentText = contentStateRef.current.trim();
+        if (currentText.length > 5) {
           setIsPolishing(true);
-          const cleanText = await polishTranscript(content);
-          setContent(cleanText);
-          setIsPolishing(false);
-          onSave(dateStr, cleanText, '', mood, reflection, tags);
+          try {
+            const cleanText = await polishTranscript(currentText);
+            setContent(cleanText);
+            onSave(dateStr, cleanText, '', mood, reflection, tags);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setIsPolishing(false);
+          }
         }
       };
 
       rec.onerror = () => setIsRecording(false);
       recognitionRef.current = rec;
     }
-  }, [content]);
+  }, [dateStr, mood, reflection, tags, onSave]);
 
   const toggleRecording = () => {
     if (!recognitionRef.current || isPolishing) return;
@@ -163,11 +172,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
             <textarea 
                className="absolute inset-0 w-full h-full opacity-0 cursor-text resize-none"
                value={content}
-               onChange={e => {
-                 const val = e.target.value;
-                 setContent(val);
-                 baselineContentRef.current = val;
-               }}
+               onChange={e => setContent(e.target.value)}
                onBlur={handleSave}
                disabled={isPolishing || isRecording}
             />
