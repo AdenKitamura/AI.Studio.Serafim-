@@ -81,7 +81,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         <p className="text-xs text-[var(--text-muted)]">Serafim OS User</p>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)]">
+                <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-white border border-[var(--border-color)]">
                     <X size={20} />
                 </button>
             </div>
@@ -237,7 +237,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         <button onClick={onInstall} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><Download size={18} /> Установить на экран</button>
                       ) : (
                         <div className="p-4 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
-                            <p className="text-xs text-[var(--text-muted)] leading-relaxed">PWA уже установлено или ваш браузер не поддерживает прямую инсталляцию. Для iOS: "Поделиться" -> "На экран Домой".</p>
+                            <p className="text-xs text-[var(--text-muted)] leading-relaxed">PWA уже установлено или ваш браузер не поддерживает прямую инсталляцию. Для iOS: "Поделиться" &rarr; "На экран Домой".</p>
                         </div>
                       )}
                     </div>
