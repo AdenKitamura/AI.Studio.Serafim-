@@ -79,7 +79,7 @@ export interface ChatSession {
   createdAt: string;
 }
 
-export type ViewState = 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects';
+export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects';
 export type CalendarMode = 'day' | 'week' | 'month' | 'quarter';
 
 export interface AppState {

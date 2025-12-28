@@ -9,6 +9,7 @@ import Ticker from './components/Ticker';
 import ProfileModal from './components/ProfileModal';
 import FocusTimer from './components/FocusTimer';
 import ThoughtsView from './components/ThoughtsView';
+import Dashboard from './components/Dashboard';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { 
@@ -18,13 +19,14 @@ import {
   Folder,
   Zap,
   BookOpen,
-  Loader2
+  Loader2,
+  LayoutDashboard
 } from './components/Icons';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
   const [userName] = useState(() => localStorage.getItem('sb_user_name') || 'Пользователь');
-  const [view, setView] = useState<ViewState>('chat');
+  const [view, setView] = useState<ViewState>('dashboard');
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'slate') as ThemeKey);
   
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -162,11 +164,11 @@ const App = () => {
   const themeColors = useMemo(() => themes[currentTheme]?.colors || themes.slate.colors, [currentTheme]);
 
   const navItems = [
+    { id: 'dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'chat', icon: <MessageSquare size={18} /> },
     { id: 'projects', icon: <Folder size={18} /> },
     { id: 'planner', icon: <CheckCircle size={18} /> },
     { id: 'journal', icon: <BookOpen size={18} /> },
-    { id: 'thoughts', icon: <Brain size={18} /> },
   ];
 
   if (!isDataReady) {
@@ -177,8 +179,6 @@ const App = () => {
       </div>
     );
   }
-
-  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col relative" style={themeColors as any}>
@@ -217,6 +217,25 @@ const App = () => {
       <Ticker thoughts={thoughts} />
 
       <main className="flex-1 relative overflow-hidden z-10">
+        {view === 'dashboard' && (
+          <Dashboard 
+            tasks={tasks} 
+            thoughts={thoughts} 
+            journal={journal} 
+            projects={projects} 
+            habits={habits}
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={setActiveSessionId}
+            onUpdateMessages={(msgs) => handleUpdateSessionMessages(activeSessionId!, msgs)}
+            onNewSession={handleCreateNewSession}
+            onDeleteSession={handleDeleteSession}
+            onAddTask={t => setTasks([t, ...tasks])}
+            onAddProject={p => setProjects([p, ...projects])}
+            onAddThought={t => setThoughts([t, ...thoughts])}
+            onNavigate={setView}
+          />
+        )}
         {view === 'chat' && (
           <Mentorship 
             tasks={tasks} 
@@ -242,12 +261,12 @@ const App = () => {
       </main>
 
       <div className="absolute bottom-6 left-0 w-full flex justify-center z-50 pointer-events-none">
-        <nav className="pointer-events-auto flex items-center gap-6 px-6 py-3 bg-[var(--bg-item)]/95 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl">
+        <nav className="pointer-events-auto flex items-center gap-4 px-4 py-3 bg-[var(--bg-item)]/95 backdrop-blur-2xl border border-white/10 rounded-full shadow-2xl">
           {navItems.map(item => (
             <button 
               key={item.id} 
               onClick={() => setView(item.id as ViewState)} 
-              className={`transition-all duration-300 p-2 rounded-full ${view === item.id ? 'text-indigo-400 bg-indigo-500/10 scale-125' : 'text-[var(--text-muted)] hover:text-white'}`}
+              className={`transition-all duration-300 p-2 rounded-full ${view === item.id ? 'text-indigo-400 bg-indigo-500/10 scale-110' : 'text-[var(--text-muted)] hover:text-white'}`}
             >
               {item.icon}
             </button>

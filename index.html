@@ -18,12 +18,12 @@
     
     <title>Serafim OS</title>
     
-    <!-- PWA Manifest Link - using relative path for maximum compatibility -->
+    <!-- PWA Manifest Link -->
     <link rel="manifest" href="manifest.json" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
       :root {
         --dot-size: 1px;
@@ -52,37 +52,39 @@
           padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
         }
       }
+
+      /* Ticker Animation */
+      @keyframes ticker {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      .animate-ticker {
+        animation: ticker 120s linear infinite;
+      }
     </style>
     <script type="importmap">
-    {
-      "imports": {
-        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-        "react": "https://esm.sh/react@^19.2.3",
-        "react/": "https://esm.sh/react@^19.2.3/",
-        "date-fns": "https://esm.sh/date-fns@^4.1.0",
-        "date-fns/locale": "https://esm.sh/date-fns@^4.1.0/locale",
-        "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-        "date-fns/": "https://esm.sh/date-fns@^4.1.0/"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "date-fns": "https://esm.sh/date-fns@^4.1.0",
+    "date-fns/locale": "https://esm.sh/date-fns@^4.1.0/locale",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
+    "date-fns/": "https://esm.sh/date-fns@^4.1.0/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+    <!-- CRITICAL: Entry point script -->
+    <script type="module" src="./index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js')
-            .then(reg => {
-              console.log('Serafim SW registered:', reg.scope);
-              // Trigger a controllerchange update if needed
-              reg.onupdatefound = () => {
-                const installingWorker = reg.installing;
-                installingWorker.onstatechange = () => {
-                  if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    console.log('New content is available; please refresh.');
-                  }
-                };
-              };
-            })
+            .then(reg => console.log('Serafim SW registered'))
             .catch(err => console.log('SW reg error:', err));
         });
       }
