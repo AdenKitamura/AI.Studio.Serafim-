@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'serafim-core-v2.1';
+const CACHE_NAME = 'serafim-core-v3.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,18 +8,15 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  // Force the waiting service worker to become the active service worker.
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('SW: Pre-caching app shell');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  // Ensure the service worker takes control of the page immediately.
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
@@ -33,19 +30,28 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Cache-first strategy for a smooth offline-like experience
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
+      return cachedResponse || fetch(event.request);
+    })
+  );
+});
+
+// Обработка клика по системному уведомлению
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      if (clientList.length > 0) {
+        let client = clientList[0];
+        for (let i = 0; i < clientList.length; i++) {
+          if (clientList[i].focused) {
+            client = clientList[i];
+          }
+        }
+        return client.focus();
       }
-      return fetch(event.request).then((response) => {
-        // Optional: dynamic caching can be added here
-        return response;
-      });
-    }).catch(() => {
-      // Offline fallback can be added here
-      return fetch(event.request);
+      return clients.openWindow('./');
     })
   );
 });

@@ -1,40 +1,33 @@
+
 export const playAlarmSound = () => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
 
     const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+    const playNote = (freq: number, start: number, duration: number) => {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
 
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
 
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
-    oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
-    
-    gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        
+        gainNode.gain.setValueAtTime(0, ctx.currentTime + start);
+        gainNode.gain.linearRampToValueAtTime(0.2, ctx.currentTime + start + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
 
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.5);
+        oscillator.start(ctx.currentTime + start);
+        oscillator.stop(ctx.currentTime + start + duration);
+    };
 
-    // Play a second beep
-    setTimeout(() => {
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.frequency.setValueAtTime(880, ctx.currentTime);
-        osc2.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
-        gain2.gain.setValueAtTime(0.5, ctx.currentTime);
-        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-        osc2.start(ctx.currentTime);
-        osc2.stop(ctx.currentTime + 0.5);
-    }, 600);
+    // Мелодичный двухтональный сигнал
+    playNote(659.25, 0, 0.4); // E5
+    playNote(880.00, 0.1, 0.6); // A5
 
   } catch (e) {
-    console.error("Audio play failed", e);
+    console.error("Audio engine failed:", e);
   }
 };

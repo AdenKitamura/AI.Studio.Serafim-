@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ViewState, Task, Thought, Priority, ThemeKey, JournalEntry, Project, Habit, ChatMessage, ChatSession } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
@@ -13,8 +13,10 @@ import Dashboard from './components/Dashboard';
 import InteractiveTour from './components/InteractiveTour';
 import Onboarding from './components/Onboarding';
 import AnalyticsView from './components/AnalyticsView';
+import NotificationModal from './components/NotificationModal';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
+import { playAlarmSound } from './services/audioService';
 import { 
   Zap, 
   BookOpen, 
@@ -25,10 +27,10 @@ import {
   Settings as SettingsIcon,
   Archive,
   Activity,
-  Download,
   CheckCircle,
   Plus
 } from 'lucide-react';
+import { addMinutes } from 'date-fns';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
@@ -36,12 +38,8 @@ const App = () => {
   const [view, setView] = useState<ViewState>('dashboard');
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'slate') as ThemeKey);
   const [isCoreMenuOpen, setIsCoreMenuOpen] = useState(false);
+  const [activeNotification, setActiveNotification] = useState<Task | null>(null);
 
-  const setTheme = (theme: ThemeKey) => {
-    setCurrentTheme(theme);
-    localStorage.setItem('sb_theme', theme);
-  };
-  
   const [tasks, setTasks] = useState<Task[]>([]);
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
@@ -55,6 +53,61 @@ const App = () => {
   const [showTutorial, setShowTutorial] = useState(false);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
+  // --- NOTIFICATION ENGINE ---
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const checkDeadlines = useCallback(() => {
+    const now = new Date().getTime();
+    const notifiedTasks = JSON.parse(localStorage.getItem('serafim_notified_tasks') || '[]');
+    
+    const taskToNotify = tasks.find(t => {
+      if (t.isCompleted || !t.dueDate || notifiedTasks.includes(t.id)) return false;
+      const dueTime = new Date(t.dueDate).getTime();
+      return now >= dueTime && now <= dueTime + 600000; // Окно 10 минут
+    });
+
+    if (taskToNotify) {
+      setActiveNotification(taskToNotify);
+      playAlarmSound();
+      
+      // Системное уведомление для фонового режима
+      if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+        new Notification("Serafim OS: Пора действовать", {
+          body: taskToNotify.title,
+          icon: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/512x512/1f9e0.png"
+        });
+      }
+
+      localStorage.setItem('serafim_notified_tasks', JSON.stringify([...notifiedTasks, taskToNotify.id]));
+    }
+  }, [tasks]);
+
+  useEffect(() => {
+    const interval = setInterval(checkDeadlines, 30000);
+    return () => clearInterval(interval);
+  }, [checkDeadlines]);
+
+  const handleCompleteTask = (id: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? {...t, isCompleted: true} : t));
+    setActiveNotification(null);
+  };
+
+  const handleSnoozeTask = (id: string, minutes: number) => {
+    const newDate = addMinutes(new Date(), minutes).toISOString();
+    setTasks(prev => prev.map(t => t.id === id ? {...t, dueDate: newDate} : t));
+    
+    // Удаляем из списка оповещенных, чтобы сработало снова
+    const notified = JSON.parse(localStorage.getItem('serafim_notified_tasks') || '[]');
+    localStorage.setItem('serafim_notified_tasks', JSON.stringify(notified.filter((tid: string) => tid !== id)));
+    
+    setActiveNotification(null);
+  };
+
+  // --- DATA LIFECYCLE ---
   const hasAiKey = useMemo(() => {
     try {
       const key = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
@@ -101,6 +154,11 @@ const App = () => {
     } 
   }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
 
+  const setTheme = (theme: ThemeKey) => {
+    setCurrentTheme(theme);
+    localStorage.setItem('sb_theme', theme);
+  };
+
   const themeColors = useMemo(() => themes[currentTheme]?.colors || themes.slate.colors, [currentTheme]);
 
   if (!userName && isDataReady) return <Onboarding onComplete={(name) => { setUserName(name); localStorage.setItem('sb_user_name', name); }} />;
@@ -137,10 +195,7 @@ const App = () => {
         {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
       </main>
 
-      {/* CORE NAVIGATION - ONE CORE ACTION */}
       <div className="fixed bottom-0 left-0 w-full flex flex-col items-center z-[100] p-6 pointer-events-none">
-        
-        {/* Expanded Menu Actions */}
         {isCoreMenuOpen && (
           <div className="pointer-events-auto flex items-center gap-3 p-2 glass rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-300 mb-6">
             <button onClick={() => navigateTo('dashboard')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><LayoutDashboard size={20}/></button>
@@ -153,7 +208,6 @@ const App = () => {
           </div>
         )}
 
-        {/* Floating Core Button */}
         <div className="pointer-events-auto flex items-center gap-4">
           <button 
             onClick={() => { setView('chat'); setVoiceTrigger(v => v + 1); setIsCoreMenuOpen(false); }}
@@ -179,6 +233,19 @@ const App = () => {
           </button>
         </div>
       </div>
+
+      {activeNotification && (
+        <NotificationModal 
+          task={activeNotification} 
+          onClose={() => setActiveNotification(null)}
+          onComplete={() => handleCompleteTask(activeNotification.id)}
+          onSnooze={(mins) => handleSnoozeTask(activeNotification.id, mins)}
+          onReschedule={() => {
+            setActiveNotification(null);
+            setView('planner');
+          }}
+        />
+      )}
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
       

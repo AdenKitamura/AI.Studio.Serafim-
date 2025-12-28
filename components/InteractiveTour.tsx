@@ -78,13 +78,16 @@ const InteractiveTour: React.FC<InteractiveTourProps> = ({ onComplete }) => {
     }
   };
 
+  // Fix: Cast spotlightStyle to any to resolve TypeScript property access errors on CSSProperties type during calculations
+  const s = spotlightStyle as any;
+
   return (
     <div className="fixed inset-0 z-[200] pointer-events-none">
       {/* Dark Backdrop with Spotlight Hole */}
       <div className="absolute inset-0 bg-black/70 transition-opacity duration-500 pointer-events-auto" 
            style={{ 
-             clipPath: spotlightStyle.left 
-               ? `polygon(0% 0%, 0% 100%, ${spotlightStyle.left} 100%, ${spotlightStyle.left} ${spotlightStyle.top}, ${parseFloat(spotlightStyle.left as string) + parseFloat(spotlightStyle.width as string)}px ${spotlightStyle.top}, ${parseFloat(spotlightStyle.left as string) + parseFloat(spotlightStyle.width as string)}px ${parseFloat(spotlightStyle.top as string) + parseFloat(spotlightStyle.height as string)}px, ${spotlightStyle.left} ${parseFloat(spotlightStyle.top as string) + parseFloat(spotlightStyle.height as string)}px, ${spotlightStyle.left} 100%, 100% 100%, 100% 0%)`
+             clipPath: s.left 
+               ? `polygon(0% 0%, 0% 100%, ${s.left} 100%, ${s.left} ${s.top}, ${parseFloat(s.left) + parseFloat(s.width)}px ${s.top}, ${parseFloat(s.left) + parseFloat(s.width)}px ${parseFloat(s.top) + parseFloat(s.height)}px, ${s.left} ${parseFloat(s.top) + parseFloat(s.height)}px, ${s.left} 100%, 100% 100%, 100% 0%)`
                : 'none'
            }} 
       />

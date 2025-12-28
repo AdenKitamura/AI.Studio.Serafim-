@@ -57,24 +57,24 @@ const addHabitTool: FunctionDeclaration = {
   }
 };
 
-// GPT-like polishing with aggressive stutter removal
 export const polishTranscript = async (text: string): Promise<string> => {
-  if (!text || text.length < 3) return text;
+  if (!text || text.trim().length < 2) return text;
   
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `ИНСТРУКЦИЯ: Текст ниже получен через некачественный голосовой ввод. Он содержит "заикания", повторы слов (например: "создай создай создай новый проект проект") и ошибки распознавания. 
-ЗАДАЧА: Исправь его. Удали ВСЕ повторы, расставь знаки препинания и исправь орфографию. Сделай текст естественным и чистым, сохранив смысл.
-ВЕРНИ ТОЛЬКО ИСПРАВЛЕННЫЙ ТЕКСТ БЕЗ КОММЕНТАРИЕВ.
+      contents: `ИНСТРУКЦИЯ: Текст ниже получен через голосовой ввод. Исправь его: удали повторы, заикания, исправь ошибки распознавания, расставь знаки препинания. 
+ВАЖНО: Сохрани смысл полностью. Если текст похож на команду (например "создай задачу"), сделай его четким.
+ВЕРНИ ТОЛЬКО ИСПРАВЛЕННЫЙ ТЕКСТ.
 
 ТЕКСТ:
 "${text}"`,
     });
-    return response.text?.trim() || text;
+    const result = response.text?.trim();
+    return result && result.length > 0 ? result : text;
   } catch (e) {
-    console.error("Polishing error", e);
+    console.warn("Serafim: Polishing engine error, falling back to raw text", e);
     return text;
   }
 };
@@ -91,15 +91,16 @@ export const createMentorChat = (
 
   const SYSTEM_INSTRUCTION = `
 Ты — Serafim OS, интеллектуальное ядро системы управления знаниями. 
-Твоя задача — помогать пользователю организовывать его "Второй мозг".
 
-ПРАВИЛА ДЕЙСТВИЙ:
-1. ПРЕЖДЕ ЧЕМ ОТВЕТИТЬ ТЕКСТОМ, ВЫЗЫВАЙ ИНСТРУМЕНТ, ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ О ДЕЙСТВИИ.
-2. Если нужно что-то запланировать — используй 'create_task'.
-3. Если нужно начать проект — 'create_project'.
-4. Если нужно вспомнить — 'query_memory'.
+Твои функции:
+1. Создание задач ('create_task')
+2. Создание проектов ('create_project')
+3. Поиск в памяти ('query_memory')
+4. Трекинг привычек ('add_habit')
 
-Сегодняшняя дата: ${today}.
+Если пользователь просит что-то сделать (создать, записать, найти) — ВСЕГДА используй соответствующий инструмент ПЕРЕД текстовым ответом.
+
+Сегодня: ${today}.
 `;
 
   return ai.chats.create({
