@@ -13,6 +13,7 @@ import Dashboard from './components/Dashboard';
 import InteractiveTour from './components/InteractiveTour';
 import Onboarding from './components/Onboarding';
 import Settings from './components/Settings';
+import AnalyticsView from './components/AnalyticsView';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { 
@@ -25,7 +26,8 @@ import {
   Brain, 
   Folder, 
   Settings as SettingsIcon,
-  Archive
+  Archive,
+  Activity
 } from 'lucide-react';
 
 const App = () => {
@@ -47,7 +49,7 @@ const App = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
-  const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
@@ -96,12 +98,14 @@ const App = () => {
     <div className={`h-[100dvh] w-full overflow-hidden flex flex-col relative transition-colors duration-500`} style={themeColors as any}>
       <header className="flex-none flex items-center justify-between px-6 py-5 z-40 bg-[var(--bg-main)]/60 backdrop-blur-3xl border-b border-white/5">
         <div className="flex items-center gap-3" onClick={() => setView('dashboard')}>
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-lg"><span className="font-black text-xl text-white">S</span></div>
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-lg cursor-pointer active:scale-90 transition-transform"><span className="font-black text-xl text-white">S</span></div>
           <h1 className="font-extrabold text-2xl tracking-tighter opacity-90 hidden sm:block">Serafim OS</h1>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center bg-white/5 text-indigo-400 hover:text-white transition-all"><Zap size={20} /></button>
-          <button onClick={() => setShowProfile(true)} className="w-11 h-11 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 font-bold">{userName.charAt(0).toUpperCase()}</button>
+          <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 transition-all hover:bg-indigo-600/20">
+            <SettingsIcon size={20} />
+          </button>
         </div>
       </header>
 
@@ -114,10 +118,10 @@ const App = () => {
         {view === 'thoughts' && <ThoughtsView thoughts={thoughts} onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} />}
         {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onAddHabit={h => setHabits([h, ...habits])} onToggleHabit={(id, d) => setHabits(habits.map(h => h.id === id ? {...h, completedDates: h.completedDates.includes(d) ? h.completedDates.filter(cd => cd !== d) : [...h.completedDates, d]} : h))} onDeleteHabit={id => setHabits(habits.filter(h => h.id !== id))} />}
         {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
+        {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => setView('dashboard')} />}
         {view === 'settings' && <Settings currentTheme={currentTheme} setTheme={setTheme} onClose={() => setView('dashboard')} exportData={{tasks, thoughts, journal, projects, habits}} onImport={data => {setTasks(data.tasks || tasks); setThoughts(data.thoughts || thoughts);}} />}
       </main>
 
-      {/* FIXED 7-ICON NAVIGATION BAR */}
       <div className="fixed bottom-0 left-0 w-full flex justify-center z-[100] pointer-events-none p-6">
         <nav className="pointer-events-auto flex items-center gap-1 p-1.5 glass bg-[var(--bg-item)]/80 border border-white/10 rounded-[2.5rem] shadow-2xl transition-all">
           <button onClick={() => setView('dashboard')} className={`w-10 h-10 rounded-[1.25rem] flex items-center justify-center transition-all ${view === 'dashboard' ? 'text-indigo-400 bg-indigo-500/10' : 'text-white/40 hover:text-white'}`} title="Дашборд"><LayoutDashboard size={18} /></button>
@@ -128,12 +132,12 @@ const App = () => {
           
           <button onClick={() => setView('planner')} className={`w-10 h-10 rounded-[1.25rem] flex items-center justify-center transition-all ${view === 'planner' ? 'text-indigo-400 bg-indigo-500/10' : 'text-white/40 hover:text-white'}`} title="Планер"><CheckCircle size={18} /></button>
           <button onClick={() => setView('journal')} className={`w-10 h-10 rounded-[1.25rem] flex items-center justify-center transition-all ${view === 'journal' ? 'text-indigo-400 bg-indigo-500/10' : 'text-white/40 hover:text-white'}`} title="Дневник"><BookOpen size={18} /></button>
-          <button onClick={() => setView('settings')} className={`w-10 h-10 rounded-[1.25rem] flex items-center justify-center transition-all ${view === 'settings' ? 'text-indigo-400 bg-indigo-500/10' : 'text-white/40 hover:text-white'}`} title="Настройки"><SettingsIcon size={18} /></button>
+          <button onClick={() => setView('analytics')} className={`w-10 h-10 rounded-[1.25rem] flex items-center justify-center transition-all ${view === 'analytics' ? 'text-indigo-400 bg-indigo-500/10' : 'text-white/40 hover:text-white'}`} title="Аналитика"><Activity size={18} /></button>
         </nav>
       </div>
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
-      {showProfile && <ProfileModal appState={{tasks, thoughts, journal, projects, habits, view}} userName={userName} currentTheme={currentTheme} setTheme={setTheme} onClose={() => setShowProfile(false)} onImport={d => setTasks(d.tasks || [])} hasAiKey={hasAiKey} />}
+      {showSettings && <ProfileModal appState={{tasks, thoughts, journal, projects, habits, view}} userName={userName} currentTheme={currentTheme} setTheme={setTheme} onClose={() => setShowSettings(false)} onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} hasAiKey={hasAiKey} />}
       {showTutorial && <InteractiveTour onComplete={() => { localStorage.setItem('serafim_onboarded', 'true'); setShowTutorial(false); }} />}
     </div>
   );

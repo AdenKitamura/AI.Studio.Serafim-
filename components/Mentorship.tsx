@@ -42,8 +42,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
-  // Флаг для отложенной отправки после окончания записи
+  // Рефы для работы внутри коллбэков (предотвращение stale closures)
+  const inputRefState = useRef('');
   const isPendingSendRef = useRef(false);
+
+  useEffect(() => {
+    inputRefState.current = input;
+  }, [input]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -67,6 +72,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         }
         
         if (finalForEvent) {
+          // Чистим и склеиваем только новый финальный текст
           setInput(prev => (prev + ' ' + finalForEvent).replace(/\s+/g, ' ').trim());
         }
         setInterimText(interimForEvent);
@@ -77,19 +83,20 @@ const Mentorship: React.FC<MentorshipProps> = ({
         setInterimText('');
       };
 
-      rec.onend = async () => {
+      rec.onend = () => {
         setIsRecording(false);
         setInterimText('');
         
-        // Когда запись закончилась, если есть текст - пробуем его "причесать"
-        // Мы берем актуальное состояние input через стейт в момент вызова performSend
-        // Но для надежности передадим текущий ввод.
+        // Если была команда на отправку - запускаем процесс
+        if (isPendingSendRef.current) {
+          isPendingSendRef.current = false;
+          executeFinalProcess();
+        }
       };
 
       rec.onerror = (e: any) => {
-        console.error("Speech Recognition Error", e);
+        console.error("Speech Error", e);
         setIsRecording(false);
-        setInterimText('');
         isPendingSendRef.current = false;
       };
 
@@ -110,58 +117,51 @@ const Mentorship: React.FC<MentorshipProps> = ({
     }
   };
 
-  // Основной входной пункт для кнопки "Отправить"
-  const handleSendRequest = async () => {
+  const handleSendRequest = () => {
     if (isRecording) {
-      // Если мы пишем голос - останавливаем и помечаем, что нужно отправить сразу после
       isPendingSendRef.current = true;
       recognitionRef.current.stop();
-      
-      // Ждем небольшую задержку, пока сработает onend и обновится стейт
-      setTimeout(() => {
-        executePolishingAndSend();
-      }, 300);
       return;
     }
-    
-    executePolishingAndSend();
+    executeFinalProcess();
   };
 
-  const executePolishingAndSend = async () => {
-    if (!input.trim() || isThinking || isPolishing) return;
+  const executeFinalProcess = async () => {
+    const textSnapshot = inputRefState.current.trim();
+    if (!textSnapshot || isThinking || isPolishing) return;
 
-    let textToProcess = input.trim();
-    
-    // Интеллектуальная очистка если текст длинный
-    if (textToProcess.length > 10) {
+    let textToSend = textSnapshot;
+
+    // Очистка если текста много
+    if (textSnapshot.length > 10) {
       setIsPolishing(true);
       try {
-        const polished = await polishTranscript(textToProcess);
-        textToProcess = polished;
+        const polished = await polishTranscript(textSnapshot);
+        textToSend = polished;
         setInput(polished);
       } catch (err) {
-        console.warn("Polishing failed, using raw text");
+        console.warn("Polishing error, using raw");
       } finally {
         setIsPolishing(false);
       }
     }
 
-    performApiSend(textToProcess);
+    performApiSend(textToSend);
   };
 
-  const performApiSend = async (textToSend: string) => {
-    if (!textToSend.trim() || !hasAiKey) {
+  const performApiSend = async (text: string) => {
+    if (!text.trim() || !hasAiKey) {
       if (!hasAiKey) onConnectAI();
       return;
     }
 
     setIsThinking(true);
-    const textSnapshot = textToSend;
-    setInput(''); // Очищаем поле сразу после захвата текста
+    setInput(''); // Очищаем поле сразу
+    inputRefState.current = '';
     
     try {
       const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textSnapshot, timestamp: Date.now() };
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: Date.now() };
       const currentMessages = [...(activeSession?.messages || []), userMsg];
       
       onUpdateMessages(currentMessages);
@@ -170,9 +170,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
       
-      const response = await chatSessionRef.current.sendMessage({ message: textSnapshot });
+      const response = await chatSessionRef.current.sendMessage({ message: text });
       
-      // Обработка инструментов
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
@@ -193,19 +192,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: response.text || "Готово.", 
+        content: response.text || "Принято.", 
         timestamp: Date.now() 
       };
       onUpdateMessages([...currentMessages, modelMsg]);
 
     } catch (e) {
-      console.error("API Send Error:", e);
+      console.error("API Send Error", e);
       onUpdateMessages([...(sessions.find(s => s.id === activeSessionId)?.messages || []), { 
-        id: 'err-' + Date.now(), role: 'model', content: "Ошибка ядра Serafim. Попробуйте отправить сообщение еще раз.", timestamp: Date.now() 
+        id: 'err-' + Date.now(), role: 'model', content: "Ошибка ядра. Пожалуйста, попробуйте еще раз.", timestamp: Date.now() 
       }]);
     } finally { 
       setIsThinking(false); 
-      isPendingSendRef.current = false;
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -236,7 +234,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <Activity size={20} className="text-indigo-500" />
           <div>
             <h2 className="text-sm font-bold text-white uppercase tracking-tighter">Serafim AI</h2>
-            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core {isThinking ? 'Processing' : 'Standby'}</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core {isThinking ? 'Thinking' : 'Online'}</p>
           </div>
         </div>
         <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all"><Plus size={20} /></button>
@@ -252,7 +250,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
         {(isThinking || isPolishing) && (
           <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse">
-            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Очистка текста...' : 'Анализ сообщения...'}
+            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Очистка шума...' : 'Анализ Serafim...'}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -268,7 +266,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <div className={`flex items-center gap-2 bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-[0_0_25px_rgba(79,70,229,0.3)]' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
             <button 
               onClick={toggleVoice} 
-              title={isRecording ? "Остановить" : "Голосовой ввод"}
+              title={isRecording ? "Завершить" : "Голос"}
               className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white' : 'text-indigo-400/70 hover:bg-white/5'}`}
             >
               {isRecording ? <MicOff size={20} /> : <Mic size={20} />}

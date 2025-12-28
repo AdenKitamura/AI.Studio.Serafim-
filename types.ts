@@ -89,13 +89,11 @@ export interface ChatSession {
   createdAt: string;
 }
 
-export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects';
+export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
 export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbon' | 'amethyst' | 'crimson' | 'neon' | 'polar' | 'paper' | 'lilac';
 
-// Added missing exported member 'CalendarMode' for CalendarView.tsx
 export type CalendarMode = 'week' | 'month';
 
-// Added missing exported member 'AppState' for ProfileModal.tsx
 export interface AppState {
   tasks: Task[];
   thoughts: Thought[];
