@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey } from '../types';
 import Settings from './Settings';
 import { 
-  X, Cpu, Database, Settings as SettingsIcon, Activity, CheckCircle2, RefreshCw
+  X, Cpu, Database, Settings as SettingsIcon, Activity, CheckCircle2, RefreshCw, Layers
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -34,7 +34,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       setStorageInfo({
         used: used.toFixed(2) + ' MB',
         total: (total / 1024).toFixed(1) + ' GB',
-        percent: Math.min(100, (used / total) * 100)
+        percent: Math.min(100, (used / (total || 1)) * 100)
       });
     }
 
@@ -77,8 +77,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
             <div className="flex-none p-4 pb-0 bg-[var(--bg-main)]">
                 <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 gap-1">
-                    <button onClick={() => setActiveTab('settings')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><SettingsIcon size={14} /> Параметры</button>
-                    <button onClick={() => setActiveTab('system')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><Cpu size={14} /> Состояние</button>
+                    <button onClick={() => setActiveTab('settings')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><SettingsIcon size={14} /> Конфигурация</button>
+                    <button onClick={() => setActiveTab('system')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><Activity size={14} /> Состояние</button>
                 </div>
             </div>
 
@@ -88,19 +88,20 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {activeTab === 'system' && (
                   <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-24">
                     <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white/30">Диагностика ядра</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white/30">Параметры Ядра</h4>
                         <button onClick={runDiagnostics} className="p-2 bg-white/5 rounded-lg text-indigo-400 hover:text-white transition-colors">
                             <RefreshCw size={14} />
                         </button>
                     </div>
                     
                     <div className="space-y-3">
+                        {/* Database Status */}
                         <div className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-blue-500/10 text-blue-500 rounded-2xl"><Database size={20} /></div>
                                 <div>
-                                    <p className="text-sm font-bold text-white">База данных</p>
-                                    <p className="text-[10px] font-medium text-white/30">IndexedDB Local</p>
+                                    <p className="text-sm font-bold text-white">Хранилище DB</p>
+                                    <p className="text-[10px] font-medium text-white/30">IndexedDB Local v3</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -109,13 +110,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                             </div>
                         </div>
 
+                        {/* Memory Usage */}
                         <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
                             <div className="flex justify-between items-center mb-4">
                                 <div className="flex items-center gap-4">
                                     <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl"><Activity size={20} /></div>
                                     <div>
-                                        <p className="text-sm font-bold text-white">Память</p>
-                                        <p className="text-[10px] font-medium text-white/30">{storageInfo?.used} использовано</p>
+                                        <p className="text-sm font-bold text-white">Квота памяти</p>
+                                        <p className="text-[10px] font-medium text-white/30">{storageInfo?.used} занято</p>
                                     </div>
                                 </div>
                                 <span className="text-xs font-mono font-bold text-white/40">{storageInfo?.percent.toFixed(1)}%</span>
@@ -125,17 +127,41 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                             </div>
                         </div>
 
-                        <div className="bg-indigo-600/5 border border-indigo-500/10 rounded-2xl p-5 flex flex-col items-center text-center">
-                            <Cpu size={32} className="text-indigo-500 mb-3 opacity-50" />
-                            <h5 className="text-xs font-black uppercase tracking-widest text-white/80 mb-2">Статус AI</h5>
-                            <p className="text-[10px] text-white/40 leading-relaxed px-4">
-                                Ядро Gemini 3 Flash активно. Все функции анализа и планирования доступны в полном объеме.
-                            </p>
+                        {/* Data Overview */}
+                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 grid grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Всего Задач</span>
+                                <span className="text-xl font-black text-white">{appState.tasks.length}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Мысли/Узлы</span>
+                                <span className="text-xl font-black text-white">{appState.thoughts.length}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Проекты</span>
+                                <span className="text-xl font-black text-white">{appState.projects.length}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Записи</span>
+                                <span className="text-xl font-black text-white">{appState.journal.length}</span>
+                            </div>
+                        </div>
+
+                        {/* AI Status */}
+                        <div className="bg-indigo-600/5 border border-indigo-500/10 rounded-2xl p-5 flex items-start gap-4">
+                            <Cpu size={24} className="text-indigo-500 mt-1" />
+                            <div>
+                                <h5 className="text-xs font-black uppercase tracking-widest text-white/80 mb-1">Ядро Gemini 3</h5>
+                                <p className="text-[10px] text-white/40 leading-relaxed">
+                                    Нейронная модель активна. Обработка запросов и декомпозиция целей работают в штатном режиме.
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="pt-6 border-t border-white/5">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-white/20 text-center">Serafim OS v2.5.1 • Последняя проверка: {lastCheck}</p>
+                    <div className="pt-6 border-t border-white/5 text-center">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/20">Serafim OS Engine v3.0.0-build.2025</p>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/20 mt-1">Last Sync: {lastCheck}</p>
                     </div>
                   </div>
                 )}
