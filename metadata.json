@@ -1,0 +1,7 @@
+{
+  "name": "Serafim OS",
+  "description": "Second Brain OS with AI Mentor, Task Management and Zettelkasten.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

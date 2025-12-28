@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#09090b" />
+    
+    <!-- PWA Primary Meta -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Serafim">
+    
+    <!-- iOS support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Serafim" />
+    <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/512x512/1f9e0.png" />
+    
+    <title>Serafim OS</title>
+    
+    <!-- PWA Manifest Link - using relative path for maximum compatibility -->
+    <link rel="manifest" href="manifest.json" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      :root {
+        --dot-size: 1px;
+        --dot-space: 32px;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        background-color: #09090b;
+        color: #f4f4f5;
+        overscroll-behavior-y: none;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      /* PWA Safe Area Fixes */
+      @supports (padding: env(safe-area-inset-top)) {
+        header {
+          padding-top: calc(1rem + env(safe-area-inset-top));
+        }
+        nav {
+          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+        }
+      }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+        "react": "https://esm.sh/react@^19.2.3",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "date-fns": "https://esm.sh/date-fns@^4.1.0",
+        "date-fns/locale": "https://esm.sh/date-fns@^4.1.0/locale",
+        "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "date-fns/": "https://esm.sh/date-fns@^4.1.0/"
+      }
+    }
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => {
+              console.log('Serafim SW registered:', reg.scope);
+              // Trigger a controllerchange update if needed
+              reg.onupdatefound = () => {
+                const installingWorker = reg.installing;
+                installingWorker.onstatechange = () => {
+                  if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('New content is available; please refresh.');
+                  }
+                };
+              };
+            })
+            .catch(err => console.log('SW reg error:', err));
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
