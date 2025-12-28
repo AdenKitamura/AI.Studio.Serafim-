@@ -20,7 +20,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   
   const datePickerRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
-  const contentStateRef = useRef('');
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
@@ -33,10 +32,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   });
 
   useEffect(() => {
-    contentStateRef.current = content;
-  }, [content]);
-
-  useEffect(() => {
     const e = journal.find(j => j.date === format(selectedDate, 'yyyy-MM-dd'));
     const newContent = e?.content || '';
     setContent(newContent);
@@ -46,7 +41,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
   }, [selectedDate, journal]);
 
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
       rec.continuous = true;
@@ -54,22 +49,21 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       rec.lang = 'ru-RU';
 
       rec.onresult = (event: any) => {
-        let currentFinal = '';
-        let currentInterim = '';
+        let finalSpeech = '';
+        let interimSpeech = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            currentFinal += event.results[i][0].transcript;
+            finalSpeech += event.results[i][0].transcript;
           } else {
-            currentInterim += event.results[i][0].transcript;
+            interimSpeech = event.results[i][0].transcript;
           }
         }
 
-        if (currentFinal) {
-          const updatedContent = (contentStateRef.current + ' ' + currentFinal).replace(/\s+/g, ' ').trim();
-          setContent(updatedContent);
+        if (finalSpeech) {
+          setContent(prev => (prev + ' ' + finalSpeech).replace(/\s+/g, ' ').trim());
         }
-        setInterimText(currentInterim);
+        setInterimText(interimSpeech);
       };
 
       rec.onstart = () => {
@@ -79,26 +73,12 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
       rec.onend = async () => {
         setIsRecording(false);
         setInterimText('');
-        
-        const currentText = contentStateRef.current.trim();
-        if (currentText.length > 5) {
-          setIsPolishing(true);
-          try {
-            const cleanText = await polishTranscript(currentText);
-            setContent(cleanText);
-            onSave(dateStr, cleanText, '', mood, reflection, tags);
-          } catch (e) {
-            console.error(e);
-          } finally {
-            setIsPolishing(false);
-          }
-        }
       };
 
       rec.onerror = () => setIsRecording(false);
       recognitionRef.current = rec;
     }
-  }, [dateStr, mood, reflection, tags, onSave]);
+  }, []);
 
   const toggleRecording = () => {
     if (!recognitionRef.current || isPolishing) return;
@@ -110,8 +90,26 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
     }
   };
 
-  const handleSave = () => {
-    if (!isPolishing) onSave(dateStr, content, '', mood, reflection, tags);
+  const handleManualSave = async () => {
+    if (isPolishing) return;
+    
+    let textToSave = content;
+    
+    // Если текст длинный и свежий, пробуем почистить его
+    if (textToSave.length > 20) {
+      setIsPolishing(true);
+      try {
+        const cleaned = await polishTranscript(textToSave);
+        textToSave = cleaned;
+        setContent(cleaned);
+      } catch (e) {
+        console.warn("Polishing error");
+      } finally {
+        setIsPolishing(false);
+      }
+    }
+    
+    onSave(dateStr, textToSave, '', mood, reflection, tags);
   };
 
   return (
@@ -127,7 +125,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
           {isPolishing && (
             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 rounded-full animate-pulse">
                 <Loader2 size={12} className="text-indigo-400 animate-spin" />
-                <span className="text-[10px] font-black text-indigo-400 uppercase">Очистка...</span>
+                <span className="text-[10px] font-black text-indigo-400 uppercase">Полировка...</span>
             </div>
           )}
           <button 
@@ -154,7 +152,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
               {['😔', '😐', '🙂', '😃', '🤩'].map((m) => (
                 <button 
                   key={m} 
-                  onClick={() => { setMood(m); handleSave(); }} 
+                  onClick={() => { setMood(m); }} 
                   className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-all ${mood === m ? 'bg-indigo-600 shadow-lg scale-110' : 'bg-white/5 hover:bg-white/10 opacity-40'}`}
                 >
                   {m}
@@ -173,7 +171,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
                className="absolute inset-0 w-full h-full opacity-0 cursor-text resize-none"
                value={content}
                onChange={e => setContent(e.target.value)}
-               onBlur={handleSave}
                disabled={isPolishing || isRecording}
             />
           </div>
@@ -182,11 +179,11 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, onSave }) => {
 
       <div className="fixed bottom-32 right-6 z-[60] flex flex-col gap-4 pointer-events-auto">
          <button 
-          onClick={handleSave}
-          disabled={isPolishing}
+          onClick={handleManualSave}
+          disabled={isPolishing || !content.trim()}
           className="w-14 h-14 rounded-full bg-indigo-600 text-white shadow-[0_10px_40px_rgba(79,70,229,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
          >
-           <Save size={24} />
+           {isPolishing ? <Loader2 className="animate-spin" size={24} /> : <Save size={24} />}
          </button>
          <button 
           onClick={toggleRecording} 

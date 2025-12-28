@@ -42,82 +42,52 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
-  // Refs to avoid stale closures in recognition callbacks
-  const inputStateRef = useRef('');
+  // Флаг для отложенной отправки после окончания записи
   const isPendingSendRef = useRef(false);
 
   useEffect(() => {
-    inputStateRef.current = input;
-  }, [input]);
-
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
       rec.continuous = true;
       rec.interimResults = true;
       rec.lang = 'ru-RU';
       
-      let finalTranscriptInSession = '';
+      rec.onresult = (event: any) => {
+        let finalForEvent = '';
+        let interimForEvent = '';
 
-      rec.onresult = (e: any) => {
-        let currentFinal = '';
-        let currentInterim = '';
-
-        for (let i = e.resultIndex; i < e.results.length; ++i) {
-          if (e.results[i].isFinal) {
-            currentFinal += e.results[i][0].transcript;
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalForEvent += transcript;
           } else {
-            currentInterim += e.results[i][0].transcript;
+            interimForEvent = transcript;
           }
         }
         
-        if (currentFinal) {
-          finalTranscriptInSession += currentFinal;
-          // Clean up the input: original text + new recognized speech
-          const newFullText = (inputStateRef.current + ' ' + currentFinal).replace(/\s+/g, ' ').trim();
-          setInput(newFullText);
+        if (finalForEvent) {
+          setInput(prev => (prev + ' ' + finalForEvent).replace(/\s+/g, ' ').trim());
         }
-        setInterimText(currentInterim);
+        setInterimText(interimForEvent);
       };
 
       rec.onstart = () => {
         setIsRecording(true);
-        finalTranscriptInSession = '';
+        setInterimText('');
       };
 
       rec.onend = async () => {
         setIsRecording(false);
         setInterimText('');
         
-        const currentText = inputStateRef.current.trim();
-        
-        if (currentText.length > 5) {
-          setIsPolishing(true);
-          try {
-            const cleanText = await polishTranscript(currentText);
-            setInput(cleanText);
-            if (isPendingSendRef.current) {
-              isPendingSendRef.current = false;
-              performSend(cleanText);
-            }
-          } catch (err) {
-            console.error(err);
-            if (isPendingSendRef.current) {
-              isPendingSendRef.current = false;
-              performSend(currentText);
-            }
-          } finally {
-            setIsPolishing(false);
-          }
-        } else if (isPendingSendRef.current) {
-          isPendingSendRef.current = false;
-          performSend(currentText);
-        }
+        // Когда запись закончилась, если есть текст - пробуем его "причесать"
+        // Мы берем актуальное состояние input через стейт в момент вызова performSend
+        // Но для надежности передадим текущий ввод.
       };
 
-      rec.onerror = (event: any) => {
-        console.error("Speech error", event.error);
+      rec.onerror = (e: any) => {
+        console.error("Speech Recognition Error", e);
         setIsRecording(false);
         setInterimText('');
         isPendingSendRef.current = false;
@@ -125,7 +95,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       recognitionRef.current = rec;
     }
-  }, []); // Only once! Important for stability.
+  }, []);
 
   useEffect(() => { 
     if (voiceTrigger > 0 && !isRecording) toggleVoice(); 
@@ -136,35 +106,62 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (isRecording) {
       recognitionRef.current.stop();
     } else {
-      setInterimText('');
       recognitionRef.current.start();
     }
   };
 
-  const handleSend = () => {
-    const textToSubmit = input.trim();
+  // Основной входной пункт для кнопки "Отправить"
+  const handleSendRequest = async () => {
     if (isRecording) {
+      // Если мы пишем голос - останавливаем и помечаем, что нужно отправить сразу после
       isPendingSendRef.current = true;
       recognitionRef.current.stop();
+      
+      // Ждем небольшую задержку, пока сработает onend и обновится стейт
+      setTimeout(() => {
+        executePolishingAndSend();
+      }, 300);
       return;
     }
-    performSend(textToSubmit);
+    
+    executePolishingAndSend();
   };
 
-  const performSend = async (textToSend: string) => {
-    if (!textToSend.trim() || isThinking) return;
+  const executePolishingAndSend = async () => {
+    if (!input.trim() || isThinking || isPolishing) return;
+
+    let textToProcess = input.trim();
     
-    if (!hasAiKey) {
-      onConnectAI();
+    // Интеллектуальная очистка если текст длинный
+    if (textToProcess.length > 10) {
+      setIsPolishing(true);
+      try {
+        const polished = await polishTranscript(textToProcess);
+        textToProcess = polished;
+        setInput(polished);
+      } catch (err) {
+        console.warn("Polishing failed, using raw text");
+      } finally {
+        setIsPolishing(false);
+      }
+    }
+
+    performApiSend(textToProcess);
+  };
+
+  const performApiSend = async (textToSend: string) => {
+    if (!textToSend.trim() || !hasAiKey) {
+      if (!hasAiKey) onConnectAI();
       return;
     }
 
     setIsThinking(true);
-    setInput('');
+    const textSnapshot = textToSend;
+    setInput(''); // Очищаем поле сразу после захвата текста
     
     try {
       const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() };
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: textSnapshot, timestamp: Date.now() };
       const currentMessages = [...(activeSession?.messages || []), userMsg];
       
       onUpdateMessages(currentMessages);
@@ -173,8 +170,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
       
-      const response = await chatSessionRef.current.sendMessage({ message: textToSend });
+      const response = await chatSessionRef.current.sendMessage({ message: textSnapshot });
       
+      // Обработка инструментов
       if (response.functionCalls && response.functionCalls.length > 0) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
@@ -195,18 +193,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: response.text || "Принято.", 
+        content: response.text || "Готово.", 
         timestamp: Date.now() 
       };
       onUpdateMessages([...currentMessages, modelMsg]);
 
     } catch (e) {
-      console.error(e);
+      console.error("API Send Error:", e);
       onUpdateMessages([...(sessions.find(s => s.id === activeSessionId)?.messages || []), { 
-        id: 'err-' + Date.now(), role: 'model', content: "Ошибка связи с ИИ. Сообщение не отправлено.", timestamp: Date.now() 
+        id: 'err-' + Date.now(), role: 'model', content: "Ошибка ядра Serafim. Попробуйте отправить сообщение еще раз.", timestamp: Date.now() 
       }]);
     } finally { 
       setIsThinking(false); 
+      isPendingSendRef.current = false;
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -237,7 +236,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <Activity size={20} className="text-indigo-500" />
           <div>
             <h2 className="text-sm font-bold text-white uppercase tracking-tighter">Serafim AI</h2>
-            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core Online</p>
+            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">Core {isThinking ? 'Processing' : 'Standby'}</p>
           </div>
         </div>
         <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all"><Plus size={20} /></button>
@@ -253,7 +252,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
         {(isThinking || isPolishing) && (
           <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse">
-            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Интеллектуальная обработка...' : 'Анализ...'}
+            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Очистка текста...' : 'Анализ сообщения...'}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -269,6 +268,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <div className={`flex items-center gap-2 bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-[0_0_25px_rgba(79,70,229,0.3)]' : 'border-white/10'} rounded-[1.75rem] p-1.5 shadow-2xl transition-all`}>
             <button 
               onClick={toggleVoice} 
+              title={isRecording ? "Остановить" : "Голосовой ввод"}
               className={`p-3 rounded-xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white' : 'text-indigo-400/70 hover:bg-white/5'}`}
             >
               {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
@@ -278,12 +278,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
               rows={1} 
               value={input} 
               onChange={e => setInput(e.target.value)} 
-              onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
+              onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSendRequest(); } }} 
               placeholder="Спроси Серафима..." 
               className="flex-1 bg-transparent text-sm text-white px-3 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 
             />
             <button 
-              onClick={handleSend} 
+              onClick={handleSendRequest} 
               disabled={(!input.trim() && !isRecording) || isThinking || isPolishing} 
               className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all ${(!input.trim() && !isRecording) || isThinking || isPolishing ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg active:scale-90 hover:bg-indigo-500 cursor-pointer'}`}
             >
