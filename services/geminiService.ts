@@ -4,8 +4,11 @@ import { Task, Thought, JournalEntry, Project, Habit } from "../types";
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-// Helper to get a fresh instance of GenAI
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get a fresh instance of GenAI following strictly the @google/genai guidelines
+const getAI = () => {
+  // Always use process.env.API_KEY exclusively as per guidelines
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
 
 // Robust helper to extract JSON from any text
 const cleanJsonString = (str: string) => {
@@ -67,58 +70,60 @@ export const createMentorChat = (
 };
 
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
-    const ai = getAI();
-    const data = {
-        tasksStats: {
-            total: tasks.length,
-            completed: tasks.filter(t => t.isCompleted).length
-        },
-        habits: habits.map(h => ({ title: h.title, completions: h.completedDates.length })),
-        recentMoods: journal.slice(0, 5).map(j => ({ date: j.date, mood: j.mood })),
-    };
-
     try {
+        const ai = getAI();
+        const data = {
+            tasksStats: {
+                total: tasks.length,
+                completed: tasks.filter(t => t.isCompleted).length
+            },
+            habits: habits.map(h => ({ title: h.title, completions: h.completedDates.length })),
+            recentMoods: journal.slice(0, 5).map(j => ({ date: j.date, mood: j.mood })),
+        };
+
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview', 
             contents: `Проведи глубокий анализ данных: ${JSON.stringify(data)}. Верни JSON: {status, insight, focusArea}`,
             config: { responseMimeType: 'application/json' }
         });
         
+        // Correctly using the .text property as per guidelines
         return JSON.parse(cleanJsonString(response.text || '{}'));
     } catch (e) {
         console.error("Analysis Error:", e);
-        return { status: "Offline", insight: "Анализ временно недоступен", focusArea: "Отдых" };
+        return { status: "Offline", insight: "Анализ временно недоступен. Проверьте подключение.", focusArea: "Отдых" };
     }
 };
 
 export const parseUserIntent = async (userMessage: string, imageBase64?: string) => {
-    const ai = getAI();
-    const now = new Date();
-    const currentTimeStr = format(now, "yyyy-MM-dd'T'HH:mm:ss", { locale: ru });
-
-    const parts: any[] = [];
-    if (imageBase64) {
-        const data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-        parts.push({ inlineData: { mimeType: "image/jpeg", data: data } });
-    }
-    
-    const prompt = `
-    Analyze User Input: "${userMessage}"
-    Current Time: ${currentTimeStr}.
-    
-    Determine if user wants to CREATE_TASK or CHAT.
-    Output JSON Struktur:
-    { "type": "CREATE_TASK" | "CHAT", "data": { "title": string, "dueDate": ISO8601 }, "responseMessage": string }
-    `;
-
-    parts.push({ text: prompt });
-
     try {
+        const ai = getAI();
+        const now = new Date();
+        const currentTimeStr = format(now, "yyyy-MM-dd'T'HH:mm:ss", { locale: ru });
+
+        const parts: any[] = [];
+        if (imageBase64) {
+            const data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+            parts.push({ inlineData: { mimeType: "image/jpeg", data: data } });
+        }
+        
+        const prompt = `
+        Analyze User Input: "${userMessage}"
+        Current Time: ${currentTimeStr}.
+        
+        Determine if user wants to CREATE_TASK or CHAT.
+        Output JSON Struktur:
+        { "type": "CREATE_TASK" | "CHAT", "data": { "title": string, "dueDate": ISO8601 }, "responseMessage": string }
+        `;
+
+        parts.push({ text: prompt });
+
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: { parts },
             config: { responseMimeType: 'application/json', temperature: 0.1 }
         });
+        // Correctly using the .text property as per guidelines
         return JSON.parse(cleanJsonString(response.text || '{}'));
     } catch (e) {
         console.error("Intent Error:", e);

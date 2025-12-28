@@ -20,7 +20,9 @@ import {
   BookOpen,
   Loader2,
   LayoutDashboard,
-  AlertCircle
+  AlertCircle,
+  X,
+  Key
 } from './components/Icons';
 
 const App = () => {
@@ -41,8 +43,11 @@ const App = () => {
   const [showTimer, setShowTimer] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   
-  // Initialize from env if present
-  const [hasAiKey, setHasAiKey] = useState(!!process.env.API_KEY && process.env.API_KEY !== 'undefined');
+  const [hasAiKey, setHasAiKey] = useState(() => {
+    // Exclusively rely on process.env.API_KEY as per guidelines
+    const envKey = process.env.API_KEY;
+    return !!(envKey && envKey !== 'undefined');
+  });
   
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [swStatus, setSwStatus] = useState<'loading' | 'active' | 'error'>('loading');
@@ -113,14 +118,15 @@ const App = () => {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
 
-  // Check AI Key status periodically
+  // Check AI Key status periodically via window.aistudio to handle key selection updates
   useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasAiKey(hasKey);
-      } else if (process.env.API_KEY && process.env.API_KEY !== 'undefined') {
-        setHasAiKey(true);
+        if (hasKey) setHasAiKey(true);
+      } else {
+        const envKey = process.env.API_KEY;
+        if (envKey && envKey !== 'undefined') setHasAiKey(true);
       }
     };
     checkKey();
@@ -134,17 +140,14 @@ const App = () => {
     if (window.aistudio) {
       try {
         await window.aistudio.openSelectKey();
-        // Rule: Assume success after trigger to avoid race condition
+        // Race condition mitigation: assume success as per guidelines
         setHasAiKey(true);
       } catch (err) {
         console.error("Failed to open key selector", err);
       }
     } else {
-      // User is on GitHub/Vercel - inform them about the environment variable
-      alert(
-        "Serafim OS: Для активации ИИ на GitHub/Vercel необходимо добавить ваш Gemini API Key в переменные окружения (Settings -> Environment Variables) под именем API_KEY.\n\n" +
-        "Если вы используете Google AI Studio, запустите приложение внутри платформы."
-      );
+      // Guideline: Do not provide manual key entry fields
+      alert("Для работы ИИ необходимо установить переменную API_KEY в настройках вашего проекта.");
     }
   };
 

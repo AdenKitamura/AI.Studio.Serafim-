@@ -40,7 +40,9 @@ import {
   Loader2,
   Flame,
   Zap,
-  Repeat
+  Repeat,
+  // Fix: Added missing Key export used in App.tsx
+  Key
 } from 'lucide-react';
 
 // Re-exporting for easier imports
@@ -84,5 +86,7 @@ export {
   Loader2,
   Flame,
   Zap,
-  Repeat
+  Repeat,
+  // Fix: Added missing Key export used in App.tsx
+  Key
 };
