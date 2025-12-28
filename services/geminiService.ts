@@ -60,21 +60,20 @@ const addHabitTool: FunctionDeclaration = {
 export const polishTranscript = async (text: string): Promise<string> => {
   if (!text || text.trim().length < 2) return text;
   
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `ИНСТРУКЦИЯ: Текст ниже получен через голосовой ввод. Исправь его: удали повторы, заикания, исправь ошибки распознавания, расставь знаки препинания. 
-ВАЖНО: Сохрани смысл полностью. Если текст похож на команду (например "создай задачу"), сделай его четким.
-ВЕРНИ ТОЛЬКО ИСПРАВЛЕННЫЙ ТЕКСТ.
+ВАЖНО: Сохрани смысл полностью. Верни ТОЛЬКО исправленный текст без пояснений.
 
 ТЕКСТ:
 "${text}"`,
     });
     const result = response.text?.trim();
-    return result && result.length > 0 ? result : text;
+    return (result && result.length > 0) ? result : text;
   } catch (e) {
-    console.warn("Serafim: Polishing engine error, falling back to raw text", e);
+    console.warn("Serafim Polish Engine: Fallback to raw text due to error", e);
     return text;
   }
 };
@@ -98,8 +97,8 @@ export const createMentorChat = (
 3. Поиск в памяти ('query_memory')
 4. Трекинг привычек ('add_habit')
 
-Если пользователь просит что-то сделать (создать, записать, найти) — ВСЕГДА используй соответствующий инструмент ПЕРЕД текстовым ответом.
-
+Если пользователь просит что-то сделать — ВСЕГДА используй соответствующий инструмент ПЕРЕД текстовым ответом.
+Отвечай кратко, профессионально, в стиле продвинутой ОС.
 Сегодня: ${today}.
 `;
 
@@ -122,15 +121,13 @@ export const getSystemAnalysis = async (
   habits: Habit[],
   journal: JournalEntry[]
 ): Promise<{ status: string; insight: string; focusArea: string }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Проанализируй состояние: Задач ${tasks.length}, Привычек ${habits.length}. Верни JSON: status, insight, focusArea.`;
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `Проанализируй состояние: Задач ${tasks.length}, Привычек ${habits.length}. Верни JSON: status, insight, focusArea.`;
     const response = await ai.models.generateContent({ 
       model: 'gemini-3-flash-preview', 
       contents: prompt, 
-      config: { 
-        responseMimeType: "application/json"
-      } 
+      config: { responseMimeType: "application/json" } 
     });
     return JSON.parse(response.text || '{}');
   } catch (e) {

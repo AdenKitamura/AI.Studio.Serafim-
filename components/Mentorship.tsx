@@ -42,12 +42,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputTextAreaRef = useRef<HTMLTextAreaElement>(null);
   
-  // Критически важные рефы для предотвращения гонки состояний
-  const inputRef = useRef('');
-  const processingRef = useRef(false);
+  // Реф для мгновенного доступа к вводу без ожидания стейта
+  const currentInputRef = useRef('');
 
   useEffect(() => {
-    inputRef.current = input;
+    currentInputRef.current = input;
   }, [input]);
 
   useEffect(() => {
@@ -59,45 +58,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
       rec.lang = 'ru-RU';
       
       rec.onresult = (event: any) => {
-        let finalForEvent = '';
-        let interimForEvent = '';
-
+        let finalStr = '';
+        let interimStr = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalForEvent += transcript;
-          } else {
-            interimForEvent = transcript;
-          }
+          if (event.results[i].isFinal) finalStr += event.results[i][0].transcript;
+          else interimStr = event.results[i][0].transcript;
         }
-        
-        if (finalForEvent) {
-          const nextVal = (inputRef.current + ' ' + finalForEvent).replace(/\s+/g, ' ').trim();
-          setInput(nextVal);
+        if (finalStr) {
+          const combined = (currentInputRef.current + ' ' + finalStr).replace(/\s+/g, ' ').trim();
+          setInput(combined);
         }
-        setInterimText(interimForEvent);
+        setInterimText(interimStr);
       };
 
-      rec.onstart = () => {
-        setIsRecording(true);
-        setInterimText('');
-      };
-
+      rec.onstart = () => setIsRecording(true);
       rec.onend = () => {
         setIsRecording(false);
         setInterimText('');
-        // Если запись была остановлена для отправки, запускаем процесс
-        if (processingRef.current) {
-          executePipeline();
-        }
       };
-
-      rec.onerror = (e: any) => {
-        console.error("Speech Recognition Error", e);
-        setIsRecording(false);
-        processingRef.current = false;
-      };
-
+      rec.onerror = () => setIsRecording(false);
       recognitionRef.current = rec;
     }
   }, []);
@@ -108,131 +87,90 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
-    if (isRecording) {
-      recognitionRef.current.stop();
-    } else {
-      recognitionRef.current.start();
-    }
+    if (isRecording) recognitionRef.current.stop();
+    else recognitionRef.current.start();
   };
 
-  const handleSendTrigger = () => {
-    if (isThinking || isPolishing || processingRef.current) return;
+  // ОСНОВНАЯ ФУНКЦИЯ ОТПРАВКИ
+  const handleSend = async () => {
+    // 1. Предварительные проверки
+    if (isThinking || isPolishing) return;
     
-    processingRef.current = true;
-    
-    if (isRecording) {
-      recognitionRef.current.stop(); // Это вызовет onend, который запустит executePipeline
-    } else {
-      executePipeline();
-    }
-  };
-
-  const executePipeline = async () => {
-    const rawText = inputRef.current.trim();
-    if (!rawText) {
-      processingRef.current = false;
-      return;
-    }
-
-    // Очищаем поле ввода СРАЗУ, но сохраняем значение для обработки
-    setInput('');
-    inputRef.current = '';
-
-    let finalQuery = rawText;
-
-    // 1. Полировка (если текст достаточно длинный)
-    if (rawText.length > 5) {
-      setIsPolishing(true);
-      try {
-        finalQuery = await polishTranscript(rawText);
-      } catch (err) {
-        console.error("Polishing failed, fallback to raw", err);
-      } finally {
-        setIsPolishing(false);
-      }
-    }
-
-    // 2. Финальная отправка
-    await sendToSerafim(finalQuery);
-    processingRef.current = false;
-  };
-
-  const sendToSerafim = async (text: string) => {
-    if (!text.trim()) return;
+    // Захватываем текст ДО того как очистим стейт
+    const textToProcess = currentInputRef.current.trim();
+    if (!textToProcess) return;
 
     if (!hasAiKey) {
       onConnectAI();
       return;
     }
 
-    setIsThinking(true);
-    
-    try {
-      const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: Date.now() };
-      const history = [...(activeSession?.messages || []), userMsg];
-      
-      onUpdateMessages(history);
+    // 2. Визуальная очистка
+    if (isRecording) recognitionRef.current.stop();
+    setInput('');
+    currentInputRef.current = '';
+    setIsPolishing(true);
 
+    try {
+      // 3. Полировка (исправление ошибок распознавания)
+      let finalQuery = textToProcess;
+      if (textToProcess.length > 5) {
+        finalQuery = await polishTranscript(textToProcess);
+      }
+      setIsPolishing(false);
+
+      // 4. Добавление в историю (моментально)
+      const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: finalQuery, timestamp: Date.now() };
+      const currentHistory = [...(activeSession?.messages || []), userMsg];
+      onUpdateMessages(currentHistory);
+
+      // 5. Запрос к ИИ
+      setIsThinking(true);
       if (!chatSessionRef.current) {
         chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
       }
       
-      const response = await chatSessionRef.current.sendMessage({ message: text });
+      const response = await chatSessionRef.current.sendMessage({ message: finalQuery });
       
-      // Обработка функциональных вызовов (Tools)
-      if (response.functionCalls && response.functionCalls.length > 0) {
+      // 6. Обработка инструментов
+      if (response.functionCalls) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
           if (fc.name === 'create_task') {
-            onAddTask({ 
-              id: Date.now().toString(), 
-              title: args.title, 
-              priority: args.priority || Priority.MEDIUM, 
-              dueDate: args.dueDate || new Date().toISOString(), 
-              isCompleted: false, 
-              createdAt: new Date().toISOString() 
-            });
+            onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || new Date().toISOString(), isCompleted: false, createdAt: new Date().toISOString() });
             setActionFeedback({ msg: `Задача создана`, type: 'task' });
           } else if (fc.name === 'create_project') {
-            onAddProject({ 
-              id: Date.now().toString(), 
-              title: args.title, 
-              color: args.color || '#6366f1', 
-              createdAt: new Date().toISOString() 
-            });
+            onAddProject({ id: Date.now().toString(), title: args.title, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
             setActionFeedback({ msg: `Проект добавлен`, type: 'project' });
           } else if (fc.name === 'add_habit') {
-            onAddHabit({ 
-              id: Date.now().toString(), 
-              title: args.title, 
-              color: args.color || '#10b981', 
-              completedDates: [], 
-              createdAt: new Date().toISOString() 
-            });
+            onAddHabit({ id: Date.now().toString(), title: args.title, color: args.color || '#10b981', completedDates: [], createdAt: new Date().toISOString() });
             setActionFeedback({ msg: `Привычка добавлена`, type: 'success' });
           }
         }
         setTimeout(() => setActionFeedback(null), 3000);
       }
 
+      // 7. Обновление финального ответа
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
         content: response.text || "Запрос выполнен.", 
         timestamp: Date.now() 
       };
-      
-      onUpdateMessages([...history, modelMsg]);
+      onUpdateMessages([...currentHistory, modelMsg]);
 
     } catch (e) {
-      console.error("Serafim OS Critical Error:", e);
+      console.error("Serafim Core Error:", e);
+      // Возвращаем текст в поле ввода в случае критической ошибки
+      setInput(textToProcess); 
       onUpdateMessages([...(sessions.find(s => s.id === activeSessionId)?.messages || []), { 
-        id: 'err-' + Date.now(), role: 'model', content: "Произошел сбой в ядре. Пожалуйста, попробуйте еще раз.", timestamp: Date.now() 
+        id: 'err-' + Date.now(), role: 'model', content: "Ошибка синхронизации с ядром. Попробуйте снова.", timestamp: Date.now() 
       }]);
     } finally { 
+      setIsPolishing(false);
       setIsThinking(false); 
-      setTimeout(() => inputTextAreaRef.current?.focus(), 150);
+      setTimeout(() => inputTextAreaRef.current?.focus(), 100);
     }
   };
 
@@ -263,13 +201,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <div>
             <h2 className="text-sm font-bold text-white uppercase tracking-tighter">Serafim AI</h2>
             <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">
-              {isThinking ? 'Выполняю...' : isPolishing ? 'Полировка...' : 'Ядро активно'}
+                {isThinking ? 'Синхронизация...' : isPolishing ? 'Анализ нейронов...' : 'Система готова'}
             </p>
           </div>
         </div>
-        <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all">
-          <Plus size={20} />
-        </button>
+        <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all"><Plus size={20} /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-40">
@@ -282,7 +218,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
         {(isThinking || isPolishing) && (
           <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse">
-            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Анализ ввода...' : 'Серафим обрабатывает...'}
+            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Полировка мысли...' : 'Серафим формирует ответ...'}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -300,21 +236,21 @@ const Mentorship: React.FC<MentorshipProps> = ({
               onClick={toggleVoice} 
               className={`p-3.5 rounded-2xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white' : 'text-indigo-400/70 hover:bg-white/5'}`}
             >
-              {isRecording ? <XCircle size={22} /> : <Mic size={22} />}
+              {isRecording ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
             <textarea 
               ref={inputTextAreaRef}
               rows={1} 
               value={input} 
               onChange={e => setInput(e.target.value)} 
-              onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSendTrigger(); } }} 
+              onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
               placeholder="Команда или вопрос..." 
               className="flex-1 bg-transparent text-sm text-white px-2 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 
             />
             <button 
-              onClick={handleSendTrigger} 
+              onClick={handleSend} 
               disabled={(!input.trim() && !isRecording) || isThinking || isPolishing} 
-              className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${(!input.trim() && !isRecording) || isThinking || isPolishing ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg active:scale-90 hover:bg-indigo-500'}`}
+              className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${(!input.trim() && !isRecording) || isThinking || isPolishing ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg active:scale-90'}`}
             >
               {isThinking || isPolishing ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={3} />}
             </button>
