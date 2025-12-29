@@ -16,10 +16,16 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) => {
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIosDevice);
 
-    // Capture Android prompt
+    // Retrieve global deferredPrompt if it was captured in App.tsx
+    if (window.deferredPrompt) {
+        setDeferredPrompt(window.deferredPrompt);
+    }
+
+    // Also listen in case it comes late
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      window.deferredPrompt = e;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -28,16 +34,20 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) => {
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
+      // Trigger native prompt
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        window.deferredPrompt = null;
         onClose();
       }
-      setDeferredPrompt(null);
+    } else if (isIOS) {
+       // iOS requires manual steps, we cannot automate this
+       // UI already shows instructions
     } else {
-      if (!isIOS) {
-         alert('Для установки используйте меню браузера -> "Установить приложение"');
-      }
+       // Fallback for browsers that don't support beforeinstallprompt but are not iOS
+       alert('Нажмите настройки браузера -> "Добавить на главный экран" или "Установить приложение"');
     }
   };
 
@@ -50,8 +60,8 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) => {
         </button>
 
         <div className="mb-8 relative inline-block">
-          <div className="w-24 h-24 bg-[var(--accent)] rounded-[2rem] flex items-center justify-center shadow-[0_0_50px_var(--accent-glow)] animate-pulse-soft">
-             <span className="text-4xl font-black text-white">S</span>
+          <div className="w-24 h-24 bg-[var(--accent)] rounded-[2rem] flex items-center justify-center shadow-[0_0_50px_var(--accent-glow)] animate-pulse-soft overflow-hidden">
+             <img src="https://img.icons8.com/fluency/512/artificial-intelligence.png" className="w-full h-full object-cover" alt="Serafim Logo" />
           </div>
           <div className="absolute -bottom-2 -right-2 bg-[var(--bg-main)] border border-[var(--border-color)] p-2 rounded-xl text-[var(--accent)]">
             <Download size={20} />
@@ -62,19 +72,19 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) => {
           Установи Serafim OS
         </h2>
         <p className="text-[var(--text-muted)] text-base mb-8 leading-relaxed">
-          Для максимальной производительности и работы в оффлайне, добавь приложение на домашний экран.
+          Для максимальной производительности и работы в оффлайне.
         </p>
 
         {isIOS ? (
-          <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-3xl p-6 text-left space-y-4">
+          <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-3xl p-6 text-left space-y-4 animate-in slide-in-from-bottom-2">
             <div className="flex items-center gap-4">
               <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl"><Share size={20} /></div>
-              <p className="text-sm font-bold text-[var(--text-main)]">1. Нажми "Поделиться" внизу</p>
+              <p className="text-sm font-bold text-[var(--text-main)]">1. Нажми "Поделиться"</p>
             </div>
             <div className="w-px h-4 bg-[var(--border-color)] ml-6"></div>
             <div className="flex items-center gap-4">
               <div className="p-2 bg-[var(--bg-main)] text-[var(--text-main)] rounded-xl border border-[var(--border-color)]"><PlusSquare size={20} /></div>
-              <p className="text-sm font-bold text-[var(--text-main)]">2. Выбери "На экран «Домой»"</p>
+              <p className="text-sm font-bold text-[var(--text-main)]">2. "На экран «Домой»"</p>
             </div>
           </div>
         ) : (
@@ -83,7 +93,7 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) => {
             className="w-full py-5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl glass-btn"
           >
             <Smartphone size={20} />
-            Установить
+            Скачать
           </button>
         )}
       </div>

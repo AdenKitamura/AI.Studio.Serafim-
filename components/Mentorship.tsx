@@ -54,7 +54,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = true;
+      // FIX: continuous = false avoids duplication bugs
+      rec.continuous = false;
       rec.interimResults = true;
       rec.lang = 'ru-RU';
       

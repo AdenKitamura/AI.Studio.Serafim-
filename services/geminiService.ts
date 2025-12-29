@@ -75,14 +75,25 @@ const tools: FunctionDeclaration[] = [
 ];
 
 export const polishTranscript = async (text: string): Promise<string> => {
-  if (!text || text.trim().length < 2) return text;
+  if (!text || text.trim().length < 3) return text;
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `ИНСТРУКЦИЯ: Исправь голосовой ввод. Удали мусор, заикания, исправь ошибки. Верни только чистый текст.\n\nТЕКСТ: "${text}"`,
+      contents: `SYSTEM: You are a text correction engine.
+      TASK: Fix grammar and remove stuttering from the user input.
+      RULES:
+      1. DO NOT expand the text. Keep it concise.
+      2. DO NOT hallucinate new content. 
+      3. If the input is just noise or unintelligible, return an EMPTY STRING.
+      4. Output strictly the corrected Russian text.
+      
+      INPUT: "${text}"`,
     });
-    return response.text?.trim() || text;
+    const cleaned = response.text?.trim() || text;
+    // Safety check: if cleaned text is 3x longer than input, it's likely a hallucination. Return original.
+    if (cleaned.length > text.length * 3) return text;
+    return cleaned;
   } catch (e) {
     return text;
   }
@@ -127,7 +138,6 @@ export const createMentorChat = (
   });
 };
 
-// Fixed: Renamed analyzeHealth to getSystemAnalysis and updated signature/implementation to match usage in AnalyticsView.tsx
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = {

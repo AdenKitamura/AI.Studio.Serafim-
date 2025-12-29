@@ -23,9 +23,8 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
   const [interimText, setInterimText] = useState('');
   
   const recognitionRef = useRef<any>(null);
-  const lastFinalIndexRef = useRef<number>(0);
   const autoSaveTimeoutRef = useRef<any>(null);
-  const reflectionRef = useRef<HTMLDivElement>(null); // Ref for scrolling
+  const reflectionRef = useRef<HTMLDivElement>(null);
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
@@ -51,7 +50,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
     
     autoSaveTimeoutRef.current = setTimeout(() => {
         onSave(dateStr, content, '', mood, reflection, tags);
-    }, 1500); // Auto-save after 1.5s of inactivity
+    }, 1500); 
 
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
   }, [content, mood, tags, reflection, dateStr, onSave]);
@@ -60,43 +59,41 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = true;
+      // FIX: continuous = false helps prevent the "infinite repeating text" bug on some Androids
+      rec.continuous = false; 
       rec.interimResults = true;
       rec.lang = 'ru-RU';
 
       rec.onresult = (event: any) => {
         let interim = '';
-        let finalChunk = '';
+        let final = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           if (result.isFinal) {
-            if (i >= lastFinalIndexRef.current) {
-              finalChunk += result[0].transcript;
-              lastFinalIndexRef.current = i + 1;
-            }
+            final += result[0].transcript;
           } else {
             interim = result[0].transcript;
           }
         }
-        if (finalChunk) {
-          setContent(prev => (prev + ' ' + finalChunk).replace(/\s+/g, ' ').trim());
+        if (final) {
+          setContent(prev => (prev + ' ' + final).replace(/\s+/g, ' ').trim());
           setInterimText('');
         } else {
           setInterimText(interim);
         }
       };
       
-      rec.onstart = () => { setIsRecording(true); lastFinalIndexRef.current = 0; };
+      rec.onstart = () => { setIsRecording(true); };
       rec.onend = async () => { 
           setIsRecording(false); 
           setInterimText(''); 
-          // Auto-polish after recording stops if there is new content
-          await handleAutoPolish();
+          // Only polish if there is substantial content
+          if (content.length > 20) await handleAutoPolish();
       };
       rec.onerror = () => setIsRecording(false);
       recognitionRef.current = rec;
     }
-  }, []);
+  }, [content]);
 
   const toggleRecording = () => {
     if (!recognitionRef.current || isPolishing) return;
@@ -105,7 +102,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
   };
 
   const handleAutoPolish = async () => {
-      if (content.length < 10) return;
+      if (content.length < 5) return;
       setIsPolishing(true);
       try {
           const cleaned = await polishTranscript(content);
@@ -118,7 +115,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
       const newState = !showReflection;
       setShowReflection(newState);
       if (newState) {
-          // Small delay to allow render, then scroll
           setTimeout(() => {
               reflectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }, 100);
