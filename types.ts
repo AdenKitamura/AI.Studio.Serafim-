@@ -26,6 +26,13 @@ export interface Task {
   createdAt: string;
 }
 
+export type LinkType = 'related' | 'cause' | 'effect' | 'hypothesis' | 'blocker';
+
+export interface NodeLink {
+  targetId: string;
+  type: LinkType;
+}
+
 export interface Thought {
   id: string;
   content: string;
@@ -36,7 +43,8 @@ export interface Thought {
   createdAt: string;
   x?: number;
   y?: number;
-  linkedIds?: string[];
+  linkedIds?: string[]; // Legacy
+  links?: NodeLink[]; // New semantic links
   isArchived?: boolean; 
   metadata?: {
     url?: string;
@@ -44,6 +52,7 @@ export interface Thought {
     fileType?: string;
     fileData?: string; // Base64
     isTaskSynced?: boolean;
+    taskStatus?: boolean; // For visual task nodes
   };
 }
 
@@ -84,6 +93,7 @@ export interface ChatSession {
   id: string;
   title: string;
   category: ChatCategory;
+  projectId?: string; // Link to a project
   messages: ChatMessage[];
   lastInteraction: number;
   createdAt: string;
@@ -91,6 +101,10 @@ export interface ChatSession {
 
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
 export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbon' | 'amethyst' | 'crimson' | 'neon' | 'polar' | 'paper' | 'lilac';
+
+export type FontFamily = 'Plus Jakarta Sans' | 'Inter' | 'JetBrains Mono' | 'Playfair Display';
+export type IconWeight = '1.5px' | '2px' | '2.5px' | '3px';
+export type TextureType = 'none' | 'noise' | 'grid' | 'paper' | 'concrete';
 
 export type CalendarMode = 'week' | 'month';
 

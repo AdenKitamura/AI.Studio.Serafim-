@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import TaskItem from './TaskItem';
 import { format } from 'date-fns';
-// Fix: Import locale directly from the specific path to resolve export issues
 import { ru } from 'date-fns/locale/ru';
 
 interface ProjectsViewProps {
@@ -93,7 +92,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({
 
         <div className="flex-1 overflow-y-auto p-4 pb-28">
            {/* Info Card */}
-           <div className="mb-6 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-5 relative overflow-hidden">
+           <div className="mb-6 glass-panel rounded-2xl p-5 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-10">
                  <Folder size={100} color={selectedProject.color} />
               </div>
@@ -156,10 +155,9 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({
                   </h3>
                   <div className="space-y-3">
                       {projectThoughts.map(thought => (
-                          <div key={thought.id} className="p-4 bg-[var(--bg-item)]/50 rounded-xl border border-[var(--border-color)]">
+                          <div key={thought.id} className="p-4 glass-panel rounded-xl">
                               <p className="text-sm text-[var(--text-main)] mb-2">{thought.content}</p>
                               <div className="text-[10px] text-[var(--text-muted)]">
-                                  {/* Fix: Replace parseISO with native Date constructor */}
                                   {format(new Date(thought.createdAt), 'd MMM yyyy', { locale: ru })}
                               </div>
                           </div>
@@ -199,7 +197,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({
                <div 
                   key={project.id}
                   onClick={() => setSelectedProjectId(project.id)}
-                  className="group bg-[var(--bg-item)] border border-[var(--border-color)] p-5 rounded-2xl relative overflow-hidden cursor-pointer hover:border-[var(--text-muted)] transition-all active:scale-[0.98]"
+                  className="glass-panel group p-5 rounded-2xl relative overflow-hidden cursor-pointer hover:border-[var(--text-muted)] transition-all active:scale-[0.98]"
                >
                    <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: project.color }}></div>
                    
@@ -227,7 +225,6 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({
           
           {projects.length === 0 && (
              <div className="col-span-full flex flex-col items-center justify-center py-20 text-[var(--text-muted)] opacity-50">
-                {/* Fixed: Import Target icon from lucide-react */}
                 <Target size={48} className="mb-4" />
                 <p>Проектов пока нет</p>
                 <p className="text-sm">Создайте первый проект, чтобы навести порядок.</p>
@@ -238,7 +235,7 @@ const ProjectsView: React.FC<ProjectsViewProps> = ({
        {/* Create Modal */}
        {isCreating && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-[var(--bg-main)] w-full max-w-md rounded-3xl border border-[var(--border-color)] p-6 shadow-2xl animate-in zoom-in-95">
+              <div className="glass-card w-full max-w-md rounded-3xl border border-[var(--border-color)] p-6 shadow-2xl animate-in zoom-in-95">
                   <div className="flex justify-between items-center mb-6">
                       <h3 className="text-xl font-bold text-[var(--text-main)]">Новый проект</h3>
                       <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-[var(--bg-item)] rounded-full text-[var(--text-muted)]">

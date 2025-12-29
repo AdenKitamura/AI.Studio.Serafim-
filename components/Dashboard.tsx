@@ -75,11 +75,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       <div className="px-6 space-y-6">
         
-        {/* Urgent Widgets */}
+        {/* Urgent Widgets (Compact) */}
         {upcomingReminders.length > 0 && (
           <section className="grid grid-cols-1 gap-3">
             {upcomingReminders.map(task => (
-              <div key={task.id} className="bg-[var(--bg-item)] border border-rose-500/20 rounded-3xl p-5 flex items-center justify-between shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer">
+              <div key={task.id} className="glass-panel rounded-3xl p-5 flex items-center justify-between shadow-sm hover:scale-[1.01] transition-transform cursor-pointer">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0 border border-rose-500/10">
                     <Clock size={20} />
@@ -99,12 +99,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           </section>
         )}
 
-        {/* Dashboard Grid */}
+        {/* Dashboard Grid (Slimmer) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
           {/* Today's Focus Widget */}
           <section>
-            <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[2.5rem] p-6 shadow-sm flex flex-col hover:scale-[1.02] active:scale-[0.98] transition-all">
+            <div className="glass-panel rounded-[2.5rem] p-6 shadow-sm flex flex-col hover:shadow-lg transition-all h-full">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-[var(--accent)]/10 rounded-xl flex items-center justify-center text-[var(--accent)]">
@@ -130,9 +130,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </section>
 
-          {/* AI Stream */}
+          {/* AI Stream (Compact) */}
           <section>
-            <div className="bg-gradient-to-br from-[var(--accent)]/10 to-transparent border border-[var(--border-color)] rounded-[2.5rem] p-6 shadow-sm flex flex-col h-full relative overflow-hidden group hover:scale-[1.02] active:scale-[0.98] transition-all">
+            <div className="glass-panel rounded-[2.5rem] p-6 shadow-sm flex flex-col h-full relative overflow-hidden group hover:shadow-lg transition-all bg-gradient-to-br from-[var(--accent)]/5 to-transparent">
               <div className="flex items-center gap-3 mb-6">
                   <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center text-[var(--text-main)]">
                     <Sparkles size={18} />
@@ -156,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           </section>
         </div>
 
-        {/* Projects */}
+        {/* Projects (Horizontal Scroll with Micro-scaling) */}
         <section>
           <div className="flex items-center justify-between mb-4 px-1">
             <h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Проекты</h3>
@@ -170,7 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div 
                   key={project.id} 
                   onClick={() => onNavigate('projects')}
-                  className="snap-start flex-none w-52 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-3xl p-5 hover:scale-[1.05] active:scale-[0.98] transition-all cursor-pointer shadow-sm"
+                  className="snap-start flex-none w-52 glass-panel rounded-3xl p-5 hover:scale-[1.05] active:scale-[0.98] transition-all cursor-pointer shadow-sm"
                 >
                   <div className="w-10 h-10 rounded-xl bg-[var(--bg-main)] flex items-center justify-center mb-4 border border-[var(--border-color)] shadow-sm" style={{ color: project.color }}>
                     <Folder size={20} fill="currentColor" fillOpacity={0.1} />

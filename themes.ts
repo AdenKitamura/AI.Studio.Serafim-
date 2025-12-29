@@ -26,15 +26,15 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Графит (iOS)',
     type: 'dark',
     colors: {
-      '--bg-main': '#000000',
-      '--bg-card': '#0a0a0b',
-      '--bg-item': '#121214',
+      '--bg-main': '#09090b', // Lighter black for texture visibility
+      '--bg-card': '#18181b',
+      '--bg-item': '#27272a',
       '--text-main': '#ffffff',
-      '--text-muted': '#9ca3af',
+      '--text-muted': '#a1a1aa',
       '--accent': '#6366f1',
       '--accent-hover': '#4f46e5',
       '--accent-glow': 'rgba(99, 102, 241, 0.3)',
-      '--border-color': 'rgba(255,255,255,0.06)',
+      '--border-color': 'rgba(255,255,255,0.08)',
       '--glass-opacity': '0.7',
       '--shadow-sm': '0 4px 6px -1px rgba(0,0,0,0.5)',
     },
@@ -43,9 +43,9 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'OLED Моно',
     type: 'dark',
     colors: {
-      '--bg-main': '#000000',
-      '--bg-card': '#050505',
-      '--bg-item': '#0a0a0a',
+      '--bg-main': '#050505', // Almost black but allows texture
+      '--bg-card': '#0a0a0a',
+      '--bg-item': '#171717',
       '--text-main': '#ffffff',
       '--text-muted': '#525252',
       '--accent': '#ffffff',
@@ -111,7 +111,7 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Лес',
     type: 'dark',
     colors: {
-      '--bg-main': '#021814',
+      '--bg-main': '#02100d', // Deep green-black
       '--bg-card': '#062e24',
       '--bg-item': '#063b2f',
       '--text-main': '#ecfdf5',
@@ -128,7 +128,7 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Неон',
     type: 'dark',
     colors: {
-      '--bg-main': '#030303',
+      '--bg-main': '#050505',
       '--bg-card': '#080808',
       '--bg-item': '#101010',
       '--text-main': '#ffffff',
@@ -145,9 +145,9 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Глубина',
     type: 'dark',
     colors: {
-      '--bg-main': '#010410',
-      '--bg-card': '#060c20',
-      '--bg-item': '#0a1430',
+      '--bg-main': '#020617', // Deep blue-black
+      '--bg-card': '#0f172a',
+      '--bg-item': '#1e293b',
       '--text-main': '#f0f9ff',
       '--text-muted': '#94a3b8',
       '--accent': '#38bdf8',
@@ -162,7 +162,7 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Аметист',
     type: 'dark',
     colors: {
-      '--bg-main': '#080414',
+      '--bg-main': '#0b051d',
       '--bg-card': '#12082b',
       '--bg-item': '#1a0c3d',
       '--text-main': '#f5f3ff',
@@ -179,7 +179,7 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Самурай',
     type: 'dark',
     colors: {
-      '--bg-main': '#0d0101',
+      '--bg-main': '#120303',
       '--bg-card': '#1a0404',
       '--bg-item': '#2b0707',
       '--text-main': '#fee2e2',
@@ -196,7 +196,7 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Дюна',
     type: 'dark',
     colors: {
-      '--bg-main': '#0a0904',
+      '--bg-main': '#0c0a04',
       '--bg-card': '#171408',
       '--bg-item': '#261f0a',
       '--text-main': '#fffbeb',
@@ -213,7 +213,7 @@ export const themes: Record<ThemeKey, Theme> = {
     name: 'Роза',
     type: 'dark',
     colors: {
-      '--bg-main': '#120205',
+      '--bg-main': '#140306',
       '--bg-card': '#1f0408',
       '--bg-item': '#2e070c',
       '--text-main': '#fff1f2',

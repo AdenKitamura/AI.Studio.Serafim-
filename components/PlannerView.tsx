@@ -1,30 +1,38 @@
 
 import React, { useState, useMemo } from 'react';
-import { Task, Priority, Project, Habit } from '../types';
+import { Task, Priority, Project, Habit, Thought } from '../types';
 import CalendarView from './CalendarView';
 import HabitTracker from './HabitTracker';
+import WhiteboardView from './WhiteboardView';
 import { format, isSameDay } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
-import { Plus, Check, Zap, Target, ArrowRight, Clock, X, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Check, Zap, Target, ArrowRight, Clock, X, Calendar as CalendarIcon, ChevronDown, Network, List } from 'lucide-react';
 
 interface PlannerViewProps {
   tasks: Task[];
   projects: Project[];
   habits?: Habit[];
+  thoughts: Thought[]; // Need thoughts for Mind Map
   onAddTask: (task: Task) => void;
   onToggleTask: (id: string) => void;
   onAddHabit?: (habit: Habit) => void;
   onToggleHabit?: (id: string, date: string) => void;
   onDeleteHabit?: (id: string) => void;
+  onAddThought: (thought: Thought) => void;
+  onUpdateThought: (thought: Thought) => void;
+  onDeleteThought: (id: string) => void;
 }
 
 const PlannerView: React.FC<PlannerViewProps> = ({ 
-    tasks, projects, habits = [], 
+    tasks, projects, habits = [], thoughts,
     onAddTask, onToggleTask, 
-    onAddHabit, onToggleHabit, onDeleteHabit 
+    onAddHabit, onToggleHabit, onDeleteHabit,
+    onAddThought, onUpdateThought, onDeleteThought
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isAdding, setIsAdding] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskTime, setNewTaskTime] = useState('');
@@ -58,88 +66,148 @@ const PlannerView: React.FC<PlannerViewProps> = ({
     setIsAdding(false);
   };
 
-  return (
-    <div className="h-full overflow-y-auto no-scrollbar bg-transparent px-6 pt-2 pb-48">
-      
-      {/* 1. CALENDAR STRIP */}
-      <section className="mb-8">
-        <CalendarView tasks={tasks} onDateClick={setSelectedDate} />
-      </section>
-
-      {/* 2. TASK LIST */}
-      <section className="mb-10">
-        <div className="flex items-baseline justify-between mb-6">
-          <div className="flex flex-col">
-            <h3 className="text-3xl font-black text-[var(--text-main)] tracking-tighter capitalize leading-none">
-              {isSameDay(selectedDate, new Date()) ? 'Сегодня' : format(selectedDate, 'd MMMM', { locale: ru })}
-            </h3>
-            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mt-2 opacity-50">
-              {tasksForSelected.length} целей запланировано
-            </span>
-          </div>
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="w-12 h-12 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all"
-          >
-            <Plus size={24} />
-          </button>
-        </div>
-
-        <div className="space-y-1">
-          {tasksForSelected.length === 0 ? (
-            <div className="py-12 border border-dashed border-[var(--border-color)] rounded-[2.5rem] flex flex-col items-center justify-center bg-[var(--bg-item)]/30">
-              <Target size={32} className="text-[var(--text-muted)] mb-3 opacity-20" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-40 text-center px-8">
-                Список пуст. Добавьте цель или выберите другой день.
-              </span>
-            </div>
-          ) : (
-            tasksForSelected.map((task) => (
-              <div 
-                key={task.id} 
-                onClick={() => onToggleTask(task.id)}
-                className={`flex items-center gap-4 p-5 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-3xl mb-3 active:scale-[0.98] transition-all hover:border-[var(--accent)]/30 ${task.isCompleted ? 'opacity-40 grayscale' : 'shadow-sm'}`}
-              >
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${task.isCompleted ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--border-color)]'}`}>
-                  {task.isCompleted && <Check size={14} strokeWidth={4} className="text-white" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-bold text-[var(--text-main)] truncate ${task.isCompleted ? 'line-through' : ''}`}>
-                    {task.title}
-                  </p>
-                  {task.dueDate && (
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] mt-1">
-                      {format(new Date(task.dueDate), 'HH:mm')}
-                    </p>
-                  )}
-                </div>
+  // --- MIND MAP VIEW ---
+  if (viewMode === 'map') {
+      return (
+          <div className="h-full relative flex flex-col">
+              <div className="absolute top-6 right-6 z-50">
+                  <div className="glass-panel p-1 rounded-xl flex gap-1">
+                      <button onClick={() => setViewMode('list')} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-item)] transition-all">
+                          <List size={20} />
+                      </button>
+                      <button onClick={() => setViewMode('map')} className="p-2 bg-[var(--accent)] text-white rounded-lg shadow-sm">
+                          <Network size={20} />
+                      </button>
+                  </div>
               </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      {/* 4. HABIT TRACKER */}
-      <section className="mb-12">
-        <div className="flex items-center gap-3 mb-5 px-1">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-            <Zap size={16} />
+              <WhiteboardView 
+                  thoughts={thoughts}
+                  onAdd={onAddThought}
+                  onUpdate={onUpdateThought}
+                  onDelete={onDeleteThought}
+                  onConvertToTask={(title) => {
+                      onAddTask({
+                          id: Date.now().toString(),
+                          title,
+                          isCompleted: false,
+                          priority: Priority.MEDIUM,
+                          dueDate: new Date().toISOString(),
+                          createdAt: new Date().toISOString()
+                      });
+                  }}
+              />
           </div>
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Система привычек</h4>
+      );
+  }
+
+  // --- STANDARD LIST VIEW ---
+  return (
+    <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col">
+      
+      {/* 1. Header (Collapsible Calendar & View Switch) */}
+      <div className="px-6 py-6 sticky top-0 z-20 bg-[var(--bg-main)]/80 backdrop-blur-md border-b border-[var(--border-color)] flex justify-between items-start">
+        <div className="cursor-pointer group flex items-center gap-3" onClick={() => setShowCalendar(!showCalendar)}>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter uppercase">
+                {format(selectedDate, 'LLLL', { locale: ru })}
+              </h2>
+              <ChevronDown size={20} className={`text-[var(--accent)] transition-transform duration-300 ${showCalendar ? 'rotate-180' : ''}`} />
+            </div>
+            <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">
+              {format(selectedDate, 'eeee, d MMMM yyyy', { locale: ru })}
+            </p>
+          </div>
         </div>
-        <HabitTracker 
-          habits={habits} 
-          selectedDate={selectedDate}
-          onAdd={onAddHabit!}
-          onToggle={onToggleHabit!}
-          onDelete={onDeleteHabit!}
-        />
-      </section>
+
+        {/* View Toggle */}
+        <div className="glass-panel p-1 rounded-xl flex gap-1">
+            <button onClick={() => setViewMode('list')} className="p-2 bg-[var(--accent)] text-white rounded-lg shadow-sm">
+                <List size={18} />
+            </button>
+            <button onClick={() => setViewMode('map')} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-item)] transition-all">
+                <Network size={18} />
+            </button>
+        </div>
+      </div>
+
+      {showCalendar && (
+        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)] border-b border-[var(--border-color)]">
+          <CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} />
+        </div>
+      )}
+
+      <div className="px-6 py-6 pb-48 flex-1">
+        {/* 2. TASK LIST */}
+        <section className="mb-10">
+          <div className="flex items-baseline justify-between mb-6">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">
+              {tasksForSelected.length} целей
+            </span>
+            <button 
+              onClick={() => setIsAdding(true)}
+              className="w-10 h-10 bg-[var(--accent)] text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {tasksForSelected.length === 0 ? (
+              <div className="glass-panel py-12 rounded-[2rem] flex flex-col items-center justify-center opacity-70">
+                <Target size={32} className="text-[var(--text-muted)] mb-3 opacity-30" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-50 text-center px-8">
+                  План чист
+                </span>
+              </div>
+            ) : (
+              tasksForSelected.map((task) => (
+                <div 
+                  key={task.id} 
+                  onClick={() => onToggleTask(task.id)}
+                  className={`glass-panel flex items-center gap-4 p-5 rounded-3xl active:scale-[0.99] transition-all cursor-pointer hover:border-[var(--accent)]/30 ${task.isCompleted ? 'opacity-40 grayscale' : ''}`}
+                >
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${task.isCompleted ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--border-color)]'}`}>
+                    {task.isCompleted && <Check size={14} strokeWidth={4} className="text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold text-[var(--text-main)] truncate ${task.isCompleted ? 'line-through' : ''}`}>
+                      {task.title}
+                    </p>
+                    {task.dueDate && (
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] mt-1">
+                        {format(new Date(task.dueDate), 'HH:mm')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* 4. HABIT TRACKER */}
+        <section className="mb-12">
+          <div className="flex items-center gap-3 mb-5 px-1">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+              <Zap size={16} />
+            </div>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Привычки</h4>
+          </div>
+          <HabitTracker 
+            habits={habits} 
+            selectedDate={selectedDate}
+            onAdd={onAddHabit!}
+            onToggle={onToggleHabit!}
+            onDelete={onDeleteHabit!}
+          />
+        </section>
+      </div>
 
       {/* MODAL OVERLAY FOR ADDING TASK */}
       {isAdding && (
         <div className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
-          <div className="w-full max-w-sm bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[3rem] p-8 shadow-2xl">
+          <div className="w-full max-w-sm glass-card rounded-[3rem] p-8 shadow-2xl border border-white/10">
             <div className="flex justify-between items-center mb-8">
               <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Новая задача</span>
               <button onClick={() => setIsAdding(false)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]"><X size={24} /></button>

@@ -99,7 +99,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, c
           
           {/* AI INSIGHT CARD */}
           <div className="relative group p-[1px] rounded-3xl overflow-hidden bg-gradient-to-br from-[var(--accent)] to-purple-600 shadow-xl">
-              <div className="bg-[var(--bg-item)] rounded-[23px] p-5 relative z-10">
+              <div className="glass-panel rounded-[23px] p-5 relative z-10 h-full">
                   <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                           <div className="p-2 bg-[var(--accent)]/10 rounded-lg text-[var(--accent)]">
@@ -156,7 +156,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, c
           </div>
 
           {/* PRODUCTIVITY CARD */}
-          <div className="bg-[var(--bg-item)] rounded-2xl p-5 border border-[var(--border-color)] relative overflow-hidden">
+          <div className="glass-panel rounded-2xl p-5 relative overflow-hidden">
               <div className="flex justify-between items-start mb-4 relative z-10">
                   <div className="flex items-center gap-2 text-[var(--accent)]">
                       <Activity size={20} />
@@ -187,7 +187,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, c
           </div>
 
           {/* MOOD TRACKER */}
-          <div className="bg-[var(--bg-item)] rounded-2xl p-5 border border-[var(--border-color)]">
+          <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2 text-pink-500">
                       <Brain size={20} />
@@ -201,7 +201,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, c
           </div>
 
           {/* HABITS CONSISTENCY */}
-          <div className="bg-[var(--bg-item)] rounded-2xl p-5 border border-[var(--border-color)]">
+          <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center gap-2 text-yellow-500 mb-5">
                   <Zap size={20} />
                   <span className="text-xs font-bold uppercase tracking-wider">Дисциплина (30 дней)</span>

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Thought } from '../types';
-import { Brain, Lightbulb, Plus, Trash2, Quote as QuoteIcon, Library, Download, X, User, Link as LinkIcon, File as FileIcon, Globe, Paperclip } from 'lucide-react';
+import { Brain, Lightbulb, Plus, Trash2, Quote as QuoteIcon, Library, Download, X, User, Link as LinkIcon, File as FileIcon, Globe, Paperclip, Network } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
 
@@ -111,6 +111,14 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onDelete }
                 </div>
               ) : (
                 <p className="text-sm text-white/80 leading-relaxed">{t.content}</p>
+              )}
+              
+              {/* Context Links Indicator */}
+              {t.links && t.links.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2">
+                      <Network size={12} className="text-indigo-400" />
+                      <span className="text-[10px] font-black uppercase text-indigo-400/80 tracking-wider">{t.links.length} связей</span>
+                  </div>
               )}
 
               {t.tags.length > 0 && (

@@ -196,35 +196,26 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
       </div>
 
-      {/* Chat Header */}
-      <div className="flex-none px-6 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-main)]/40 backdrop-blur-xl">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] shadow-[0_0_20px_var(--accent-glow)]">
-            <Zap size={20} className={isThinking ? 'animate-pulse' : ''} />
-          </div>
-          <div>
-            <h2 className="text-sm font-black text-[var(--text-main)] uppercase tracking-tighter leading-none mb-1">Serafim OS Core</h2>
-            <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">Gemini 3 Pro Active</p>
-            </div>
-          </div>
+      {/* Chat Info (Simplified, transparent) */}
+      <div className="flex-none px-6 py-2 flex items-center justify-center pointer-events-none">
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--bg-item)]/30 backdrop-blur-md border border-[var(--border-color)]">
+           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+           <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest">Serafim Core Active</span>
         </div>
-        <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-3 bg-[var(--bg-item)] text-[var(--text-muted)] rounded-2xl hover:text-[var(--text-main)] transition-all border border-[var(--border-color)]"><Plus size={20} /></button>
       </div>
 
       {/* Messages Scroll Area with Gradient Fade Mask */}
       <div className="flex-1 relative overflow-hidden">
-        {/* The Fade Mask Layer for Floating Toolbar Zone */}
+        {/* Fade Mask Layer */}
         <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-10" 
              style={{ 
-               background: `linear-gradient(to top, var(--bg-main) 0%, var(--bg-main) 40%, transparent 100%)` 
+               background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` 
              }} />
         
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
           {sessions.find(s => s.id === activeSessionId)?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'bg-[var(--bg-item)] border border-[var(--border-color)] backdrop-blur-md text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 shadow-[var(--shadow-sm)]'}`}>
+              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
                 <div className="text-sm leading-relaxed whitespace-pre-wrap font-semibold">
                   {msg.content}
@@ -244,8 +235,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* Input Area (Bottom Fixed Background Layer) */}
-      <div className="flex-none p-6 bg-[var(--bg-main)] border-t border-[var(--border-color)] relative z-20">
+      {/* Input Area (Transparent + Glass) */}
+      <div className="flex-none p-6 pb-24 relative z-20">
         <div className="max-w-2xl mx-auto space-y-4">
           
           {attachedImage && (
@@ -255,10 +246,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             </div>
           )}
 
-          <div className={`flex items-center gap-2 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)]`}>
-            <button onClick={toggleVoice} className={`p-4 rounded-full transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
-              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
+          <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)]`}>
             
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
@@ -270,9 +258,17 @@ const Mentorship: React.FC<MentorshipProps> = ({
               value={input} 
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
-              placeholder="Спроси о чем угодно..." 
+              placeholder="Сообщение..." 
               className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" 
             />
+
+            {/* Voice Button */}
+            <button 
+              onClick={toggleVoice} 
+              className={`p-3 transition-colors ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+            >
+              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+            </button>
 
             <button 
               onClick={handleSend}

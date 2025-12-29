@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Thought } from '../types';
 import { getAllQuotes } from '../services/quotesService';
@@ -45,7 +46,7 @@ const Ticker: React.FC<TickerProps> = ({ thoughts, onClick }) => {
           100% { transform: translateX(-50%); }
         }
         .animate-ticker {
-          animation: ticker 120s linear infinite; /* Slowed down from 40s */
+          animation: ticker 240s linear infinite; /* Slowed down significantly */
         }
       `}</style>
     </div>
