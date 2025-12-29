@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey } from '../types';
 import Settings from './Settings';
 import { 
-  X, Cpu, Database, Settings as SettingsIcon, Activity, CheckCircle2, RefreshCw, Layers
+  X, Cpu, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -21,7 +21,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'settings' | 'system'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
-  const [dbStatus, setDbStatus] = useState<'connected' | 'error' | 'checking'>('checking');
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
 
   const runDiagnostics = useCallback(async () => {
@@ -29,56 +28,46 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     
     if (navigator.storage && navigator.storage.estimate) {
       const estimate = await navigator.storage.estimate();
-      const used = (estimate.usage || 0) / (1024 * 1024);
-      const total = (estimate.quota || 0) / (1024 * 1024);
+      const usedBytes = estimate.usage || 0;
+      const quotaBytes = estimate.quota || 1;
+      const usedMB = usedBytes / (1024 * 1024);
+      const totalGB = quotaBytes / (1024 * 1024 * 1024);
+      
       setStorageInfo({
-        used: used.toFixed(2) + ' MB',
-        total: (total / 1024).toFixed(1) + ' GB',
-        percent: Math.min(100, (used / (total || 1)) * 100)
+        used: usedMB.toFixed(2) + ' MB',
+        total: totalGB.toFixed(1) + ' GB',
+        percent: Math.min(100, (usedBytes / quotaBytes) * 100)
       });
-    }
-
-    try {
-      const dbCheck = indexedDB.open('SerafimOS_DB');
-      dbCheck.onsuccess = () => {
-        setDbStatus('connected');
-        dbCheck.result.close();
-      };
-      dbCheck.onerror = () => setDbStatus('error');
-    } catch (e) {
-      setDbStatus('error');
     }
   }, []);
 
   useEffect(() => {
     runDiagnostics();
-    const interval = setInterval(runDiagnostics, 30000);
-    return () => clearInterval(interval);
   }, [runDiagnostics]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center animate-in fade-in duration-300">
-        <div className="w-full sm:max-w-md h-[80vh] bg-[var(--bg-main)] sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden border border-white/5">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-end sm:items-center justify-center animate-in fade-in duration-300">
+        <div className="w-full sm:max-w-md h-[80vh] bg-[var(--bg-main)] sm:rounded-[3rem] rounded-t-[3rem] shadow-2xl flex flex-col overflow-hidden border border-[var(--border-color)]">
             
-            <div className="flex-none p-5 border-b border-white/5 flex justify-between items-center bg-[var(--bg-main)]">
+            <div className="flex-none p-6 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]">
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">
+                    <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] flex items-center justify-center text-white font-black text-2xl shadow-[0_10px_30px_var(--accent-glow)]">
                         {userName.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <h3 className="font-extrabold text-lg text-white tracking-tight">{userName}</h3>
-                        <p className="text-[10px] font-black uppercase text-white/30 tracking-widest">Serafim OS Core</p>
+                        <h3 className="font-extrabold text-xl text-[var(--text-main)] tracking-tight">{userName}</h3>
+                        <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-60">Serafim OS Engine</p>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 bg-white/5 rounded-full text-white/40 hover:text-white border border-white/5 transition-colors">
-                    <X size={20} />
+                <button onClick={onClose} className="p-3 bg-[var(--bg-item)] rounded-2xl text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] transition-all active:scale-90">
+                    <X size={24} />
                 </button>
             </div>
 
             <div className="flex-none p-4 pb-0 bg-[var(--bg-main)]">
-                <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 gap-1">
-                    <button onClick={() => setActiveTab('settings')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><SettingsIcon size={14} /> Конфигурация</button>
-                    <button onClick={() => setActiveTab('system')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-indigo-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}><Activity size={14} /> Состояние</button>
+                <div className="flex bg-[var(--bg-item)] p-1.5 rounded-[1.5rem] border border-[var(--border-color)] gap-1">
+                    <button onClick={() => setActiveTab('settings')} className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><SettingsIcon size={16} /> Настройки</button>
+                    <button onClick={() => setActiveTab('system')} className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><Activity size={16} /> Система</button>
                 </div>
             </div>
 
@@ -86,82 +75,64 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {activeTab === 'settings' && <Settings currentTheme={currentTheme} setTheme={setTheme} onClose={onClose} exportData={{ ...appState, user: userName }} onImport={onImport} />}
                 
                 {activeTab === 'system' && (
-                  <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-24">
-                    <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-white/30">Параметры Ядра</h4>
-                        <button onClick={runDiagnostics} className="p-2 bg-white/5 rounded-lg text-indigo-400 hover:text-white transition-colors">
+                  <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32">
+                    <div className="flex justify-between items-center px-1">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-40">Диагностика памяти</h4>
+                        <button onClick={runDiagnostics} className="p-2 bg-[var(--bg-item)] rounded-xl text-[var(--accent)] hover:text-[var(--text-main)] transition-colors border border-[var(--border-color)]">
                             <RefreshCw size={14} />
                         </button>
                     </div>
                     
-                    <div className="space-y-3">
-                        {/* Database Status */}
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-500/10 text-blue-500 rounded-2xl"><Database size={20} /></div>
-                                <div>
-                                    <p className="text-sm font-bold text-white">Хранилище DB</p>
-                                    <p className="text-[10px] font-medium text-white/30">IndexedDB Local v3</p>
-                                </div>
+                    <div className="space-y-4">
+                        <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[2rem] p-6 relative overflow-hidden group">
+                            <div className="absolute -right-8 -bottom-8 text-[var(--accent)] opacity-5">
+                                <HardDrive size={160} />
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase text-emerald-500">{dbStatus}</span>
-                                <div className={`w-2 h-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 animate-pulse'}`}></div>
-                            </div>
-                        </div>
-
-                        {/* Memory Usage */}
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl"><Activity size={20} /></div>
-                                    <div>
-                                        <p className="text-sm font-bold text-white">Квота памяти</p>
-                                        <p className="text-[10px] font-medium text-white/30">{storageInfo?.used} занято</p>
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-end mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl"><Database size={24} /></div>
+                                        <div>
+                                            <p className="text-base font-bold text-[var(--text-main)]">Ядро Данных</p>
+                                            <p className="text-[10px] font-medium text-[var(--text-muted)] opacity-60">Локальная база</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-lg font-black text-[var(--text-main)]">{storageInfo?.percent.toFixed(4)}%</p>
+                                        <p className="text-[9px] font-black uppercase text-[var(--accent)]">{storageInfo?.used}</p>
                                     </div>
                                 </div>
-                                <span className="text-xs font-mono font-bold text-white/40">{storageInfo?.percent.toFixed(1)}%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${storageInfo?.percent || 0}%` }}></div>
-                            </div>
-                        </div>
-
-                        {/* Data Overview */}
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-5 grid grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Всего Задач</span>
-                                <span className="text-xl font-black text-white">{appState.tasks.length}</span>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Мысли/Узлы</span>
-                                <span className="text-xl font-black text-white">{appState.thoughts.length}</span>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Проекты</span>
-                                <span className="text-xl font-black text-white">{appState.projects.length}</span>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] font-black uppercase text-white/20 tracking-widest">Записи</span>
-                                <span className="text-xl font-black text-white">{appState.journal.length}</span>
+                                <div className="h-2 w-full bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-color)] p-[1px]">
+                                    <div className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_10px_var(--accent-glow)]" style={{ width: `${Math.max(1, storageInfo?.percent || 0)}%` }}></div>
+                                </div>
+                                <div className="flex justify-between mt-3 px-1">
+                                    <span className="text-[9px] font-black uppercase text-[var(--text-muted)] opacity-40">0 MB</span>
+                                    <span className="text-[9px] font-black uppercase text-[var(--text-muted)] opacity-40">Лимит: {storageInfo?.total}</span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* AI Status */}
-                        <div className="bg-indigo-600/5 border border-indigo-500/10 rounded-2xl p-5 flex items-start gap-4">
-                            <Cpu size={24} className="text-indigo-500 mt-1" />
-                            <div>
-                                <h5 className="text-xs font-black uppercase tracking-widest text-white/80 mb-1">Ядро Gemini 3</h5>
-                                <p className="text-[10px] text-white/40 leading-relaxed">
-                                    Нейронная модель активна. Обработка запросов и декомпозиция целей работают в штатном режиме.
-                                </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[1.5rem] p-5">
+                                <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-40">Статус ИИ</span>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                                    <span className="text-sm font-black text-[var(--text-main)]">Active</span>
+                                </div>
+                            </div>
+                            <div className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[1.5rem] p-5">
+                                <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-40">Безопасность</span>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <ShieldCheck size={14} className="text-indigo-400" />
+                                    <span className="text-sm font-black text-[var(--text-main)]">Local</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="pt-6 border-t border-white/5 text-center">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-white/20">Serafim OS Engine v3.0.0-build.2025</p>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-white/20 mt-1">Last Sync: {lastCheck}</p>
+                    <div className="pt-8 text-center">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-20">Serafim OS v3.5 Stable Engine</p>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-20 mt-1">Scan at {lastCheck}</p>
                     </div>
                   </div>
                 )}

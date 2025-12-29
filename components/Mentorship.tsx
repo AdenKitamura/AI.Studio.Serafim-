@@ -1,15 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority } from '../types';
+import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey } from '../types';
 import { createMentorChat, polishTranscript } from '../services/geminiService';
-import { Loader2, ArrowUp, Plus, Search, CheckCircle, Mic, MicOff, FolderPlus, Activity, Sparkles, XCircle } from 'lucide-react';
+import { 
+  Loader2, ArrowUp, Plus, CheckCircle, Mic, MicOff, 
+  Sparkles, XCircle, AlertCircle, Image as ImageIcon,
+  Zap, Database, Target, Palette, Clock, Terminal
+} from 'lucide-react';
 
 interface MentorshipProps {
   tasks: Task[];
   thoughts: Thought[];
   journal: JournalEntry[];
   projects: Project[];
-  habits?: Habit[];
+  habits: Habit[];
   sessions: ChatSession[];
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
@@ -17,37 +21,34 @@ interface MentorshipProps {
   onNewSession: (title: string, category: ChatCategory) => void;
   onDeleteSession: (id: string) => void;
   onAddTask: (task: Task) => void;
+  onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onAddThought: (thought: Thought) => void;
   onAddProject: (project: Project) => void;
   onAddHabit: (habit: Habit) => void;
+  onSetTheme: (theme: ThemeKey) => void;
+  onStartFocus: (minutes: number) => void;
   hasAiKey: boolean;
   onConnectAI: () => void;
   voiceTrigger?: number;
 }
 
 const Mentorship: React.FC<MentorshipProps> = ({ 
-    tasks, thoughts, journal, projects, habits = [], 
+    tasks, thoughts, journal, projects, habits, 
     sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession,
-    onAddTask, onAddThought, onAddProject, onAddHabit, hasAiKey, onConnectAI, voiceTrigger = 0
+    onAddTask, onUpdateTask, onAddThought, onAddProject, onAddHabit, onSetTheme, onStartFocus,
+    hasAiKey, onConnectAI, voiceTrigger = 0
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isPolishing, setIsPolishing] = useState(false);
   const [interimText, setInterimText] = useState('');
-  const [actionFeedback, setActionFeedback] = useState<{msg: string, type: 'search' | 'success' | 'task' | 'project'} | null>(null);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [agentLogs, setAgentLogs] = useState<{msg: string, type: 'tool' | 'info' | 'success'}[]>([]);
   
   const recognitionRef = useRef<any>(null);
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputTextAreaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Реф для мгновенного доступа к вводу без ожидания стейта
-  const currentInputRef = useRef('');
-
-  useEffect(() => {
-    currentInputRef.current = input;
-  }, [input]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -64,199 +65,226 @@ const Mentorship: React.FC<MentorshipProps> = ({
           if (event.results[i].isFinal) finalStr += event.results[i][0].transcript;
           else interimStr = event.results[i][0].transcript;
         }
-        if (finalStr) {
-          const combined = (currentInputRef.current + ' ' + finalStr).replace(/\s+/g, ' ').trim();
-          setInput(combined);
-        }
+        if (finalStr) setInput(prev => (prev + ' ' + finalStr).trim());
         setInterimText(interimStr);
       };
-
       rec.onstart = () => setIsRecording(true);
-      rec.onend = () => {
-        setIsRecording(false);
-        setInterimText('');
-      };
-      rec.onerror = () => setIsRecording(false);
+      rec.onend = () => { setIsRecording(false); setInterimText(''); };
       recognitionRef.current = rec;
     }
   }, []);
 
-  useEffect(() => { 
-    if (voiceTrigger > 0 && !isRecording) toggleVoice(); 
-  }, [voiceTrigger]);
-
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
-    if (isRecording) recognitionRef.current.stop();
-    else recognitionRef.current.start();
+    isRecording ? recognitionRef.current.stop() : recognitionRef.current.start();
   };
 
-  // ОСНОВНАЯ ФУНКЦИЯ ОТПРАВКИ
-  const handleSend = async () => {
-    // 1. Предварительные проверки
-    if (isThinking || isPolishing) return;
-    
-    // Захватываем текст ДО того как очистим стейт
-    const textToProcess = currentInputRef.current.trim();
-    if (!textToProcess) return;
-
-    if (!hasAiKey) {
-      onConnectAI();
-      return;
+  const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setAttachedImage(ev.target?.result as string);
+      reader.readAsDataURL(file);
     }
+  };
 
-    // 2. Визуальная очистка
-    if (isRecording) recognitionRef.current.stop();
+  const addLog = (msg: string, type: 'tool' | 'info' | 'success') => {
+    setAgentLogs(prev => [...prev.slice(-2), { msg, type }]);
+    setTimeout(() => setAgentLogs(prev => prev.filter(l => l.msg !== msg)), 4000);
+  };
+
+  const handleSend = async () => {
+    if (isThinking || (!input.trim() && !attachedImage)) return;
+    if (!hasAiKey) { onConnectAI(); return; }
+
+    const userQuery = input.trim();
+    const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+    const userMsg: ChatMessage = { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: userQuery, 
+      image: attachedImage || undefined,
+      timestamp: Date.now() 
+    };
+
+    const newHistory = [...activeSession.messages, userMsg];
+    onUpdateMessages(newHistory);
     setInput('');
-    currentInputRef.current = '';
-    setIsPolishing(true);
+    setAttachedImage(null);
+    setIsThinking(true);
 
     try {
-      // 3. Полировка (исправление ошибок распознавания)
-      let finalQuery = textToProcess;
-      if (textToProcess.length > 5) {
-        finalQuery = await polishTranscript(textToProcess);
-      }
-      setIsPolishing(false);
-
-      // 4. Добавление в историю (моментально)
-      const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: finalQuery, timestamp: Date.now() };
-      const currentHistory = [...(activeSession?.messages || []), userMsg];
-      onUpdateMessages(currentHistory);
-
-      // 5. Запрос к ИИ
-      setIsThinking(true);
       if (!chatSessionRef.current) {
-        chatSessionRef.current = createMentorChat(tasks, thoughts, journal, projects, habits);
+        chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
       }
-      
-      const response = await chatSessionRef.current.sendMessage({ message: finalQuery });
-      
-      // 6. Обработка инструментов
+
+      let contents: any = userQuery;
+      if (userMsg.image) {
+        contents = {
+          parts: [
+            { text: userQuery || "Проанализируй это изображение." },
+            { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }
+          ]
+        };
+      }
+
+      const response = await chatSessionRef.current.sendMessage({ message: contents });
+
       if (response.functionCalls) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
-          if (fc.name === 'create_task') {
-            onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || new Date().toISOString(), isCompleted: false, createdAt: new Date().toISOString() });
-            setActionFeedback({ msg: `Задача создана`, type: 'task' });
-          } else if (fc.name === 'create_project') {
-            onAddProject({ id: Date.now().toString(), title: args.title, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
-            setActionFeedback({ msg: `Проект добавлен`, type: 'project' });
-          } else if (fc.name === 'add_habit') {
-            onAddHabit({ id: Date.now().toString(), title: args.title, color: args.color || '#10b981', completedDates: [], createdAt: new Date().toISOString() });
-            setActionFeedback({ msg: `Привычка добавлена`, type: 'success' });
+          addLog(`Вызов: ${fc.name}`, 'tool');
+
+          switch (fc.name) {
+            case 'manage_task':
+              if (args.action === 'create') {
+                onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() });
+                addLog('Задача создана', 'success');
+              } else if (args.action === 'complete') {
+                const task = tasks.find(t => t.title.toLowerCase().includes(args.title.toLowerCase()));
+                if (task) onUpdateTask(task.id, { isCompleted: true });
+                addLog('Задача обновлена', 'success');
+              }
+              break;
+            case 'manage_project':
+              onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
+              addLog('Проект добавлен', 'success');
+              break;
+            case 'ui_control':
+              if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
+              if (args.command === 'start_focus') onStartFocus(args.duration || 25);
+              break;
+            case 'search_memory':
+              const results = thoughts.filter(t => t.content.toLowerCase().includes(args.query.toLowerCase()));
+              addLog(`Найдено записей: ${results.length}`, 'info');
+              break;
           }
         }
-        setTimeout(() => setActionFeedback(null), 3000);
       }
 
-      // 7. Обновление финального ответа
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: response.text || "Запрос выполнен.", 
+        content: response.text || "Инструкции выполнены.", 
         timestamp: Date.now() 
       };
-      onUpdateMessages([...currentHistory, modelMsg]);
+      onUpdateMessages([...newHistory, modelMsg]);
 
     } catch (e) {
-      console.error("Serafim Core Error:", e);
-      // Возвращаем текст в поле ввода в случае критической ошибки
-      setInput(textToProcess); 
-      onUpdateMessages([...(sessions.find(s => s.id === activeSessionId)?.messages || []), { 
-        id: 'err-' + Date.now(), role: 'model', content: "Ошибка синхронизации с ядром. Попробуйте снова.", timestamp: Date.now() 
-      }]);
-    } finally { 
-      setIsPolishing(false);
-      setIsThinking(false); 
-      setTimeout(() => inputTextAreaRef.current?.focus(), 100);
+      console.error(e);
+      addLog('Ошибка ядра Gemini 3 Pro', 'tool');
+    } finally {
+      setIsThinking(false);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
   };
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [sessions, activeSessionId, isThinking, isPolishing]);
-
   return (
-    <div className="flex flex-col h-full bg-transparent relative z-10 overflow-hidden">
-      {actionFeedback && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-4 fade-in duration-500">
-           <div className={`px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10 ${
-             actionFeedback.type === 'search' ? 'bg-amber-600' : 
-             actionFeedback.type === 'task' ? 'bg-indigo-600' :
-             actionFeedback.type === 'project' ? 'bg-purple-600' : 'bg-emerald-600'
-           } text-white`}>
-              {actionFeedback.type === 'search' ? <Search size={18} /> : 
-               actionFeedback.type === 'task' ? <CheckCircle size={18} /> :
-               actionFeedback.type === 'project' ? <FolderPlus size={18} /> : <Sparkles size={18} />}
-              <span className="text-xs font-bold whitespace-nowrap">{actionFeedback.msg}</span>
-           </div>
-        </div>
-      )}
-
-      <div className="flex-none px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <Activity size={20} className="text-indigo-500" />
-          <div>
-            <h2 className="text-sm font-bold text-white uppercase tracking-tighter">Serafim AI</h2>
-            <p className="text-[8px] font-black uppercase tracking-widest text-indigo-400/50">
-                {isThinking ? 'Синхронизация...' : isPolishing ? 'Анализ нейронов...' : 'Система готова'}
-            </p>
-          </div>
-        </div>
-        <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-all"><Plus size={20} /></button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar pb-40">
-        {sessions.find(s => s.id === activeSessionId)?.messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/5 border border-white/5 backdrop-blur-md text-white/90'}`}>
-              <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
-            </div>
+    <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
+      
+      {/* Agent Logs Overlay */}
+      <div className="absolute top-20 right-6 z-[60] flex flex-col gap-2 items-end pointer-events-none">
+        {agentLogs.map((log, i) => (
+          <div key={i} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border animate-in slide-in-from-right fade-in backdrop-blur-md ${
+            log.type === 'success' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' :
+            log.type === 'tool' ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400' : 'bg-white/10 border-white/20 text-white/60'
+          }`}>
+            <span className="flex items-center gap-2">
+              <Terminal size={12} /> {log.msg}
+            </span>
           </div>
         ))}
-        {(isThinking || isPolishing) && (
-          <div className="flex items-center gap-3 p-4 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400/60 animate-pulse">
-            <Loader2 size={14} className="animate-spin" /> {isPolishing ? 'Полировка мысли...' : 'Серафим формирует ответ...'}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/95 to-transparent pt-16 z-20">
-        <div className={`flex flex-col gap-2 max-w-2xl mx-auto`}>
-          {interimText && (
-            <div className="px-4 py-2 text-xs text-white/40 italic animate-pulse">
-              {interimText}...
+      {/* Chat Header */}
+      <div className="flex-none px-6 py-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-main)]/40 backdrop-blur-xl">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-2xl bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] shadow-[0_0_20px_var(--accent-glow)]">
+            <Zap size={20} className={isThinking ? 'animate-pulse' : ''} />
+          </div>
+          <div>
+            <h2 className="text-sm font-black text-[var(--text-main)] uppercase tracking-tighter leading-none mb-1">Serafim OS Core</h2>
+            <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">Gemini 3 Pro Active</p>
             </div>
-          )}
-          <div className={`flex items-center gap-2 bg-zinc-900/90 backdrop-blur-3xl border ${isRecording ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-[0_0_30px_rgba(79,70,229,0.3)]' : 'border-white/10'} rounded-[2rem] p-2 shadow-2xl transition-all`}>
-            <button 
-              onClick={toggleVoice} 
-              className={`p-3.5 rounded-2xl transition-all cursor-pointer ${isRecording ? 'bg-rose-500 text-white' : 'text-indigo-400/70 hover:bg-white/5'}`}
-            >
-              {isRecording ? <MicOff size={22} /> : <Mic size={22} />}
-            </button>
-            <textarea 
-              ref={inputTextAreaRef}
-              rows={1} 
-              value={input} 
-              onChange={e => setInput(e.target.value)} 
-              onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); handleSend(); } }} 
-              placeholder="Команда или вопрос..." 
-              className="flex-1 bg-transparent text-sm text-white px-2 py-3 outline-none resize-none no-scrollbar placeholder:text-white/10" 
-            />
-            <button 
-              onClick={handleSend} 
-              disabled={(!input.trim() && !isRecording) || isThinking || isPolishing} 
-              className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${(!input.trim() && !isRecording) || isThinking || isPolishing ? 'opacity-20 cursor-default' : 'bg-indigo-600 text-white shadow-lg active:scale-90'}`}
-            >
-              {isThinking || isPolishing ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={22} strokeWidth={3} />}
-            </button>
           </div>
         </div>
-        <div className="h-20" />
+        <button onClick={() => onNewSession('Новый диалог', 'general')} className="p-3 bg-[var(--bg-item)] text-[var(--text-muted)] rounded-2xl hover:text-[var(--text-main)] transition-all border border-[var(--border-color)]"><Plus size={20} /></button>
+      </div>
+
+      {/* Messages Scroll Area with Gradient Fade Mask */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* The Fade Mask Layer for Floating Toolbar Zone */}
+        <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-10" 
+             style={{ 
+               background: `linear-gradient(to top, var(--bg-main) 0%, var(--bg-main) 40%, transparent 100%)` 
+             }} />
+        
+        <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
+          {sessions.find(s => s.id === activeSessionId)?.messages.map((msg) => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'bg-[var(--bg-item)] border border-[var(--border-color)] backdrop-blur-md text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 shadow-[var(--shadow-sm)]'}`}>
+                {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
+                <div className="text-sm leading-relaxed whitespace-pre-wrap font-semibold">
+                  {msg.content}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isThinking && (
+            <div className="flex items-center gap-4 p-4">
+              <div className="w-8 h-8 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center">
+                  <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] animate-pulse">Серафим анализирует...</span>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Input Area (Bottom Fixed Background Layer) */}
+      <div className="flex-none p-6 bg-[var(--bg-main)] border-t border-[var(--border-color)] relative z-20">
+        <div className="max-w-2xl mx-auto space-y-4">
+          
+          {attachedImage && (
+            <div className="relative inline-block animate-in zoom-in">
+              <img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" />
+              <button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><XCircle size={12}/></button>
+            </div>
+          )}
+
+          <div className={`flex items-center gap-2 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)]`}>
+            <button onClick={toggleVoice} className={`p-4 rounded-full transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+            </button>
+            
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
+            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
+              <ImageIcon size={20} />
+            </button>
+
+            <textarea 
+              rows={1} 
+              value={input} 
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
+              placeholder="Спроси о чем угодно..." 
+              className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" 
+            />
+
+            <button 
+              onClick={handleSend}
+              disabled={isThinking}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!input.trim() && !attachedImage ? 'opacity-20 bg-[var(--bg-main)]' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90'}`}
+            >
+              {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
+            </button>
+          </div>
+          
+          {interimText && <div className="text-center text-[9px] font-black text-[var(--accent)] animate-pulse uppercase tracking-widest">{interimText}</div>}
+        </div>
       </div>
     </div>
   );

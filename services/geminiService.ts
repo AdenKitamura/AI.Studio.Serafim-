@@ -1,136 +1,167 @@
 
 import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
-import { Task, Thought, JournalEntry, Project, Habit } from "../types";
+import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from "../types";
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-const queryMemoryTool: FunctionDeclaration = {
-  name: "query_memory",
-  description: "Ищет данные в дневнике, мыслях или архиве ссылок. Обязательно используй, если пользователь спрашивает о прошлом или своих записях.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      searchTerm: { type: Type.STRING, description: "Ключевые слова для поиска." },
-      category: { type: Type.STRING, enum: ["journal", "thoughts", "links", "all"], description: "Где искать." }
-    },
-    required: ["searchTerm"]
-  }
-};
+// --- ОПРЕДЕЛЕНИЕ ИНСТРУМЕНТОВ СЕРАФИМА ---
 
-const createTaskTool: FunctionDeclaration = {
-  name: "create_task",
-  description: "Создает задачу в списке дел.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING, description: "Название задачи." },
-      priority: { type: Type.STRING, enum: ["High", "Medium", "Low"], description: "Приоритет." },
-      dueDate: { type: Type.STRING, description: "Дата в формате ISO." }
-    },
-    required: ["title"]
+const tools: FunctionDeclaration[] = [
+  {
+    name: "manage_task",
+    description: "Создает, обновляет или завершает задачи. Используй для любого планирования.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: { type: Type.STRING, enum: ["create", "complete", "delete"], description: "Действие с задачей." },
+        title: { type: Type.STRING, description: "Название задачи." },
+        priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+        dueDate: { type: Type.STRING, description: "Дата ISO." },
+        projectId: { type: Type.STRING, description: "ID проекта, если применимо." }
+      },
+      required: ["action", "title"]
+    }
+  },
+  {
+    name: "manage_project",
+    description: "Создает новые проекты или сферы жизни.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        description: { type: Type.STRING },
+        color: { type: Type.STRING, description: "HEX цвет." }
+      },
+      required: ["title"]
+    }
+  },
+  {
+    name: "manage_habit",
+    description: "Добавляет новую привычку в трекер.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        color: { type: Type.STRING }
+      },
+      required: ["title"]
+    }
+  },
+  {
+    name: "search_memory",
+    description: "Ищет информацию в прошлом: дневнике, мыслях и архивах. Обязательно используй для вопросов типа 'Что я делал...?' или 'Какие идеи были...?'",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: "Поисковый запрос." },
+        scope: { type: Type.STRING, enum: ["journal", "thoughts", "all"] }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "ui_control",
+    description: "Управляет интерфейсом приложения: меняет тему или запускает таймер.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        command: { type: Type.STRING, enum: ["set_theme", "start_focus"], description: "Команда системе." },
+        themeName: { type: Type.STRING, description: "Ключ темы (slate, emerald, rose, neon и т.д.)" },
+        duration: { type: Type.NUMBER, description: "Минуты для таймера." }
+      },
+      required: ["command"]
+    }
   }
-};
-
-const createProjectTool: FunctionDeclaration = {
-  name: "create_project",
-  description: "Создает новый проект (сферу жизни).",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING },
-      color: { type: Type.STRING, description: "HEX код цвета." }
-    },
-    required: ["title"]
-  }
-};
-
-const addHabitTool: FunctionDeclaration = {
-  name: "add_habit",
-  description: "Добавляет новую привычку для отслеживания.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING },
-      color: { type: Type.STRING }
-    },
-    required: ["title"]
-  }
-};
+];
 
 export const polishTranscript = async (text: string): Promise<string> => {
   if (!text || text.trim().length < 2) return text;
-  
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `ИНСТРУКЦИЯ: Текст ниже получен через голосовой ввод. Исправь его: удали повторы, заикания, исправь ошибки распознавания, расставь знаки препинания. 
-ВАЖНО: Сохрани смысл полностью. Верни ТОЛЬКО исправленный текст без пояснений.
-
-ТЕКСТ:
-"${text}"`,
+      contents: `ИНСТРУКЦИЯ: Исправь голосовой ввод. Удали мусор, заикания, исправь ошибки. Верни только чистый текст.\n\nТЕКСТ: "${text}"`,
     });
-    const result = response.text?.trim();
-    return (result && result.length > 0) ? result : text;
+    return response.text?.trim() || text;
   } catch (e) {
-    console.warn("Serafim Polish Engine: Fallback to raw text due to error", e);
     return text;
   }
 };
 
 export const createMentorChat = (
-  tasks: Task[], 
-  thoughts: Thought[], 
-  journal: JournalEntry[], 
-  projects: Project[],
-  habits: Habit[]
+  context: {
+    tasks: Task[],
+    thoughts: Thought[],
+    journal: JournalEntry[],
+    projects: Project[],
+    habits: Habit[]
+  }
 ): Chat => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const today = format(new Date(), 'eeee, d MMMM yyyy', { locale: ru });
 
   const SYSTEM_INSTRUCTION = `
-Ты — Serafim OS, интеллектуальное ядро системы управления знаниями. 
+Ты — Serafim OS v4 Pro, высший ИИ-агент управления личной эффективностью и знаниями.
+Твоя цель: помогать пользователю разгружать когнитивную систему и достигать целей.
 
-Твои функции:
-1. Создание задач ('create_task')
-2. Создание проектов ('create_project')
-3. Поиск в памяти ('query_memory')
-4. Трекинг привычек ('add_habit')
+ТВОИ ВОЗМОЖНОСТИ:
+1. Управление временем: создание и закрытие задач.
+2. Архивация смыслов: поиск в дневниках и мыслях.
+3. Аналитика: ты можешь анализировать тренды в привычках и настроении.
+4. Контроль среды: ты можешь менять темы оформления приложения.
 
-Если пользователь просит что-то сделать — ВСЕГДА используй соответствующий инструмент ПЕРЕД текстовым ответом.
-Отвечай кратко, профессионально, в стиле продвинутой ОС.
-Сегодня: ${today}.
+ПРАВИЛА:
+- Если пользователь говорит о цели — создавай задачу.
+- Если пользователь спрашивает о прошлом — используй 'search_memory'.
+- Тон: лаконичный, футуристичный, интеллектуальный.
+- Текущая дата: ${today}.
 `;
 
   return ai.chats.create({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: [
-        queryMemoryTool, 
-        createTaskTool, 
-        createProjectTool, 
-        addHabitTool
-      ]}]
+      tools: [{ functionDeclarations: tools }],
+      temperature: 0.7,
     }
   });
 };
 
-export const getSystemAnalysis = async (
-  tasks: Task[],
-  habits: Habit[],
-  journal: JournalEntry[]
-): Promise<{ status: string; insight: string; focusArea: string }> => {
+// Fixed: Renamed analyzeHealth to getSystemAnalysis and updated signature/implementation to match usage in AnalyticsView.tsx
+export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const data = {
+    tasks: tasks.map(t => ({ title: t.title, completed: t.isCompleted, priority: t.priority })),
+    habits: habits.map(h => ({ title: h.title, completions: h.completedDates.length })),
+    moods: journal.map(j => j.mood).filter(Boolean)
+  };
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Проанализируй текущее состояние пользователя на основе данных системы Serafim OS: ${JSON.stringify(data)}. 
+    Верни JSON объект с кратким статусом, инсайтом и областью фокуса на завтра.`,
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          status: { type: Type.STRING, description: "Краткий статус состояния (напр. 'Стабильный прогресс')" },
+          insight: { type: Type.STRING, description: "Инсайт о поведении или продуктивности" },
+          focusArea: { type: Type.STRING, description: "Рекомендация по фокусу на завтра" }
+        },
+        required: ["status", "insight", "focusArea"]
+      }
+    }
+  });
+  
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Проанализируй состояние: Задач ${tasks.length}, Привычек ${habits.length}. Верни JSON: status, insight, focusArea.`;
-    const response = await ai.models.generateContent({ 
-      model: 'gemini-3-flash-preview', 
-      contents: prompt, 
-      config: { responseMimeType: "application/json" } 
-    });
-    return JSON.parse(response.text || '{}');
+    const text = response.text || "{}";
+    return JSON.parse(text);
   } catch (e) {
-    return { status: "Норма", insight: "Система стабильна.", focusArea: "Текущие дела" };
+    return { 
+      status: "Анализ завершен", 
+      insight: "Продолжайте записывать свои мысли и выполнять задачи для более точного анализа.", 
+      focusArea: "Следование текущему плану." 
+    };
   }
 };

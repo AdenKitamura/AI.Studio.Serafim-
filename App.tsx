@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ViewState, Task, Thought, Priority, ThemeKey, JournalEntry, Project, Habit, ChatMessage, ChatSession } from './types';
+import { ViewState, Task, Thought, Priority, ThemeKey, JournalEntry, Project, Habit, ChatMessage, ChatSession, ChatCategory } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
 import JournalView from './components/JournalView';
@@ -18,17 +18,8 @@ import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { playAlarmSound } from './services/audioService';
 import { 
-  Zap, 
-  BookOpen, 
-  Loader2, 
-  LayoutDashboard, 
-  Mic, 
-  Folder, 
-  Settings as SettingsIcon,
-  Archive,
-  Activity,
-  CheckCircle,
-  Plus
+  Zap, BookOpen, Loader2, LayoutDashboard, Mic, Folder, 
+  Settings as SettingsIcon, Archive, Activity, CheckCircle
 } from 'lucide-react';
 import { addMinutes } from 'date-fns';
 
@@ -37,7 +28,6 @@ const App = () => {
   const [userName, setUserName] = useState(() => localStorage.getItem('sb_user_name') || '');
   const [view, setView] = useState<ViewState>('dashboard');
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'slate') as ThemeKey);
-  const [isCoreMenuOpen, setIsCoreMenuOpen] = useState(false);
   const [activeNotification, setActiveNotification] = useState<Task | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -50,71 +40,14 @@ const App = () => {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
+  const [timerDuration, setTimerDuration] = useState(25);
   const [showTutorial, setShowTutorial] = useState(false);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
-  // --- NOTIFICATION ENGINE ---
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
+  const isViewActive = view !== 'dashboard';
+  const isChatActive = view === 'chat';
 
-  const checkDeadlines = useCallback(() => {
-    const now = new Date().getTime();
-    const notifiedTasks = JSON.parse(localStorage.getItem('serafim_notified_tasks') || '[]');
-    
-    const taskToNotify = tasks.find(t => {
-      if (t.isCompleted || !t.dueDate || notifiedTasks.includes(t.id)) return false;
-      const dueTime = new Date(t.dueDate).getTime();
-      return now >= dueTime && now <= dueTime + 600000; // Окно 10 минут
-    });
-
-    if (taskToNotify) {
-      setActiveNotification(taskToNotify);
-      playAlarmSound();
-      
-      // Системное уведомление для фонового режима
-      if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
-        new Notification("Serafim OS: Пора действовать", {
-          body: taskToNotify.title,
-          icon: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/512x512/1f9e0.png"
-        });
-      }
-
-      localStorage.setItem('serafim_notified_tasks', JSON.stringify([...notifiedTasks, taskToNotify.id]));
-    }
-  }, [tasks]);
-
-  useEffect(() => {
-    const interval = setInterval(checkDeadlines, 30000);
-    return () => clearInterval(interval);
-  }, [checkDeadlines]);
-
-  const handleCompleteTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? {...t, isCompleted: true} : t));
-    setActiveNotification(null);
-  };
-
-  const handleSnoozeTask = (id: string, minutes: number) => {
-    const newDate = addMinutes(new Date(), minutes).toISOString();
-    setTasks(prev => prev.map(t => t.id === id ? {...t, dueDate: newDate} : t));
-    
-    // Удаляем из списка оповещенных, чтобы сработало снова
-    const notified = JSON.parse(localStorage.getItem('serafim_notified_tasks') || '[]');
-    localStorage.setItem('serafim_notified_tasks', JSON.stringify(notified.filter((tid: string) => tid !== id)));
-    
-    setActiveNotification(null);
-  };
-
-  // --- DATA LIFECYCLE ---
-  const hasAiKey = useMemo(() => {
-    try {
-      const key = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-      return !!(key && key !== 'undefined');
-    } catch { return false; }
-  }, []);
-
+  // --- DATA LOADING ---
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -126,22 +59,21 @@ const App = () => {
           dbService.getAll<Habit>('habits'),
           dbService.getAll<ChatSession>('chat_sessions')
         ]);
-        setTasks(t); setThoughts(th); setJournal(j); 
+        setTasks(t); setThoughts(th); setJournal(j); setHabits(h);
         setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#6366f1', createdAt: new Date().toISOString() }]); 
-        setHabits(h);
+        
         if (s.length > 0) {
           const sorted = s.sort((a, b) => b.lastInteraction - a.lastInteraction);
           setSessions(sorted); setActiveSessionId(sorted[0].id);
         } else {
-          const initialSession: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-          setSessions([initialSession]); setActiveSessionId(initialSession.id);
+          const initS: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
+          setSessions([initS]); setActiveSessionId(initS.id);
         }
         setIsDataReady(true);
-        if (userName && !localStorage.getItem('serafim_onboarded')) setShowTutorial(true);
       } catch (e) { setIsDataReady(true); }
     };
     loadData();
-  }, [userName]);
+  }, []);
 
   useEffect(() => { 
     if (isDataReady) { 
@@ -154,114 +86,103 @@ const App = () => {
     } 
   }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
 
-  const setTheme = (theme: ThemeKey) => {
-    setCurrentTheme(theme);
-    localStorage.setItem('sb_theme', theme);
+  // --- ACTIONS ---
+  const handleUpdateTask = (id: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
+  const handleStartFocus = (mins: number) => {
+    setTimerDuration(mins);
+    setShowTimer(true);
+  };
+
+  const navigateTo = (newView: ViewState) => setView(newView);
+  const setTheme = (theme: ThemeKey) => { setCurrentTheme(theme); localStorage.setItem('sb_theme', theme); };
+
   const themeColors = useMemo(() => themes[currentTheme]?.colors || themes.slate.colors, [currentTheme]);
+  const hasAiKey = useMemo(() => !!process.env.API_KEY, []);
 
   if (!userName && isDataReady) return <Onboarding onComplete={(name) => { setUserName(name); localStorage.setItem('sb_user_name', name); }} />;
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
-  const navigateTo = (newView: ViewState) => {
-    setView(newView);
-    setIsCoreMenuOpen(false);
-  };
-
   return (
-    <div className={`h-[100dvh] w-full overflow-hidden flex flex-col relative transition-colors duration-500`} style={themeColors as any}>
+    <div className={`h-[100dvh] w-full overflow-hidden flex flex-col relative transition-all duration-700`} style={themeColors as any}>
       
-      <header className="flex-none flex items-center justify-between px-6 py-5 z-40 bg-black/40 backdrop-blur-xl border-b border-white/5">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigateTo('dashboard')}>
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg active:scale-90 transition-transform"><span className="font-black text-xl text-white">S</span></div>
-          <h1 className="font-extrabold text-2xl tracking-tighter opacity-90 hidden sm:block">Serafim OS</h1>
+      <header className="flex-none flex items-center justify-between px-6 py-6 z-40 bg-black/40 backdrop-blur-3xl border-b border-[var(--border-color)]">
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigateTo('dashboard')}>
+          <div className="w-12 h-12 rounded-2xl bg-[var(--accent)] flex items-center justify-center shadow-[0_4px_20px_var(--accent-glow)] group-active:scale-90 transition-all"><span className="font-black text-2xl text-white">S</span></div>
+          <h1 className="font-extrabold text-2xl tracking-tighter opacity-90 hidden sm:block text-[var(--text-main)]">Serafim OS</h1>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowTimer(!showTimer)} className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-indigo-400 hover:text-white transition-all"><Zap size={18} /></button>
-          <button onClick={() => setShowSettings(true)} className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 hover:bg-indigo-600/20" title="Система"><SettingsIcon size={18} /></button>
+          <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[var(--bg-item)] text-[var(--accent)] hover:text-white transition-all border border-[var(--border-color)] shadow-lg shadow-[var(--accent-glow)]/10"><Zap size={20} /></button>
+          <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-all shadow-xl"><SettingsIcon size={20} /></button>
         </div>
       </header>
 
       <Ticker thoughts={thoughts} />
 
       <main className="flex-1 relative overflow-hidden z-10 page-enter">
-        {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} />}
-        {view === 'chat' && <Mentorship tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId} onUpdateMessages={(msgs) => setSessions(sessions.map(s => s.id === activeSessionId ? {...s, messages: msgs, lastInteraction: Date.now()} : s))} onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions([ns as any, ...sessions]); setActiveSessionId(ns.id); }} onDeleteSession={id => { setSessions(sessions.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }} hasAiKey={hasAiKey} onConnectAI={() => window.aistudio?.openSelectKey()} onAddTask={t => setTasks([t, ...tasks])} onAddThought={t => setThoughts([t, ...thoughts])} onAddProject={p => setProjects([p, ...projects])} onAddHabit={h => setHabits([h, ...habits])} voiceTrigger={voiceTrigger} />}
+        {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
+        {view === 'chat' && (
+          <Mentorship 
+            tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
+            sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
+            onUpdateMessages={(msgs) => setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, lastInteraction: Date.now() } : s))}
+            onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); }}
+            onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
+            onAddTask={t => setTasks(prev => [t, ...prev])}
+            onUpdateTask={handleUpdateTask}
+            onAddThought={t => setThoughts(prev => [t, ...prev])}
+            onAddProject={p => setProjects(prev => [p, ...prev])}
+            onAddHabit={h => setHabits(prev => [h, ...prev])}
+            onSetTheme={setTheme}
+            onStartFocus={handleStartFocus}
+            hasAiKey={hasAiKey}
+            onConnectAI={() => window.aistudio?.openSelectKey()}
+            voiceTrigger={voiceTrigger}
+          />
+        )}
         {view === 'journal' && <JournalView journal={journal} onSave={(d, c, n, m, r, t) => { const i = journal.findIndex(j => j.date === d); if (i >= 0) { const next = [...journal]; next[i] = {...next[i], content: c, notes: n, mood: m, reflection: r, tags: t}; setJournal(next); } else { setJournal([...journal, {id: Date.now().toString(), date: d, content: c, notes: n, mood: m, reflection: r, tags: t}]); } }} />}
         {view === 'thoughts' && <ThoughtsView thoughts={thoughts} onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} />}
-        {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onAddHabit={h => setHabits([h, ...habits])} onToggleHabit={(id, d) => setHabits(habits.map(h => h.id === id ? {...h, completedDates: h.completedDates.includes(d) ? h.completedDates.filter(cd => cd !== d) : [...h.completedDates, d]} : h))} onDeleteHabit={id => setHabits(habits.filter(h => h.id !== id))} />}
-        {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => setTasks(tasks.map(t => t.id === id ? {...t, isCompleted: !t.isCompleted} : t))} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
+        {view === 'planner' && <PlannerView tasks={tasks} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
+        {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
         {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
       </main>
 
-      <div className="fixed bottom-0 left-0 w-full flex flex-col items-center z-[100] p-6 pointer-events-none">
-        {isCoreMenuOpen && (
-          <div className="pointer-events-auto flex items-center gap-3 p-2 glass rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-300 mb-6">
-            <button onClick={() => navigateTo('dashboard')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><LayoutDashboard size={20}/></button>
-            <button onClick={() => navigateTo('thoughts')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'thoughts' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><Archive size={20}/></button>
-            <button onClick={() => navigateTo('projects')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'projects' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><Folder size={20}/></button>
-            <div className="w-px h-6 bg-white/10 mx-1"></div>
-            <button onClick={() => navigateTo('planner')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'planner' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><CheckCircle size={20}/></button>
-            <button onClick={() => navigateTo('journal')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'journal' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><BookOpen size={20}/></button>
-            <button onClick={() => navigateTo('analytics')} className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${view === 'analytics' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'}`}><Activity size={20}/></button>
-          </div>
-        )}
-
-        <div className="pointer-events-auto flex items-center gap-4">
+      {/* Dynamic Floating Navbar */}
+      <div 
+        className={`fixed left-0 w-full flex flex-col items-center z-[100] transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] pointer-events-none`}
+        style={{ 
+          bottom: isChatActive ? '135px' : '40px',
+        }}
+      >
+        <div className={`pointer-events-auto flex items-center gap-1.5 p-2 glass rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.5)] transition-all duration-500 border border-[var(--border-color)] group/nav ${isViewActive ? 'opacity-40 hover:opacity-100 scale-95' : 'opacity-100 scale-100 shadow-[0_0_30px_var(--accent-glow)]'}`}>
+          <button onClick={() => navigateTo('dashboard')} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'dashboard' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><LayoutDashboard size={20}/></button>
+          <button onClick={() => navigateTo('thoughts')} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'thoughts' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><Archive size={20}/></button>
+          <button onClick={() => navigateTo('projects')} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'projects' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><Folder size={20}/></button>
+          <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
+          <button onClick={() => navigateTo('planner')} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'planner' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><CheckCircle size={20}/></button>
+          <button onClick={() => navigateTo('journal')} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'journal' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><BookOpen size={20}/></button>
+          <button onClick={() => navigateTo('analytics')} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'analytics' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}><Activity size={20}/></button>
+          <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
           <button 
-            onClick={() => { setView('chat'); setVoiceTrigger(v => v + 1); setIsCoreMenuOpen(false); }}
-            className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-indigo-400 flex items-center justify-center shadow-xl active:scale-90 transition-all"
+            onClick={() => { setView('chat'); setVoiceTrigger(v => v + 1); }}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${view === 'chat' ? 'bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white'}`}
           >
-            <Mic size={24} />
-          </button>
-          
-          <button 
-            onClick={() => setIsCoreMenuOpen(!isCoreMenuOpen)}
-            className={`w-20 h-20 rounded-[2rem] glass shadow-2xl flex items-center justify-center transition-all active:scale-95 animate-pulse-soft border-2 ${isCoreMenuOpen ? 'border-indigo-500 shadow-indigo-500/20' : 'border-white/10'}`}
-          >
-            <div className={`w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg transition-transform ${isCoreMenuOpen ? 'rotate-45' : ''}`}>
-              <Plus size={28} strokeWidth={3} className="text-white" />
-            </div>
-          </button>
-
-          <button 
-            onClick={() => navigateTo('dashboard')}
-            className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-white/40 flex items-center justify-center shadow-xl active:scale-90 transition-all"
-          >
-            <LayoutDashboard size={24} />
+            <Mic size={20} />
           </button>
         </div>
       </div>
 
-      {activeNotification && (
-        <NotificationModal 
-          task={activeNotification} 
-          onClose={() => setActiveNotification(null)}
-          onComplete={() => handleCompleteTask(activeNotification.id)}
-          onSnooze={(mins) => handleSnoozeTask(activeNotification.id, mins)}
-          onReschedule={() => {
-            setActiveNotification(null);
-            setView('planner');
-          }}
-        />
-      )}
-
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
+      {showSettings && <ProfileModal appState={{tasks, thoughts, journal, projects, habits, view}} userName={userName} currentTheme={currentTheme} setTheme={setTheme} onClose={() => setShowSettings(false)} onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} hasAiKey={hasAiKey} />}
       
-      {showSettings && (
-        <ProfileModal 
-          appState={{tasks, thoughts, journal, projects, habits, view}} 
-          userName={userName} 
-          currentTheme={currentTheme} 
-          setTheme={setTheme} 
-          onClose={() => setShowSettings(false)} 
-          onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} 
-          hasAiKey={hasAiKey} 
-        />
-      )}
-
-      {showTutorial && <InteractiveTour onComplete={() => { localStorage.setItem('serafim_onboarded', 'true'); setShowTutorial(false); }} />}
+      <style>{`
+        :root { background-color: var(--bg-main); color: var(--text-main); }
+        .glass { background: var(--bg-item); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+      `}</style>
     </div>
   );
 };

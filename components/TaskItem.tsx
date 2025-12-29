@@ -1,9 +1,8 @@
 
 import React from 'react';
 import { Task, Priority } from '../types';
-import { CheckCircle, Circle, Trash2, Clock } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Clock, Folder } from 'lucide-react';
 import { format } from 'date-fns';
-// Fix: Import locale directly from the specific path to resolve export issues
 import { ru } from 'date-fns/locale/ru';
 
 interface TaskItemProps {
@@ -27,30 +26,29 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete, projectIn
   };
 
   return (
-    <div className={`group flex items-center justify-between p-4 mb-3 rounded-xl border border-[var(--bg-card)] bg-[var(--bg-item)]/50 backdrop-blur-sm transition-all ${task.isCompleted ? 'opacity-50' : 'hover:border-[var(--text-muted)]'}`}>
-      <div className="flex items-center gap-3 overflow-hidden">
-        <button onClick={() => onToggle(task.id)} className="shrink-0 text-[var(--text-muted)] hover:text-emerald-400 transition-colors">
-          {task.isCompleted ? <CheckCircle className="text-emerald-500" size={24} /> : <Circle size={24} />}
+    <div className={`group flex items-center justify-between p-4 mb-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-item)]/50 backdrop-blur-sm transition-all shadow-sm ${task.isCompleted ? 'opacity-40' : 'hover:border-[var(--accent)]/30 hover:scale-[1.01]'}`}>
+      <div className="flex items-center gap-4 overflow-hidden">
+        <button onClick={() => onToggle(task.id)} className="shrink-0 text-[var(--text-muted)] hover:text-[var(--accent)] transition-all">
+          {task.isCompleted ? <CheckCircle className="text-[var(--accent)]" size={22} /> : <Circle size={22} />}
         </button>
         
         <div className="flex flex-col min-w-0">
-          <span className={`truncate text-base ${task.isCompleted ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-main)]'}`}>
+          <span className={`truncate text-sm font-bold ${task.isCompleted ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-main)]'}`}>
             {task.title}
           </span>
-          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] mt-1 flex-wrap">
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mt-1.5 flex-wrap">
             {task.dueDate && (
-              <span className="flex items-center gap-1 bg-[var(--bg-card)] px-1.5 py-0.5 rounded-md">
-                <Clock size={12} />
-                {/* Fix: Replace parseISO with native Date constructor */}
+              <span className="flex items-center gap-1 bg-[var(--bg-main)] px-2 py-0.5 rounded-md border border-[var(--border-color)]">
+                <Clock size={10} />
                 {format(new Date(task.dueDate), 'd MMM, HH:mm', { locale: ru })}
               </span>
             )}
-            <span className={`${priorityColor[task.priority]} font-medium px-1.5 py-0.5 rounded-md bg-[var(--bg-card)]`}>
+            <span className={`${priorityColor[task.priority]} px-2 py-0.5 rounded-md bg-[var(--bg-main)] border border-[var(--border-color)]`}>
               {priorityLabel[task.priority]}
             </span>
             {projectInfo && (
-               <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--bg-card)]" style={{ color: projectInfo.color }}>
-                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: projectInfo.color }}></div>
+               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[var(--bg-main)] border border-[var(--border-color)]" style={{ color: projectInfo.color }}>
+                 <Folder size={10} fill="currentColor" fillOpacity={0.2} />
                  {projectInfo.title}
                </span>
             )}
@@ -58,8 +56,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onDelete, projectIn
         </div>
       </div>
 
-      <button onClick={() => onDelete(task.id)} className="opacity-0 group-hover:opacity-100 p-2 text-[var(--text-muted)] hover:text-red-400 transition-all">
-        <Trash2 size={18} />
+      <button onClick={() => onDelete(task.id)} className="opacity-0 group-hover:opacity-100 p-2 text-[var(--text-muted)] hover:text-red-500 transition-all active:scale-90">
+        <Trash2 size={16} />
       </button>
     </div>
   );
