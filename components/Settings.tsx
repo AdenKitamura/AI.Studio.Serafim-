@@ -77,17 +77,17 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
       { id: 'Cormorant Garamond', label: 'Garamond', category: 'Serif' },
   ];
 
-  const textureList: {id: TextureType, label: string, icon: React.ReactNode}[] = [
-      { id: 'none', label: 'Нет', icon: <Box size={14}/> },
-      { id: 'noise', label: 'Шум', icon: <Layers size={14}/> },
-      { id: 'grid', label: 'Сетка', icon: <Grid size={14}/> },
-      { id: 'dots', label: 'Точки', icon: <Activity size={14}/> },
-      { id: 'paper', label: 'Бумага', icon: <FileText size={14}/> },
-      { id: 'mesh', label: 'Меш', icon: <Hash size={14}/> },
-      { id: 'carbon', label: 'Карбон', icon: <Database size={14}/> },
-      { id: 'circuit', label: 'Схема', icon: <Cpu size={14}/> },
-      { id: 'waves', label: 'Волны', icon: <Zap size={14}/> },
-      { id: 'brushed', label: 'Металл', icon: <Layers size={14}/> },
+  const textureList: {id: TextureType, label: string, desc: string, icon: React.ReactNode}[] = [
+      { id: 'none', label: 'Нет', desc: 'Чистый цвет', icon: <Box size={16}/> },
+      { id: 'noise', label: 'Шум', desc: 'Зернистость', icon: <Layers size={16}/> },
+      { id: 'grid', label: 'Сетка', desc: 'Инженерная', icon: <Grid size={16}/> },
+      { id: 'dots', label: 'Точки', desc: 'Минимализм', icon: <Activity size={16}/> },
+      { id: 'paper', label: 'Бумага', desc: 'Текстурная', icon: <FileText size={16}/> },
+      { id: 'mesh', label: 'Меш', desc: 'Градиент', icon: <Hash size={16}/> },
+      { id: 'carbon', label: 'Карбон', desc: 'Темный узор', icon: <Database size={16}/> },
+      { id: 'circuit', label: 'Схема', desc: 'Техно', icon: <Cpu size={16}/> },
+      { id: 'waves', label: 'Волны', desc: 'Плавность', icon: <Zap size={16}/> },
+      { id: 'brushed', label: 'Металл', desc: 'Шлифовка', icon: <Layers size={16}/> },
   ];
 
   const iconWeights: {id: IconWeight, label: string}[] = [
@@ -189,15 +189,26 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
               {/* Texture Grid */}
               <div>
                   <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase mb-3 block opacity-60">Фоновая текстура</label>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                       {textureList.map((t) => (
                           <button
                               key={t.id}
                               onClick={() => customization.setTexture(t.id)}
-                              className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-all border ${customization.texture === t.id ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-transparent' : 'bg-[var(--bg-main)] text-[var(--text-muted)] border-[var(--border-color)]'}`}
-                              title={t.label}
+                              className={`
+                                p-3 rounded-xl flex items-center gap-3 transition-all border
+                                ${customization.texture === t.id 
+                                    ? 'bg-[var(--accent)]/10 border-[var(--accent)] text-[var(--text-main)] shadow-sm' 
+                                    : 'bg-[var(--bg-main)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--text-muted)]'
+                                }
+                              `}
                           >
-                              {t.icon}
+                              <div className={`p-2 rounded-lg ${customization.texture === t.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--bg-item)]'}`}>
+                                {t.icon}
+                              </div>
+                              <div className="flex flex-col items-start">
+                                <span className="text-[10px] font-black uppercase tracking-widest">{t.label}</span>
+                                <span className="text-[9px] opacity-60 font-medium">{t.desc}</span>
+                              </div>
                           </button>
                       ))}
                   </div>

@@ -22,6 +22,13 @@ import {
   Zap, Loader2, Settings as SettingsIcon
 } from 'lucide-react';
 
+// Extend window definition to store PWA prompt
+declare global {
+  interface Window {
+    deferredPrompt: any;
+  }
+}
+
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
   const [userName, setUserName] = useState(() => localStorage.getItem('sb_user_name') || '');
@@ -49,6 +56,17 @@ const App = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
+
+  // --- PWA PROMPT CAPTURE ---
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      // Store event globally for Settings component to use
+      window.deferredPrompt = e;
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
   // --- THEME & APPEARANCE HANDLING ---
   useEffect(() => {
@@ -130,6 +148,30 @@ const App = () => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
+  // --- HABIT HANDLERS ---
+  const handleAddHabit = (habit: Habit) => {
+    setHabits(prev => [habit, ...prev]);
+  };
+
+  const handleToggleHabit = (id: string, date: string) => {
+    setHabits(prev => prev.map(h => {
+        if (h.id === id) {
+            const exists = h.completedDates.includes(date);
+            return {
+                ...h,
+                completedDates: exists 
+                    ? h.completedDates.filter(d => d !== date)
+                    : [...h.completedDates, date]
+            };
+        }
+        return h;
+    }));
+  };
+
+  const handleDeleteHabit = (id: string) => {
+      setHabits(prev => prev.filter(h => h.id !== id));
+  };
+
   const handleStartFocus = (mins: number) => {
     setShowTimer(true);
   };
@@ -197,7 +239,7 @@ const App = () => {
               onUpdateTask={handleUpdateTask}
               onAddThought={t => setThoughts(prev => [t, ...prev])}
               onAddProject={p => setProjects(prev => [p, ...prev])}
-              onAddHabit={h => setHabits(prev => [h, ...prev])}
+              onAddHabit={handleAddHabit}
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
@@ -224,6 +266,9 @@ const App = () => {
               onAddThought={t => setThoughts([t, ...thoughts])}
               onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
               onDeleteThought={id => setThoughts(prev => prev.filter(t => t.id !== id))}
+              onAddHabit={handleAddHabit}
+              onToggleHabit={handleToggleHabit}
+              onDeleteHabit={handleDeleteHabit}
             />
           )}
           {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}

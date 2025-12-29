@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType } from '../types';
 import Settings from './Settings';
 import { 
-  X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck
+  X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, Download, HelpCircle, ChevronDown
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -27,9 +27,17 @@ interface ProfileModalProps {
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
     appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey, customization
 }) => {
-  const [activeTab, setActiveTab] = useState<'settings' | 'system'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'system' | 'faq'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    // Retrieve global deferredPrompt if available
+    if (window.deferredPrompt) {
+      setInstallPrompt(window.deferredPrompt);
+    }
+  }, []);
 
   const runDiagnostics = useCallback(async () => {
     setLastCheck(new Date().toLocaleTimeString());
@@ -52,6 +60,35 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   useEffect(() => {
     runDiagnostics();
   }, [runDiagnostics]);
+
+  const handleInstallClick = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setInstallPrompt(null);
+        window.deferredPrompt = null;
+      }
+    } else {
+      // Fallback instructions for iOS or if prompt is missing
+      alert("На iOS: Нажмите 'Поделиться' -> 'На экран Домой'.\nНа Android: Меню браузера -> 'Установить приложение'.");
+    }
+  };
+
+  const handleForceUpdate = () => {
+    if (confirm('Это обновит приложение до последней версии с сервера. Продолжить?')) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+          }
+          window.location.reload();
+        });
+      } else {
+        window.location.reload();
+      }
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
@@ -90,20 +127,39 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 >
                     <Activity size={14} /> Система
                 </button>
+                <button 
+                    onClick={() => setActiveTab('faq')} 
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'faq' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                >
+                    <HelpCircle size={14} /> FAQ
+                </button>
             </div>
         </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden relative">
             {activeTab === 'settings' && (
-              <Settings 
-                currentTheme={currentTheme} 
-                setTheme={setTheme} 
-                onClose={onClose} 
-                exportData={{ ...appState, user: userName }} 
-                onImport={onImport}
-                customization={customization}
-              />
+              <div className="h-full overflow-y-auto no-scrollbar pb-24">
+                <div className="p-6">
+                  {/* Install Button */}
+                  <button 
+                    onClick={handleInstallClick}
+                    className="w-full mb-6 py-4 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center gap-3 shadow-[0_10px_20px_var(--accent-glow)] active:scale-95 transition-all"
+                  >
+                    <Download size={20} />
+                    <span className="font-bold uppercase text-xs tracking-widest">Установить Приложение</span>
+                  </button>
+
+                  <Settings 
+                    currentTheme={currentTheme} 
+                    setTheme={setTheme} 
+                    onClose={onClose} 
+                    exportData={{ ...appState, user: userName }} 
+                    onImport={onImport}
+                    customization={customization}
+                  />
+                </div>
+              </div>
             )}
             
             {activeTab === 'system' && (
@@ -152,9 +208,47 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     </div>
                 </div>
 
+                {/* UPDATE APP BUTTON */}
+                <button 
+                  onClick={handleForceUpdate}
+                  className="w-full mt-4 glass-panel py-4 rounded-2xl flex items-center justify-center gap-2 text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-all border-dashed border border-[var(--border-color)]"
+                >
+                  <RefreshCw size={16} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Обновить приложение (Force)</span>
+                </button>
+
                 <div className="pt-8 text-center border-t border-[var(--border-color)] mt-4">
                     <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-30">Scan Timestamp: {lastCheck}</p>
                 </div>
+              </div>
+            )}
+
+            {/* FAQ TAB */}
+            {activeTab === 'faq' && (
+              <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 space-y-6">
+                 <div className="text-center mb-6">
+                    <h4 className="text-2xl font-black text-[var(--text-main)]">FAQ</h4>
+                    <p className="text-xs text-[var(--text-muted)]">Часто задаваемые вопросы</p>
+                 </div>
+
+                 <div className="space-y-4">
+                    {[
+                      { q: "Где хранятся мои данные?", a: "Все данные (задачи, дневник, настройки) хранятся ТОЛЬКО в браузере вашего устройства (IndexedDB). Мы не имеем доступа к вашим записям." },
+                      { q: "Как работает ИИ-агент?", a: "Серафим использует Google Gemini API. Ключ API, если вы его ввели, сохраняется локально и отправляется напрямую в Google." },
+                      { q: "Приложение работает без интернета?", a: "Да. После установки на главный экран, базовые функции (задачи, дневник) работают оффлайн. ИИ требует подключения." },
+                      { q: "Что делать, если приложение тормозит?", a: "Попробуйте нажать кнопку 'Обновить приложение' во вкладке Система или очистить кэш браузера." },
+                      { q: "Как удалить данные?", a: "Очистите данные сайта в настройках браузера. В будущем появится кнопка полного сброса." }
+                    ].map((item, idx) => (
+                      <div key={idx} className="glass-panel p-5 rounded-2xl border border-[var(--border-color)]">
+                         <h5 className="font-bold text-[var(--text-main)] text-sm mb-2 flex items-start gap-2">
+                           <span className="text-[var(--accent)]">Q.</span> {item.q}
+                         </h5>
+                         <p className="text-xs text-[var(--text-muted)] leading-relaxed pl-5 border-l-2 border-[var(--border-color)]">
+                           {item.a}
+                         </p>
+                      </div>
+                    ))}
+                 </div>
               </div>
             )}
         </div>
