@@ -104,7 +104,7 @@ export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbo
 
 export type FontFamily = 'Plus Jakarta Sans' | 'Inter' | 'JetBrains Mono' | 'Playfair Display';
 export type IconWeight = '1.5px' | '2px' | '2.5px' | '3px';
-export type TextureType = 'none' | 'noise' | 'grid' | 'paper' | 'concrete';
+export type TextureType = 'none' | 'noise' | 'grid' | 'paper';
 
 export type CalendarMode = 'week' | 'month';
 
