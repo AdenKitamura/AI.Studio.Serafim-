@@ -41,10 +41,10 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+    <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
         
-        {/* Header */}
-        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/60 backdrop-blur-md sticky top-0 z-20">
+        {/* Header - Increased opacity for better separation */}
+        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
             <div className="flex items-center gap-2">
                 <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500">
                     <MessageSquare size={20} />

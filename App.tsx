@@ -145,91 +145,101 @@ const App = () => {
     setTimeout(() => setShowPWAInstall(true), 1000);
   };
 
+  // Check if any modal is open to trigger scale effect
+  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
+
   if (!userName && isDataReady) return <Onboarding onComplete={handleOnboardingComplete} />;
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    <div className={`h-[100dvh] w-full overflow-hidden flex flex-col relative transition-all duration-700`}>
+    <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
       
-      {/* GLOBAL HEADER */}
-      <header className="flex-none flex items-center justify-between px-6 py-6 z-40 bg-transparent relative">
-        <button 
-          onClick={() => setShowChatHistory(true)}
-          className="group flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
-        >
-          <h1 className="font-extrabold text-2xl tracking-tighter text-[var(--text-main)] drop-shadow-lg">
-            Serafim OS<span className="text-[var(--accent)] text-3xl leading-none">.</span>
-          </h1>
-          <span className="text-[10px] font-bold text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity ml-2 uppercase tracking-widest border border-[var(--border-color)] px-2 py-0.5 rounded-md">
-            История
-          </span>
-        </button>
+      {/* MAIN APP CONTENT - Scales down when modal opens */}
+      <div 
+        className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
+        style={{ transformOrigin: 'center center' }}
+      >
+        {/* GLOBAL HEADER */}
+        <header className="flex-none flex items-center justify-between px-6 py-6 z-40 bg-transparent relative">
+          <button 
+            onClick={() => setShowChatHistory(true)}
+            className="group flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
+          >
+            <h1 className="font-extrabold text-2xl tracking-tighter text-[var(--text-main)] drop-shadow-lg">
+              Serafim OS<span className="text-[var(--accent)] text-3xl leading-none">.</span>
+            </h1>
+            <span className="text-[10px] font-bold text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity ml-2 uppercase tracking-widest border border-[var(--border-color)] px-2 py-0.5 rounded-md">
+              История
+            </span>
+          </button>
 
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
-          <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"><SettingsIcon size={20} /></button>
-        </div>
-      </header>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
+            <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"><SettingsIcon size={20} /></button>
+          </div>
+        </header>
 
-      <Ticker thoughts={thoughts} onClick={() => setShowQuotes(true)} />
+        <Ticker thoughts={thoughts} onClick={() => setShowQuotes(true)} />
 
-      <main className="flex-1 relative overflow-hidden z-10 page-enter">
-        {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
-        {view === 'chat' && (
-          <Mentorship 
-            tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
-            sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
-            onUpdateMessages={(msgs) => setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, lastInteraction: Date.now() } : s))}
-            onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); }}
-            onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
-            onAddTask={t => setTasks(prev => [t, ...prev])}
-            onUpdateTask={handleUpdateTask}
-            onAddThought={t => setThoughts(prev => [t, ...prev])}
-            onAddProject={p => setProjects(prev => [p, ...prev])}
-            onAddHabit={h => setHabits(prev => [h, ...prev])}
-            onSetTheme={setCurrentTheme}
-            onStartFocus={handleStartFocus}
-            hasAiKey={hasAiKey}
-            onConnectAI={() => window.aistudio?.openSelectKey()}
-            voiceTrigger={voiceTrigger}
-          />
-        )}
-        {view === 'journal' && (
-            <JournalView 
-                journal={journal} 
-                tasks={tasks} 
-                onSave={(d, c, n, m, r, t) => { const i = journal.findIndex(j => j.date === d); if (i >= 0) { const next = [...journal]; next[i] = {...next[i], content: c, notes: n, mood: m, reflection: r, tags: t}; setJournal(next); } else { setJournal([...journal, {id: Date.now().toString(), date: d, content: c, notes: n, mood: m, reflection: r, tags: t}]); } }} 
+        <main className="flex-1 relative overflow-hidden z-10 page-enter">
+          {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
+          {view === 'chat' && (
+            <Mentorship 
+              tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
+              sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
+              onUpdateMessages={(msgs) => setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, lastInteraction: Date.now() } : s))}
+              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); }}
+              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
+              onAddTask={t => setTasks(prev => [t, ...prev])}
+              onUpdateTask={handleUpdateTask}
+              onAddThought={t => setThoughts(prev => [t, ...prev])}
+              onAddProject={p => setProjects(prev => [p, ...prev])}
+              onAddHabit={h => setHabits(prev => [h, ...prev])}
+              onSetTheme={setCurrentTheme}
+              onStartFocus={handleStartFocus}
+              hasAiKey={hasAiKey}
+              onConnectAI={() => window.aistudio?.openSelectKey()}
+              voiceTrigger={voiceTrigger}
             />
-        )}
-        {view === 'thoughts' && <ThoughtsView thoughts={thoughts} onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} />}
-        {view === 'planner' && (
-          <PlannerView 
-            tasks={tasks} 
-            projects={projects} 
-            habits={habits} 
-            thoughts={thoughts}
-            onAddTask={t => setTasks([t, ...tasks])} 
-            onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
-            onAddThought={t => setThoughts([t, ...thoughts])}
-            onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
-            onDeleteThought={id => setThoughts(prev => prev.filter(t => t.id !== id))}
-          />
-        )}
-        {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
-        {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
-      </main>
-      
-      {/* PRIMARY NAVIGATION FAB */}
-      <Fab 
-        onNavigate={navigateTo}
-        currentView={view}
-        onAddTask={() => { setView('planner'); }} 
-        onAddThought={(type) => { setView('thoughts'); /* Trigger add logic inside view if needed */ }}
-        onAddJournal={() => { setView('journal'); }}
-        onOpenQuotes={() => setShowQuotes(true)}
-        onVoiceChat={() => { setView('chat'); setVoiceTrigger(v => v + 1); }}
-      />
+          )}
+          {view === 'journal' && (
+              <JournalView 
+                  journal={journal} 
+                  tasks={tasks} 
+                  onSave={(d, c, n, m, r, t) => { const i = journal.findIndex(j => j.date === d); if (i >= 0) { const next = [...journal]; next[i] = {...next[i], content: c, notes: n, mood: m, reflection: r, tags: t}; setJournal(next); } else { setJournal([...journal, {id: Date.now().toString(), date: d, content: c, notes: n, mood: m, reflection: r, tags: t}]); } }} 
+              />
+          )}
+          {view === 'thoughts' && <ThoughtsView thoughts={thoughts} onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} />}
+          {view === 'planner' && (
+            <PlannerView 
+              tasks={tasks} 
+              projects={projects} 
+              habits={habits} 
+              thoughts={thoughts}
+              onAddTask={t => setTasks([t, ...tasks])} 
+              onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
+              onAddThought={t => setThoughts([t, ...thoughts])}
+              onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
+              onDeleteThought={id => setThoughts(prev => prev.filter(t => t.id !== id))}
+            />
+          )}
+          {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
+          {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
+        </main>
+        
+        {/* PRIMARY NAVIGATION FAB */}
+        <Fab 
+          onNavigate={navigateTo}
+          currentView={view}
+          onAddTask={() => { setView('planner'); }} 
+          onAddThought={(type) => { setView('thoughts'); /* Trigger add logic inside view if needed */ }}
+          onAddJournal={() => { setView('journal'); }}
+          onOpenQuotes={() => setShowQuotes(true)}
+          onVoiceChat={() => { setView('chat'); setVoiceTrigger(v => v + 1); }}
+        />
+      </div>
 
+      {/* MODALS LAYER (Above Scaled Content) */}
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
       {showQuotes && <QuotesLibrary myQuotes={thoughts} onAddQuote={(text, author, cat) => setThoughts([{id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString()}, ...thoughts])} onDeleteQuote={(id) => setThoughts(thoughts.filter(t => t.id !== id))} onClose={() => setShowQuotes(false)} />}
       
@@ -243,8 +253,8 @@ const App = () => {
              const ns: ChatSession = { 
                id: Date.now().toString(), 
                title, 
-               category: 'general', // Default or legacy
-               projectId: projectId, // Link to project
+               category: 'general', 
+               projectId: projectId, 
                messages: [], 
                lastInteraction: Date.now(), 
                createdAt: new Date().toISOString() 
