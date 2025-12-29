@@ -63,8 +63,10 @@ const App = () => {
 
     // Apply Font
     root.style.setProperty('--app-font', `"${currentFont}", sans-serif`);
-    if (currentFont === 'Playfair Display') {
+    if (['Playfair Display', 'Cormorant Garamond'].includes(currentFont)) {
        root.style.setProperty('--app-font', `"${currentFont}", serif`);
+    } else if (['JetBrains Mono'].includes(currentFont)) {
+       root.style.setProperty('--app-font', `"${currentFont}", monospace`);
     }
     
     // Apply Icon Weight
@@ -179,6 +181,7 @@ const App = () => {
           </div>
         </header>
 
+        {/* TICKER moved INSIDE scale wrapper so it doesn't overlap modals */}
         <Ticker thoughts={thoughts} onClick={() => setShowQuotes(true)} />
 
         <main className="flex-1 relative overflow-hidden z-10 page-enter">

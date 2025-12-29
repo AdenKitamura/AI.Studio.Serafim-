@@ -46,21 +46,21 @@ const Fab: React.FC<FabProps> = ({ onNavigate, currentView, onAddTask, onAddThou
                   onClick={() => handleAction(onVoiceChat)}
                   className="w-14 h-14 rounded-2xl glass-card border-[var(--border-color)] text-[var(--text-main)] flex flex-col items-center justify-center shadow-lg hover:bg-[var(--bg-item)] active:scale-95 transition-all"
                 >
-                  <Mic size={20} className="text-rose-500 mb-1" />
+                  <Mic size={20} className="text-[var(--accent)] mb-1" />
                   <span className="text-[7px] font-black uppercase">Voice</span>
                 </button>
                 <button 
                   onClick={() => handleAction(onAddTask)}
                   className="w-14 h-14 rounded-2xl glass-card border-[var(--border-color)] text-[var(--text-main)] flex flex-col items-center justify-center shadow-lg hover:bg-[var(--bg-item)] active:scale-95 transition-all"
                 >
-                  <CheckCircle size={20} className="text-emerald-500 mb-1" />
+                  <CheckCircle size={20} className="text-[var(--text-main)] opacity-70 mb-1" />
                   <span className="text-[7px] font-black uppercase">Task</span>
                 </button>
                 <button 
                   onClick={() => handleAction(() => onAddThought('thought'))}
                   className="w-14 h-14 rounded-2xl glass-card border-[var(--border-color)] text-[var(--text-main)] flex flex-col items-center justify-center shadow-lg hover:bg-[var(--bg-item)] active:scale-95 transition-all"
                 >
-                  <Brain size={20} className="text-[var(--accent)] mb-1" />
+                  <Brain size={20} className="text-[var(--text-muted)] mb-1" />
                   <span className="text-[7px] font-black uppercase">Idea</span>
                 </button>
             </div>

@@ -102,9 +102,34 @@ export interface ChatSession {
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
 export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbon' | 'amethyst' | 'crimson' | 'neon' | 'polar' | 'paper' | 'lilac';
 
-export type FontFamily = 'Plus Jakarta Sans' | 'Inter' | 'JetBrains Mono' | 'Playfair Display';
-export type IconWeight = '1.5px' | '2px' | '2.5px' | '3px';
-export type TextureType = 'none' | 'noise' | 'grid' | 'paper';
+// Expanded Font List (10)
+export type FontFamily = 
+  | 'Plus Jakarta Sans' 
+  | 'Inter' 
+  | 'JetBrains Mono' 
+  | 'Playfair Display' 
+  | 'Space Grotesk'
+  | 'Outfit'
+  | 'Syne'
+  | 'DM Sans'
+  | 'Manrope'
+  | 'Cormorant Garamond';
+
+// Expanded Icon Weights (5)
+export type IconWeight = '1px' | '1.5px' | '2px' | '2.5px' | '3px';
+
+// Expanded Textures (10)
+export type TextureType = 
+  | 'none' 
+  | 'noise' 
+  | 'grid' 
+  | 'dots' 
+  | 'paper' 
+  | 'mesh' 
+  | 'carbon' 
+  | 'circuit' 
+  | 'waves' 
+  | 'brushed';
 
 export type CalendarMode = 'week' | 'month';
 
