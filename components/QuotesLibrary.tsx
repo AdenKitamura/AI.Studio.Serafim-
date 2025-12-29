@@ -40,10 +40,10 @@ const QuotesLibrary: React.FC<QuotesLibraryProps> = ({ myQuotes, onAddQuote, onD
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+    <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
         
         {/* Header */}
-        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/60 backdrop-blur-md sticky top-0 z-20">
+        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
             <div className="flex items-center gap-2">
                 <div className="p-2 bg-pink-500/10 rounded-lg text-pink-500">
                     <QuoteIcon size={20} />
@@ -60,24 +60,24 @@ const QuotesLibrary: React.FC<QuotesLibraryProps> = ({ myQuotes, onAddQuote, onD
 
         {/* Tabs */}
         <div className="p-4 pb-0">
-            <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--border-color)]">
+            <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--border-color)] gap-1 shadow-inner">
                 <button 
                     onClick={() => setActiveTab('daily')}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'daily' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'daily' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 >
                     <Calendar size={16} />
                     Сегодня
                 </button>
                 <button 
                     onClick={() => setActiveTab('catalog')}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'catalog' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'catalog' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 >
                     <Search size={16} />
                     Каталог
                 </button>
                 <button 
                     onClick={() => setActiveTab('collection')}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'collection' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'collection' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 >
                     <BookOpen size={16} />
                     Мои
@@ -92,7 +92,7 @@ const QuotesLibrary: React.FC<QuotesLibraryProps> = ({ myQuotes, onAddQuote, onD
             {activeTab === 'daily' && (
                 <div className="space-y-6 pb-20 animate-in fade-in">
                     <div className="text-center mb-6">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">
                             {format(new Date(), 'eeee, d MMMM', { locale: ru })}
                         </p>
                     </div>

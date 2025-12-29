@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, X, Maximize2, Minimize2, Plus, Trash2, Clock, Minus } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, Maximize2, Minimize2, Plus, Trash2, Clock, Minus, Zap } from 'lucide-react';
 
 interface FocusTimerProps {
   onClose: () => void;
@@ -14,14 +14,12 @@ interface TimerInstance {
   isActive: boolean;
 }
 
-type ViewMode = 'card' | 'fullscreen' | 'minimized';
-
 const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
   const [timers, setTimers] = useState<TimerInstance[]>([
     { id: '1', label: 'Фокус', duration: 25, remaining: 25 * 60, isActive: false }
   ]);
   const [activeTimerId, setActiveTimerId] = useState<string>('1');
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
   const activeTimer = timers.find(t => t.id === activeTimerId) || timers[0];
@@ -89,7 +87,7 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
 
   const addTimer = () => {
       const newId = Date.now().toString();
-      setTimers([...timers, { id: newId, label: 'Новый таймер', duration: 25, remaining: 25 * 60, isActive: false }]);
+      setTimers([...timers, { id: newId, label: 'Новый', duration: 25, remaining: 25 * 60, isActive: false }]);
       setActiveTimerId(newId);
   };
 
@@ -107,24 +105,8 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // --- MINIMIZED BUBBLE ---
-  if (viewMode === 'minimized') {
-      return (
-          <button 
-            onClick={() => setViewMode('card')}
-            className="fixed bottom-32 right-6 z-[60] w-16 h-16 bg-[var(--bg-item)] border border-[var(--accent)]/50 rounded-[2rem] shadow-2xl flex items-center justify-center animate-in zoom-in active:scale-95 transition-all overflow-hidden"
-          >
-              <div className="absolute inset-0 bg-[var(--accent)]/10 animate-pulse"></div>
-              <div className="flex flex-col items-center gap-0 relative z-10">
-                  <span className="text-[10px] font-black text-[var(--text-main)] leading-none">{formatTime(activeTimer.remaining)}</span>
-                  {activeTimer.isActive && <div className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full mt-1 animate-ping"></div>}
-              </div>
-          </button>
-      );
-  }
-
-  // --- FULL SCREEN RENDER ---
-  if (viewMode === 'fullscreen') {
+  // --- FULL SCREEN RENDER (ZEN MODE) ---
+  if (isFullscreen) {
       const progress = ((activeTimer.duration * 60 - activeTimer.remaining) / (activeTimer.duration * 60)) * 100;
       return (
           <div className="fixed inset-0 z-[200] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-center animate-in fade-in duration-500">
@@ -141,12 +123,12 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => setViewMode('card')} className="p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all">
+                  <button onClick={() => setIsFullscreen(false)} className="p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all">
                       <Minimize2 size={24} />
                   </button>
               </div>
 
-              {/* Main Timer Display - HORIZONTAL & APP FONT */}
+              {/* Main Timer Display */}
               <div className="relative flex flex-col items-center z-10 w-full px-10">
                   <div className="text-[12px] font-black text-[var(--accent)] uppercase tracking-[0.5em] mb-4 opacity-80 animate-pulse">{activeTimer.label}</div>
                   <div className="text-[15vw] leading-none font-bold text-white tracking-tighter drop-shadow-2xl whitespace-nowrap tabular-nums">
@@ -170,83 +152,92 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
       );
   }
 
-  // --- COMPACT RENDER (CARD) ---
+  // --- DEFAULT LIST RENDER (FULL SCREEN MODAL STYLE) ---
   return (
-    <div className="fixed bottom-32 right-6 z-[60] animate-in zoom-in slide-in-from-bottom-10 duration-300">
-      <div className="glass-card w-72 rounded-[2rem] border border-[var(--border-color)] overflow-hidden shadow-2xl flex flex-col max-h-[500px]">
-        
-        {/* Header */}
-        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/50">
-            <div className="flex items-center gap-2">
-                <Clock size={16} className="text-[var(--accent)]" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Мульти-Фокус</span>
-            </div>
-            <div className="flex gap-1">
-                <button onClick={() => setViewMode('minimized')} className="p-1.5 hover:bg-[var(--bg-item)] rounded-lg text-[var(--text-muted)] transition-colors"><Minus size={14} /></button>
-                <button onClick={() => setViewMode('fullscreen')} className="p-1.5 hover:bg-[var(--bg-item)] rounded-lg text-[var(--text-muted)] transition-colors"><Maximize2 size={14} /></button>
-                <button onClick={onClose} className="p-1.5 hover:bg-red-500/20 hover:text-red-500 rounded-lg text-[var(--text-muted)] transition-colors"><X size={14} /></button>
-            </div>
-        </div>
-
-        {/* Timer List */}
-        <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
-            {timers.map(timer => (
-                <div 
-                    key={timer.id}
-                    className={`p-3 rounded-2xl border transition-all ${timer.id === activeTimerId ? 'bg-[var(--bg-main)] border-[var(--accent)] shadow-md' : 'bg-transparent border-transparent hover:bg-[var(--bg-main)]/50'}`}
-                    onClick={() => setActiveTimerId(timer.id)}
-                >
-                    <div className="flex justify-between items-center mb-2">
-                        <input 
-                            value={timer.label}
-                            onChange={(e) => updateTimerLabel(timer.id, e.target.value)}
-                            className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none w-20"
-                        />
-                        <div className="flex gap-2">
-                            <button onClick={(e) => { e.stopPropagation(); resetTimer(timer.id); }} className="text-[var(--text-muted)] hover:text-[var(--text-main)]"><RotateCcw size={12} /></button>
-                            {timers.length > 1 && (
-                                <button onClick={(e) => { e.stopPropagation(); deleteTimer(timer.id); }} className="text-[var(--text-muted)] hover:text-red-500"><Trash2 size={12} /></button>
-                            )}
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                        <div className="font-bold text-2xl text-[var(--text-main)] tracking-tight">
-                            {formatTime(timer.remaining)}
-                        </div>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); toggleTimer(timer.id); }}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-90 ${timer.isActive ? 'bg-orange-500' : 'bg-[var(--bg-item)] border border-[var(--border-color)]'}`}
-                        >
-                            {timer.isActive ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill={timer.isActive ? "currentColor" : "var(--text-main)"} className={!timer.isActive ? "text-[var(--text-main)]" : ""} />}
-                        </button>
-                    </div>
-                    
-                    {/* Duration Slider (Only visible when active or hovered could be nice, but keep simple) */}
-                    {!timer.isActive && (
-                        <input 
-                            type="range" 
-                            min="1" 
-                            max="90" 
-                            value={timer.duration} 
-                            onChange={(e) => updateTimerDuration(timer.id, parseInt(e.target.value))}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full mt-2 h-1 bg-[var(--bg-card)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
-                        />
-                    )}
-                </div>
-            ))}
-        </div>
-
-        {/* Add Button */}
-        <button 
-            onClick={addTimer}
-            className="m-2 p-3 rounded-2xl border border-dashed border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)] transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
-        >
-            <Plus size={14} /> Добавить таймер
-        </button>
-
+    <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+      
+      {/* Header */}
+      <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
+          <div className="flex items-center gap-2">
+              <div className="p-2 bg-orange-500/10 rounded-lg text-orange-500">
+                 <Zap size={20} />
+              </div>
+              <div>
+                 <h2 className="text-lg font-bold text-[var(--text-main)]">Фокус-Таймеры</h2>
+                 <p className="text-xs text-[var(--text-muted)]">Управление временем</p>
+              </div>
+          </div>
+          <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] glass-btn">
+              <X size={24} />
+          </button>
       </div>
+
+      {/* Timer List */}
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3 pb-24">
+          {timers.map(timer => (
+              <div 
+                  key={timer.id}
+                  className={`glass-panel p-5 rounded-2xl border transition-all ${timer.id === activeTimerId ? 'border-[var(--accent)] bg-[var(--accent)]/5 shadow-md' : 'border-[var(--border-color)] hover:border-[var(--text-muted)]'}`}
+                  onClick={() => setActiveTimerId(timer.id)}
+              >
+                  <div className="flex justify-between items-center mb-4">
+                      <input 
+                          value={timer.label}
+                          onChange={(e) => updateTimerLabel(timer.id, e.target.value)}
+                          className="bg-transparent text-sm font-bold text-[var(--text-main)] outline-none w-32 focus:border-b border-[var(--accent)]"
+                      />
+                      <div className="flex gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); setIsFullscreen(true); }} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)]"><Maximize2 size={16} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); resetTimer(timer.id); }} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)]"><RotateCcw size={16} /></button>
+                          {timers.length > 1 && (
+                              <button onClick={(e) => { e.stopPropagation(); deleteTimer(timer.id); }} className="p-2 text-[var(--text-muted)] hover:text-red-500"><Trash2 size={16} /></button>
+                          )}
+                      </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                      <div className="font-bold text-4xl text-[var(--text-main)] tracking-tight tabular-nums">
+                          {formatTime(timer.remaining)}
+                      </div>
+                      <button 
+                          onClick={(e) => { e.stopPropagation(); toggleTimer(timer.id); }}
+                          className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-90 ${timer.isActive ? 'bg-orange-500' : 'bg-[var(--accent)]'}`}
+                      >
+                          {timer.isActive ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+                      </button>
+                  </div>
+                  
+                  {!timer.isActive && (
+                      <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+                          <div className="flex justify-between text-xs text-[var(--text-muted)] mb-2">
+                              <span>Длительность</span>
+                              <span>{timer.duration} мин</span>
+                          </div>
+                          <input 
+                              type="range" 
+                              min="1" 
+                              max="90" 
+                              value={timer.duration} 
+                              onChange={(e) => updateTimerDuration(timer.id, parseInt(e.target.value))}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full h-1 bg-[var(--bg-card)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)]"
+                          />
+                      </div>
+                  )}
+              </div>
+          ))}
+      </div>
+
+      {/* Add Button */}
+      <div className="fixed bottom-6 left-0 w-full px-6 flex justify-center pointer-events-none">
+           <button 
+              onClick={addTimer}
+              className="pointer-events-auto px-6 py-4 rounded-full bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-main)] shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-xs font-black uppercase tracking-widest glass-btn"
+          >
+              <Plus size={16} /> Новый таймер
+          </button>
+      </div>
+
     </div>
   );
 };

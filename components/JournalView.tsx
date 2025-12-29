@@ -25,6 +25,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
   const recognitionRef = useRef<any>(null);
   const lastFinalIndexRef = useRef<number>(0);
   const autoSaveTimeoutRef = useRef<any>(null);
+  const reflectionRef = useRef<HTMLDivElement>(null); // Ref for scrolling
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
@@ -113,6 +114,17 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
       finally { setIsPolishing(false); }
   };
 
+  const toggleReflection = () => {
+      const newState = !showReflection;
+      setShowReflection(newState);
+      if (newState) {
+          // Small delay to allow render, then scroll
+          setTimeout(() => {
+              reflectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+      }
+  };
+
   const moods = [
       { emoji: '😔', label: 'Тяжело' },
       { emoji: '😐', label: 'Норма' },
@@ -179,7 +191,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
           
           {/* Enhanced Reflection Section */}
           {showReflection && (
-              <div className="animate-in slide-in-from-bottom-5 fade-in space-y-6 pt-8 border-t border-[var(--border-color)]">
+              <div ref={reflectionRef} className="animate-in slide-in-from-bottom-5 fade-in space-y-6 pt-8 border-t border-[var(--border-color)] transition-all">
                   <div className="flex items-center gap-2 mb-4">
                       <Sparkles size={18} className="text-[var(--accent)]" />
                       <h3 className="text-xs font-black uppercase text-[var(--accent)] tracking-[0.2em]">Рефлексия дня</h3>
@@ -270,7 +282,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
              {/* Left Actions */}
              <div className="flex gap-2">
                  <button 
-                   onClick={() => setShowReflection(!showReflection)}
+                   onClick={toggleReflection}
                    className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all ${showReflection ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-lg' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)]'}`}
                  >
                      <Sparkles size={18} />
