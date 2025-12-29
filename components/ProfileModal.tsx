@@ -54,10 +54,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   }, [runDiagnostics]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+    <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/95 backdrop-blur-2xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
         
         {/* Header */}
-        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/60 backdrop-blur-md sticky top-0 z-20">
+        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/80 backdrop-blur-md sticky top-0 z-20">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center text-white font-black text-lg shadow-[0_4px_15px_var(--accent-glow)]">
                     {userName.charAt(0).toUpperCase()}

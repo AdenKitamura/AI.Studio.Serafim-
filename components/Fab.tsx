@@ -31,10 +31,10 @@ const Fab: React.FC<FabProps> = ({ onNavigate, currentView, onAddTask, onAddThou
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90]" onClick={() => setIsOpen(false)} />}
+      {isOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[45]" onClick={() => setIsOpen(false)} />}
       
       <div 
-        className={`fixed right-6 z-[100] flex flex-col items-end gap-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]`}
+        className={`fixed right-6 z-[50] flex flex-col items-end gap-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]`}
         style={{ bottom: isLifted ? '100px' : '32px' }}
       >
         {isOpen && (

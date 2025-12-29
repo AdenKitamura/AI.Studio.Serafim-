@@ -363,7 +363,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
       )}
 
       {/* 2. Main Add Menu (Bottom Left) */}
-      <div className="floating-ui fixed bottom-28 left-6 flex flex-col items-start gap-3 z-[60]">
+      <div className="floating-ui fixed bottom-28 left-6 flex flex-col items-start gap-3 z-[30]">
           {isAddMenuOpen && (
             <div className="flex flex-col gap-1 p-1.5 bg-[#18181b]/90 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-3xl animate-in slide-in-from-bottom-2">
                 <button onClick={() => createNode('task_node')} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 rounded-xl text-white/70 hover:text-emerald-400 transition-all">
@@ -385,7 +385,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
       </div>
 
       {/* 3. Controls (Bottom Right) */}
-      <div className="floating-ui fixed bottom-28 right-6 flex flex-col gap-2 z-[60]">
+      <div className="floating-ui fixed bottom-28 right-6 flex flex-col gap-2 z-[30]">
           <button onClick={() => { setZoom(1); setOffset({x: window.innerWidth/2, y: window.innerHeight/2}); }} className="p-3 bg-[#18181b] border border-white/10 rounded-xl text-white/50 hover:text-white">
               <Maximize2 size={18} />
           </button>

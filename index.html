@@ -101,10 +101,11 @@
       /* --- GLASSMORPHISM --- */
       
       .glass-panel {
-        /* Fixed: Use color-mix to create transparency from HEX variables */
-        background: color-mix(in srgb, var(--bg-item), transparent 30%);
-        backdrop-filter: blur(24px) saturate(180%);
-        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        /* Fallback first, then color-mix */
+        background-color: var(--bg-item); 
+        background: color-mix(in srgb, var(--bg-item), transparent 20%);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
         border: 1px solid var(--border-color);
         box-shadow: 
           0 4px 24px -1px rgba(0, 0, 0, 0.1),
@@ -112,7 +113,7 @@
       }
       
       .glass-card {
-        background: var(--bg-item);
+        background-color: var(--bg-item);
         backdrop-filter: blur(40px) saturate(150%);
         -webkit-backdrop-filter: blur(40px) saturate(150%);
         border: 1px solid var(--border-color);
