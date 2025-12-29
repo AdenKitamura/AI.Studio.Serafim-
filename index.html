@@ -101,7 +101,8 @@
       /* --- GLASSMORPHISM --- */
       
       .glass-panel {
-        background: rgba(var(--bg-rgb), 0.4); 
+        /* Fixed: Use color-mix to create transparency from HEX variables */
+        background: color-mix(in srgb, var(--bg-item), transparent 30%);
         backdrop-filter: blur(24px) saturate(180%);
         -webkit-backdrop-filter: blur(24px) saturate(180%);
         border: 1px solid var(--border-color);
@@ -162,6 +163,15 @@
     }
     </script>
     <script type="module" src="./index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW registered'))
+            .catch(err => console.log('SW failed', err));
+        });
+      }
+    </script>
   </head>
   <body>
     <!-- Textures injected via CSS based on theme attr -->

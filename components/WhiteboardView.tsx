@@ -30,6 +30,9 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
   const [isPanning, setIsPanning] = useState(false);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   
+  // Local state for smooth dragging without DB spam
+  const [localNodePositions, setLocalNodePositions] = useState<Record<string, {x: number, y: number}>>({});
+  
   // Linking State
   const [linkingSourceId, setLinkingSourceId] = useState<string | null>(null);
   const [tempLinkEnd, setTempLinkEnd] = useState<{x: number, y: number} | null>(null);
@@ -71,11 +74,18 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
       if (node) {
         const dx = (e.clientX - lastMousePos.current.x) / zoom;
         const dy = (e.clientY - lastMousePos.current.y) / zoom;
-        onUpdate({
-          ...node,
-          x: (node.x || 0) + dx,
-          y: (node.y || 0) + dy
-        });
+        
+        // Calculate new position relative to canvas
+        const currentPos = localNodePositions[draggedNodeId] || { x: node.x || 0, y: node.y || 0 };
+        const newX = currentPos.x + dx;
+        const newY = currentPos.y + dy;
+
+        // Update local state ONLY (no DB write)
+        setLocalNodePositions(prev => ({
+            ...prev,
+            [draggedNodeId]: { x: newX, y: newY }
+        }));
+        
         lastMousePos.current = { x: e.clientX, y: e.clientY };
       }
     } else if (linkingSourceId) {
@@ -87,7 +97,22 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
 
   const handleMouseUp = (e: React.MouseEvent) => {
     setIsPanning(false);
-    setDraggedNodeId(null);
+
+    if (draggedNodeId) {
+        // Commit drag to DB
+        const node = nodes.find(n => n.id === draggedNodeId);
+        const finalPos = localNodePositions[draggedNodeId];
+        if (node && finalPos) {
+            onUpdate({ ...node, x: finalPos.x, y: finalPos.y });
+        }
+        setDraggedNodeId(null);
+        // Clear local override to save memory/state complexity, we trust onUpdate to propogate back
+        setLocalNodePositions(prev => {
+            const next = {...prev};
+            delete next[draggedNodeId];
+            return next;
+        });
+    }
     
     // Check if we dropped a link on a node
     if (linkingSourceId) {
@@ -152,6 +177,14 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
       });
   };
 
+  // Helper to get render position (Local Drag > DB Data)
+  const getNodePos = (node: Thought) => {
+      if (localNodePositions[node.id]) {
+          return localNodePositions[node.id];
+      }
+      return { x: node.x || 0, y: node.y || 0 };
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -183,10 +216,13 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
           const target = nodes.find(n => n.id === link.targetId);
           if (!target) return null;
           
-          const sx = offset.x + (node.x || 0) * zoom;
-          const sy = offset.y + (node.y || 0) * zoom;
-          const tx = offset.x + (target.x || 0) * zoom;
-          const ty = offset.y + (target.y || 0) * zoom;
+          const sourcePos = getNodePos(node);
+          const targetPos = getNodePos(target);
+
+          const sx = offset.x + sourcePos.x * zoom;
+          const sy = offset.y + sourcePos.y * zoom;
+          const tx = offset.x + targetPos.x * zoom;
+          const ty = offset.y + targetPos.y * zoom;
           const linkColor = LINK_TYPES.find(t => t.type === link.type)?.color || '#525252';
 
           return (
@@ -222,8 +258,10 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
         {linkingSourceId && tempLinkEnd && (() => {
             const source = nodes.find(n => n.id === linkingSourceId);
             if (!source) return null;
-            const sx = offset.x + (source.x || 0) * zoom;
-            const sy = offset.y + (source.y || 0) * zoom;
+            const sourcePos = getNodePos(source);
+            
+            const sx = offset.x + sourcePos.x * zoom;
+            const sy = offset.y + sourcePos.y * zoom;
             const tx = offset.x + tempLinkEnd.x * zoom;
             const ty = offset.y + tempLinkEnd.y * zoom;
             return <line x1={sx} y1={sy} x2={tx} y2={ty} stroke="var(--accent)" strokeWidth={2 * zoom} strokeDasharray="5,5" />;
@@ -232,70 +270,74 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, onAdd, onUpda
 
       {/* Nodes Layer */}
       <div className="absolute inset-0 pointer-events-none">
-        {nodes.map(node => (
-          <div 
-            key={node.id}
-            data-id={node.id}
-            onMouseDown={(e) => { 
-                e.stopPropagation(); 
-                if((e.target as HTMLElement).closest('.link-handle')) return; // Don't drag node if dragging handle
-                setDraggedNodeId(node.id); 
-                lastMousePos.current = { x: e.clientX, y: e.clientY }; 
-            }}
-            className={`node-card absolute pointer-events-auto rounded-2xl border transition-all duration-200 shadow-2xl flex flex-col
-              ${node.type === 'task_node' ? 'bg-[#18181b] border-l-4 border-l-emerald-500 border-y-white/5 border-r-white/5' : 'bg-[#121214]/90 border-white/10'}
-            `}
-            style={{ 
-                left: offset.x + (node.x || 0) * zoom, 
-                top: offset.y + (node.y || 0) * zoom, 
-                width: 220 * zoom, 
-                transform: 'translate(-50%, -50%)', 
-                backdropFilter: 'blur(12px)',
-                minHeight: 80 * zoom
-            }}
-          >
-            {/* Header / Meta */}
-            <div className="flex items-center justify-between p-3 pb-1">
-               <div className="flex items-center gap-2">
-                   {node.type === 'task_node' && (
-                       <button 
-                         onClick={() => toggleTaskStatus(node)}
-                         className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${node.metadata?.taskStatus ? 'bg-emerald-500 border-emerald-500' : 'border-white/20'}`}
-                         style={{ width: 14 * zoom, height: 14 * zoom }}
-                       >
-                           {node.metadata?.taskStatus && <CheckSquare size={10 * zoom} className="text-white" />}
-                       </button>
-                   )}
-                   <span className="font-bold text-white/30 uppercase tracking-widest" style={{ fontSize: 9 * zoom }}>{node.type === 'task_node' ? 'Task' : 'Note'}</span>
-               </div>
-               <button onMouseDown={(e) => { e.stopPropagation(); onDelete(node.id); }} className="text-white/10 hover:text-red-500"><X size={12 * zoom} /></button>
-            </div>
-
-            {/* Content */}
-            <div className="px-3 pb-3 pt-1 flex-1 flex flex-col">
-                <textarea 
-                    value={node.content} 
-                    onMouseDown={e => e.stopPropagation()} 
-                    onChange={e => onUpdate({ ...node, content: e.target.value })} 
-                    className={`w-full bg-transparent text-white focus:outline-none resize-none no-scrollbar leading-snug font-medium ${node.metadata?.taskStatus ? 'opacity-40 line-through' : ''}`}
-                    style={{ fontSize: 13 * zoom, height: '100%' }} 
-                />
-            </div>
-
-            {/* Link Handles (Right side for dragging OUT) */}
-            <div 
-                className="link-handle absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 hover:bg-[var(--accent)] border border-white/10 flex items-center justify-center cursor-crosshair opacity-0 hover:opacity-100 transition-opacity z-20"
-                onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setLinkingSourceId(node.id);
-                    setTempLinkEnd({ x: (node.x || 0), y: (node.y || 0) });
+        {nodes.map(node => {
+            const pos = getNodePos(node);
+            return (
+              <div 
+                key={node.id}
+                data-id={node.id}
+                onMouseDown={(e) => { 
+                    e.stopPropagation(); 
+                    if((e.target as HTMLElement).closest('.link-handle')) return; // Don't drag node if dragging handle
+                    setDraggedNodeId(node.id); 
+                    lastMousePos.current = { x: e.clientX, y: e.clientY }; 
                 }}
-            >
-                <div className="w-1.5 h-1.5 bg-white rounded-full pointer-events-none" />
-            </div>
+                className={`node-card absolute pointer-events-auto rounded-2xl border transition-colors duration-200 shadow-2xl flex flex-col
+                  ${node.type === 'task_node' ? 'bg-[#18181b] border-l-4 border-l-emerald-500 border-y-white/5 border-r-white/5' : 'bg-[#121214]/90 border-white/10'}
+                  ${draggedNodeId === node.id ? 'z-50 scale-105' : 'z-10'}
+                `}
+                style={{ 
+                    left: offset.x + pos.x * zoom, 
+                    top: offset.y + pos.y * zoom, 
+                    width: 220 * zoom, 
+                    transform: 'translate(-50%, -50%)', 
+                    backdropFilter: 'blur(12px)',
+                    minHeight: 80 * zoom
+                }}
+              >
+                {/* Header / Meta */}
+                <div className="flex items-center justify-between p-3 pb-1">
+                   <div className="flex items-center gap-2">
+                       {node.type === 'task_node' && (
+                           <button 
+                             onClick={() => toggleTaskStatus(node)}
+                             className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${node.metadata?.taskStatus ? 'bg-emerald-500 border-emerald-500' : 'border-white/20'}`}
+                             style={{ width: 14 * zoom, height: 14 * zoom }}
+                           >
+                               {node.metadata?.taskStatus && <CheckSquare size={10 * zoom} className="text-white" />}
+                           </button>
+                       )}
+                       <span className="font-bold text-white/30 uppercase tracking-widest" style={{ fontSize: 9 * zoom }}>{node.type === 'task_node' ? 'Task' : 'Note'}</span>
+                   </div>
+                   <button onMouseDown={(e) => { e.stopPropagation(); onDelete(node.id); }} className="text-white/10 hover:text-red-500"><X size={12 * zoom} /></button>
+                </div>
 
-          </div>
-        ))}
+                {/* Content */}
+                <div className="px-3 pb-3 pt-1 flex-1 flex flex-col">
+                    <textarea 
+                        value={node.content} 
+                        onMouseDown={e => e.stopPropagation()} 
+                        onChange={e => onUpdate({ ...node, content: e.target.value })} 
+                        className={`w-full bg-transparent text-white focus:outline-none resize-none no-scrollbar leading-snug font-medium ${node.metadata?.taskStatus ? 'opacity-40 line-through' : ''}`}
+                        style={{ fontSize: 13 * zoom, height: '100%' }} 
+                    />
+                </div>
+
+                {/* Link Handles (Right side for dragging OUT) */}
+                <div 
+                    className="link-handle absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 hover:bg-[var(--accent)] border border-white/10 flex items-center justify-center cursor-crosshair opacity-0 hover:opacity-100 transition-opacity z-20"
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setLinkingSourceId(node.id);
+                        setTempLinkEnd({ x: pos.x, y: pos.y });
+                    }}
+                >
+                    <div className="w-1.5 h-1.5 bg-white rounded-full pointer-events-none" />
+                </div>
+
+              </div>
+            );
+        })}
       </div>
 
       {/* Floating Menus */}
