@@ -151,6 +151,10 @@ const App = () => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
+  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
   // --- HABIT HANDLERS ---
   const handleAddHabit = (habit: Habit) => {
     setHabits(prev => [habit, ...prev]);
@@ -280,6 +284,7 @@ const App = () => {
               tasks={tasks} 
               thoughts={thoughts} 
               onAddProject={p => setProjects([p, ...projects])} 
+              onUpdateProject={handleUpdateProject}
               onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} 
               onAddTask={t => setTasks([t, ...tasks])} 
               onUpdateTask={handleUpdateTask} 

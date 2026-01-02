@@ -7,23 +7,39 @@ export enum Priority {
 
 export type ChatCategory = 'general' | 'strategy' | 'productivity' | 'learning' | 'mental';
 
+export interface Attachment {
+  id: string;
+  type: 'link' | 'file' | 'image' | 'audio';
+  content: string; // URL or Base64
+  name: string;
+}
+
+export interface ProjectColumn {
+  id: string;
+  title: string;
+  order: number;
+}
+
 export interface Project {
   id: string;
   title: string;
   description?: string;
   color: string;
   createdAt: string;
+  columns?: ProjectColumn[]; // Kanban columns
 }
 
 export interface Task {
   id: string;
   title: string;
   description?: string;
-  dueDate: string | null;
+  dueDate: string | null; // Nullable for backlog tasks
   reminderTime?: string;
   isCompleted: boolean;
   priority: Priority;
   projectId?: string;
+  columnId?: string; // Kanban column linkage
+  attachments?: Attachment[]; // Files/Links
   createdAt: string;
 }
 
@@ -46,6 +62,7 @@ export interface Thought {
   y?: number;
   linkedIds?: string[];
   links?: NodeLink[];
+  attachments?: Attachment[]; // Files/Links for whiteboard nodes
   isArchived?: boolean; 
   metadata?: {
     url?: string;
@@ -102,18 +119,10 @@ export interface ChatSession {
 
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
 
-// Restricted Theme List
 export type ThemeKey = 'emerald' | 'amber' | 'neon' | 'ocean';
-
-// Restricted Font List (Only Mono)
 export type FontFamily = 'JetBrains Mono';
-
-// Expanded Icon Weights
 export type IconWeight = '1px' | '1.5px' | '2px' | '2.5px' | '3px';
-
-// Texture Types (Added custom)
 export type TextureType = 'custom' | 'none';
-
 export type CalendarMode = 'week' | 'month';
 
 export interface AppState {
