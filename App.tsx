@@ -155,6 +155,10 @@ const App = () => {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   };
 
+  const handleUpdateThought = (id: string, updates: Partial<Thought>) => {
+    setThoughts(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
   // --- HABIT HANDLERS ---
   const handleAddHabit = (habit: Habit) => {
     setHabits(prev => [habit, ...prev]);
@@ -261,7 +265,14 @@ const App = () => {
                   onSave={(d, c, n, m, r, t) => { const i = journal.findIndex(j => j.date === d); if (i >= 0) { const next = [...journal]; next[i] = {...next[i], content: c, notes: n, mood: m, reflection: r, tags: t}; setJournal(next); } else { setJournal([...journal, {id: Date.now().toString(), date: d, content: c, notes: n, mood: m, reflection: r, tags: t}]); } }} 
               />
           )}
-          {view === 'thoughts' && <ThoughtsView thoughts={thoughts} onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} />}
+          {view === 'thoughts' && (
+            <ThoughtsView 
+              thoughts={thoughts} 
+              onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} 
+              onUpdate={handleUpdateThought}
+              onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} 
+            />
+          )}
           {view === 'planner' && (
             <PlannerView 
               tasks={tasks} 

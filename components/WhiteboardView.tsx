@@ -7,7 +7,7 @@ import {
   Wrench, LayoutGrid, Focus, Trash2,
   Sparkles, PlusCircle, ArrowRight, Circle,
   Paperclip, Image as ImageIcon, FileText, GitBranch,
-  Type as TypeIcon, Palette, Link2
+  Type as TypeIcon, Palette, Link2, Crosshair
 } from 'lucide-react';
 
 interface WhiteboardViewProps {
@@ -24,12 +24,14 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
   
   // Interaction State
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
-  const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null); // For connecting lines
+  const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   
   // Gesture State
   const lastTouchRef = useRef<{ x: number, y: number, dist: number }>({ x: 0, y: 0, dist: 0 });
   const isPinchingRef = useRef(false);
-  const resizingImageIdRef = useRef<string | null>(null); // Track if we are resizing an image
+  const resizingImageIdRef = useRef<string | null>(null);
+  const longPressTimerRef = useRef<any>(null);
+  const isDraggingRef = useRef(false);
 
   // UI State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -40,8 +42,12 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
 
   // Initial Center
   useEffect(() => {
-      setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, scale: 1 });
+      centerBoard();
   }, []);
+
+  const centerBoard = () => {
+      setTransform({ x: window.innerWidth / 2, y: window.innerHeight / 2, scale: 1 });
+  };
 
   // --- HELPERS ---
   const getDistance = (t1: React.Touch, t2: React.Touch) => {
@@ -64,131 +70,97 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       };
   };
 
-  // --- TOUCH HANDLERS (Gestures) ---
+  // --- TOUCH HANDLERS (Smooth Gestures) ---
   
   const handleTouchStart = (e: React.TouchEvent) => {
-      if (e.touches.length === 2) {
+      if(e.touches.length === 2) {
+          e.preventDefault();
           isPinchingRef.current = true;
-          // Check if both touches are on an image node to trigger resize
-          const target1 = e.touches[0].target as HTMLElement;
-          const imgNode = target1.closest('[data-type="image"]');
-          
-          if (imgNode) {
-              resizingImageIdRef.current = imgNode.getAttribute('data-node-id');
-          } else {
-              resizingImageIdRef.current = null;
-          }
-
-          lastTouchRef.current.dist = getDistance(e.touches[0], e.touches[1]);
-          // If board zoom, store midpoint
-          if (!resizingImageIdRef.current) {
-             const mid = getMidpoint(e.touches[0], e.touches[1]);
-             lastTouchRef.current.x = mid.x;
-             lastTouchRef.current.y = mid.y;
-          }
+          const dist = getDistance(e.touches[0], e.touches[1]);
+          const mid = getMidpoint(e.touches[0], e.touches[1]);
+          lastTouchRef.current = { x: mid.x, y: mid.y, dist };
       } else if (e.touches.length === 1) {
-          isPinchingRef.current = false;
-          lastTouchRef.current.x = e.touches[0].clientX;
-          lastTouchRef.current.y = e.touches[0].clientY;
+          const t = e.touches[0];
+          lastTouchRef.current = { x: t.clientX, y: t.clientY, dist: 0 };
           
           const target = e.target as HTMLElement;
-          // Drag node check
           const nodeEl = target.closest('[data-node-id]');
+          
           if (nodeEl && !target.closest('.no-drag')) {
-              setDraggedNodeId(nodeEl.getAttribute('data-node-id'));
-          } else if (!target.closest('.ui-layer')) {
-              // Pan board start
+              const nodeId = nodeEl.getAttribute('data-node-id');
+              // Long press logic for moving
+              longPressTimerRef.current = setTimeout(() => {
+                  setDraggedNodeId(nodeId);
+                  isDraggingRef.current = true;
+                  // Haptic feedback if available
+                  if (navigator.vibrate) navigator.vibrate(50);
+              }, 500); // 500ms long press
           }
       }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+      e.preventDefault(); // Prevent browser native pan/zoom
+
       if (e.touches.length === 2 && isPinchingRef.current) {
           const newDist = getDistance(e.touches[0], e.touches[1]);
-          const scaleFactor = newDist / lastTouchRef.current.dist;
+          const newMid = getMidpoint(e.touches[0], e.touches[1]);
+          
+          const scaleFactor = newDist / (lastTouchRef.current.dist || 1);
+          const newScale = Math.min(Math.max(0.2, transform.scale * scaleFactor), 5);
 
-          if (resizingImageIdRef.current) {
-              // --- IMAGE RESIZE ---
-              const node = thoughts.find(n => n.id === resizingImageIdRef.current);
-              if (node) {
-                  const currentWidth = node.width || 200; // Default width
-                  // Apply scale factor to width
-                  const newWidth = Math.max(100, Math.min(800, currentWidth * scaleFactor));
-                  onUpdate({ ...node, width: newWidth });
-              }
-          } else {
-              // --- BOARD ZOOM ---
-              const newScale = Math.min(Math.max(0.1, transform.scale * scaleFactor), 5);
-              
-              // Zoom towards center of pinch
-              const mid = getMidpoint(e.touches[0], e.touches[1]);
-              const worldMid = screenToWorld(mid.x, mid.y);
-              
-              // Adjust position to keep worldMid under mid
-              const newX = mid.x - worldMid.x * newScale;
-              const newY = mid.y - worldMid.y * newScale;
+          // Pan + Zoom
+          const dx = newMid.x - lastTouchRef.current.x;
+          const dy = newMid.y - lastTouchRef.current.y;
 
-              setTransform({ x: newX, y: newY, scale: newScale });
+          // Pivot zoom around midpoint
+          // P_new = Mid_new - (Mid_old - P_old) * scaleFactor - but simpler relative delta:
+          // Adjust transform position to keep world point under finger steady-ish
+          // Simplified: Just update scale and apply drag delta
+          
+          setTransform(prev => ({
+              scale: newScale,
+              x: prev.x + dx + (newMid.x - prev.x) * (1 - scaleFactor),
+              y: prev.y + dy + (newMid.y - prev.y) * (1 - scaleFactor)
+          }));
+
+          lastTouchRef.current = { x: newMid.x, y: newMid.y, dist: newDist };
+
+      } else if (e.touches.length === 1) {
+          const t = e.touches[0];
+          const dx = t.clientX - lastTouchRef.current.x;
+          const dy = t.clientY - lastTouchRef.current.y;
+
+          if (longPressTimerRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+              clearTimeout(longPressTimerRef.current);
+              longPressTimerRef.current = null;
           }
-          lastTouchRef.current.dist = newDist;
 
-      } else if (e.touches.length === 1 && !isPinchingRef.current) {
-          const dx = e.touches[0].clientX - lastTouchRef.current.x;
-          const dy = e.touches[0].clientY - lastTouchRef.current.y;
-
-          if (draggedNodeId) {
-              // --- DRAG NODE ---
+          if (isDraggingRef.current && draggedNodeId) {
               const node = thoughts.find(n => n.id === draggedNodeId);
               if (node) {
-                  onUpdate({ ...node, x: (node.x || 0) + dx / transform.scale, y: (node.y || 0) + dy / transform.scale });
+                  onUpdate({ 
+                      ...node, 
+                      x: (node.x || 0) + dx / transform.scale, 
+                      y: (node.y || 0) + dy / transform.scale 
+                  });
               }
-          } else {
-              // --- PAN BOARD ---
+          } else if (!draggedNodeId && !isPinchingRef.current) {
+              // Pan Board
               setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
           }
-          lastTouchRef.current.x = e.touches[0].clientX;
-          lastTouchRef.current.y = e.touches[0].clientY;
+          lastTouchRef.current = { ...lastTouchRef.current, x: t.clientX, y: t.clientY };
       }
   };
 
   const handleTouchEnd = () => {
+      if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+      }
       setDraggedNodeId(null);
+      isDraggingRef.current = false;
       isPinchingRef.current = false;
-      resizingImageIdRef.current = null;
-  };
-
-  // --- MOUSE HANDLERS (Fallback for desktop) ---
-  const handleMouseDown = (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest('.ui-layer')) return;
-      const nodeEl = target.closest('[data-node-id]');
-      
-      if (nodeEl && !target.closest('.no-drag')) {
-          setDraggedNodeId(nodeEl.getAttribute('data-node-id'));
-      }
-      lastTouchRef.current.x = e.clientX;
-      lastTouchRef.current.y = e.clientY;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-      if (e.buttons !== 1) return; // Only drag on left click
-      const dx = e.clientX - lastTouchRef.current.x;
-      const dy = e.clientY - lastTouchRef.current.y;
-
-      if (draggedNodeId) {
-          const node = thoughts.find(n => n.id === draggedNodeId);
-          if (node) {
-              onUpdate({ ...node, x: (node.x || 0) + dx / transform.scale, y: (node.y || 0) + dy / transform.scale });
-          }
-      } else {
-          setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
-      }
-      lastTouchRef.current.x = e.clientX;
-      lastTouchRef.current.y = e.clientY;
-  };
-
-  const handleMouseUp = () => {
-      setDraggedNodeId(null);
   };
 
   // --- ACTIONS ---
@@ -220,141 +192,138 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
   const initiateLink = (nodeId: string, e: React.MouseEvent | React.TouchEvent) => {
       e.stopPropagation();
       if (connectingSourceId === nodeId) {
-          setConnectingSourceId(null); // Cancel
+          setConnectingSourceId(null); 
       } else if (connectingSourceId) {
-          // Complete Connection
           const source = thoughts.find(n => n.id === connectingSourceId);
-          if (source) {
-              // Avoid duplicates
-              if (!source.links?.some(l => l.targetId === nodeId)) {
-                  onUpdate({
-                      ...source,
-                      links: [...(source.links || []), { targetId: nodeId, type: 'related', color: '#555' }]
-                  });
-              }
+          if (source && !source.links?.some(l => l.targetId === nodeId)) {
+              onUpdate({
+                  ...source,
+                  links: [...(source.links || []), { targetId: nodeId, type: 'related', color: '#555' }]
+              });
           }
           setConnectingSourceId(null);
       } else {
-          // Start Connection
           setConnectingSourceId(nodeId);
       }
   };
 
   // --- RENDER ---
   return (
-    <div 
-        ref={containerRef}
-        className="w-full h-full relative overflow-hidden bg-[#0a0a0a] touch-none select-none cursor-grab active:cursor-grabbing"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-    >
-        {/* GRID BACKGROUND (Moves with transform) */}
+    <div className="fixed inset-0 z-0"> {/* Wrapper to contain fixed UI independently */}
+        
+        {/* CANVAS */}
         <div 
-            className="absolute inset-0 pointer-events-none opacity-[0.05]"
-            style={{
-                transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-                transformOrigin: '0 0',
-                backgroundImage: `linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)`,
-                backgroundSize: `50px 50px`
-            }}
-        />
-
-        {/* WORLD LAYER (Contains everything that moves) */}
-        <div 
-            className="absolute top-0 left-0 w-full h-full origin-top-left will-change-transform"
-            style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}
+            ref={containerRef}
+            className="absolute inset-0 bg-[#0a0a0a] touch-none select-none overflow-hidden"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
         >
-            {/* LINKS LAYER (SVG) */}
-            <svg className="absolute top-[-50000px] left-[-50000px] w-[100000px] h-[100000px] pointer-events-none overflow-visible">
-                {thoughts.map(node => (node.links || []).map((link, i) => {
-                    const target = thoughts.find(n => n.id === link.targetId);
-                    if(!target) return null;
-                    const sx = 50000 + (node.x || 0); 
-                    const sy = 50000 + (node.y || 0);
-                    const tx = 50000 + (target.x || 0);
-                    const ty = 50000 + (target.y || 0);
-                    return <line key={`${node.id}-${i}`} x1={sx} y1={sy} x2={tx} y2={ty} stroke={link.color || '#555'} strokeWidth="2" strokeOpacity="0.6" />;
-                }))}
-                
-                {/* Visual feedback line would go here if we tracked cursor pos, currently we just highlight nodes */}
-            </svg>
+            <div 
+                className="absolute inset-0 pointer-events-none opacity-[0.05]"
+                style={{
+                    transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+                    transformOrigin: '0 0',
+                    backgroundImage: `linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)`,
+                    backgroundSize: `50px 50px`
+                }}
+            />
 
-            {/* NODES LAYER */}
-            {thoughts.map(node => (
-                <div
-                    key={node.id}
-                    data-node-id={node.id}
-                    data-type={node.type}
-                    onClick={() => { if(connectingSourceId && connectingSourceId !== node.id) initiateLink(node.id, {} as any); }}
-                    className={`absolute flex flex-col items-center justify-center transition-all duration-200
-                        ${node.type === 'annotation' ? '' : 'rounded-2xl border shadow-xl backdrop-blur-md'}
-                        ${editingNodeId === node.id ? 'ring-2 ring-[var(--accent)] z-50' : 'z-10'}
-                        ${node.type === 'task_node' ? 'bg-[#18181b] border-l-4 border-l-emerald-500 border-white/10 w-64' : ''}
-                        ${node.type === 'thought' ? 'bg-[#121214]/90 border-white/10 w-56' : ''}
-                        ${node.type === 'image' ? 'p-1 bg-white/5 border-transparent' : ''}
-                        ${connectingSourceId === node.id ? 'ring-4 ring-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.5)]' : ''}
-                        ${connectingSourceId && connectingSourceId !== node.id ? 'hover:ring-2 hover:ring-yellow-500/50 cursor-pointer' : ''}
-                    `}
-                    style={{
-                        left: node.x, top: node.y,
-                        transform: 'translate(-50%, -50%)',
-                        width: node.type === 'image' ? (node.width || 200) : undefined // Apply resized width
-                    }}
-                >
-                    {/* Link Trigger Button (On every node) */}
-                    <button 
-                        onClick={(e) => initiateLink(node.id, e)}
-                        className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center border no-drag transition-all z-20 ${connectingSourceId === node.id ? 'bg-yellow-500 text-black border-yellow-500 rotate-12 scale-110' : 'bg-[#18181b] text-white/50 border-white/10 hover:text-white hover:border-[var(--accent)]'}`}
+            <div 
+                className="absolute top-0 left-0 w-full h-full origin-top-left will-change-transform"
+                style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}
+            >
+                {/* LINKS */}
+                <svg className="absolute top-[-50000px] left-[-50000px] w-[100000px] h-[100000px] pointer-events-none overflow-visible">
+                    {thoughts.map(node => (node.links || []).map((link, i) => {
+                        const target = thoughts.find(n => n.id === link.targetId);
+                        if(!target) return null;
+                        const sx = 50000 + (node.x || 0); 
+                        const sy = 50000 + (node.y || 0);
+                        const tx = 50000 + (target.x || 0);
+                        const ty = 50000 + (target.y || 0);
+                        return <line key={`${node.id}-${i}`} x1={sx} y1={sy} x2={tx} y2={ty} stroke={link.color || '#555'} strokeWidth="2" strokeOpacity="0.6" />;
+                    }))}
+                </svg>
+
+                {/* NODES */}
+                {thoughts.map(node => (
+                    <div
+                        key={node.id}
+                        data-node-id={node.id}
+                        data-type={node.type}
+                        onClick={() => {
+                            if(connectingSourceId && connectingSourceId !== node.id) initiateLink(node.id, {} as any);
+                            else if (!isDraggingRef.current) setEditingNodeId(node.id);
+                        }}
+                        className={`absolute flex flex-col items-center justify-center transition-all duration-200
+                            ${node.type === 'annotation' ? '' : 'rounded-2xl border shadow-xl backdrop-blur-md'}
+                            ${draggedNodeId === node.id ? 'scale-110 shadow-2xl z-[100]' : 'z-10'}
+                            ${node.type === 'task_node' ? 'bg-[#18181b] border-l-4 border-l-emerald-500 border-white/10 w-64' : ''}
+                            ${node.type === 'thought' ? 'bg-[#121214]/90 border-white/10 w-56' : ''}
+                            ${node.type === 'image' ? 'p-1 bg-white/5 border-transparent' : ''}
+                            ${connectingSourceId === node.id ? 'ring-4 ring-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.5)]' : ''}
+                        `}
+                        style={{
+                            left: node.x, top: node.y,
+                            transform: 'translate(-50%, -50%)',
+                            width: node.type === 'image' ? (node.width || 200) : undefined
+                        }}
                     >
-                        <Link2 size={14} />
-                    </button>
+                        {/* Link Button */}
+                        <button 
+                            onClick={(e) => initiateLink(node.id, e)}
+                            className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center border no-drag transition-all z-20 ${connectingSourceId === node.id ? 'bg-yellow-500 text-black border-yellow-500 rotate-12 scale-110' : 'bg-[#18181b] text-white/50 border-white/10 hover:text-white hover:border-[var(--accent)]'}`}
+                        >
+                            <Link2 size={14} />
+                        </button>
 
-                    {/* Node Content */}
-                    {node.type === 'image' ? (
-                        <div className="relative group/img w-full h-full">
-                            <img src={node.metadata?.imageSrc} className="w-full h-full rounded-lg shadow-lg pointer-events-none select-none" />
-                            <button onTouchEnd={() => onDelete(node.id)} onMouseUp={() => onDelete(node.id)} className="no-drag absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-auto"><X size={12}/></button>
-                        </div>
-                    ) : node.type === 'annotation' ? (
-                        <textarea
-                            value={node.content}
-                            onChange={(e) => onUpdate({ ...node, content: e.target.value })}
-                            className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden no-drag"
-                            style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}
-                        />
-                    ) : (
-                        <div className="w-full p-4">
-                            <div className="flex justify-between items-center mb-2 opacity-50 text-[10px] font-black uppercase tracking-widest">
-                                <span>{node.type === 'task_node' ? 'Цель' : 'Заметка'}</span>
-                                <button onTouchEnd={() => onDelete(node.id)} onMouseUp={() => onDelete(node.id)} className="hover:text-red-500 no-drag"><X size={12}/></button>
+                        {/* Content */}
+                        {node.type === 'image' ? (
+                            <div className="relative group/img w-full h-full">
+                                <img src={node.metadata?.imageSrc} className="w-full h-full rounded-lg shadow-lg pointer-events-none select-none" />
+                                <button onTouchEnd={() => onDelete(node.id)} className="no-drag absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-auto"><X size={12}/></button>
                             </div>
+                        ) : node.type === 'annotation' ? (
                             <textarea
                                 value={node.content}
                                 onChange={(e) => onUpdate({ ...node, content: e.target.value })}
-                                className="w-full bg-transparent text-white text-sm outline-none resize-none font-medium pointer-events-auto no-drag"
-                                rows={3}
+                                className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden no-drag"
+                                style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}
                             />
-                        </div>
-                    )}
-                </div>
-            ))}
+                        ) : (
+                            <div className="w-full p-4">
+                                <div className="flex justify-between items-center mb-2 opacity-50 text-[10px] font-black uppercase tracking-widest">
+                                    <span>{node.type === 'task_node' ? 'Цель' : 'Заметка'}</span>
+                                    <button onTouchEnd={() => onDelete(node.id)} className="hover:text-red-500 no-drag"><X size={12}/></button>
+                                </div>
+                                <textarea
+                                    value={node.content}
+                                    onChange={(e) => onUpdate({ ...node, content: e.target.value })}
+                                    className="w-full bg-transparent text-white text-sm outline-none resize-none font-medium pointer-events-auto no-drag"
+                                    rows={3}
+                                />
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
         </div>
 
-        {/* UI LAYER (Static) */}
-        <div className="absolute inset-0 pointer-events-none ui-layer">
-            
-            {/* Context Info */}
+        {/* UI LAYER (FIXED POSITION) */}
+        <div className="absolute inset-0 pointer-events-none z-50">
+            {/* Center Button */}
+            <button onClick={centerBoard} className="absolute bottom-8 right-8 pointer-events-auto p-4 bg-[#18181b] border border-white/10 rounded-full text-white/50 hover:text-white shadow-lg">
+                <Crosshair size={24} />
+            </button>
+
             {connectingSourceId && (
-                <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest animate-pulse shadow-lg pointer-events-auto" onClick={() => setConnectingSourceId(null)}>
-                    Выберите объект для связи... (Нажми чтобы отменить)
+                <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest animate-pulse shadow-lg pointer-events-auto" onClick={() => setConnectingSourceId(null)}>
+                    Выберите объект для связи...
                 </div>
             )}
 
-            {/* Tools Menu (Bottom Left) */}
+            {/* Tools Menu (Fixed Bottom Left) */}
             <div className="absolute bottom-8 left-8 flex flex-col items-start gap-4 pointer-events-auto">
                 <div className={`flex flex-col gap-2 bg-[#18181b]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl transition-all origin-bottom-left ${isMenuOpen ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none translate-y-10'}`}>
                     <button onClick={() => createNode('task_node')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">

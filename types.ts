@@ -60,7 +60,8 @@ export interface NodeLink {
 
 export interface Thought {
   id: string;
-  content: string;
+  content: string; // Title or short content
+  notes?: string; // Long form content / diary for the idea
   type: 'thought' | 'idea' | 'insight' | 'quote' | 'link' | 'file' | 'task_node' | 'image' | 'annotation';
   tags: string[];
   author?: string;
