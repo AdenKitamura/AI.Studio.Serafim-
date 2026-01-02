@@ -18,6 +18,7 @@ import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
+import { requestNotificationPermission, sendNotification, scheduleSystemNotification } from './services/notificationService';
 import { 
   Zap, Loader2, Settings as SettingsIcon
 } from 'lucide-react';
@@ -66,6 +67,41 @@ const App = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
+
+  // --- NOTIFICATION PERMISSION ---
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
+  // --- NOTIFICATION SCHEDULING (HYBRID: Polling + System Triggers) ---
+  useEffect(() => {
+    // 1. SYSTEM LEVEL: Register all future tasks with Service Worker
+    // This allows notifications to fire even if app is killed (on supported Androids)
+    tasks.forEach(task => {
+        if (!task.isCompleted && task.dueDate) {
+            scheduleSystemNotification(task);
+        }
+    });
+
+    // 2. APP LEVEL: Fallback polling for open app / unsupported browsers
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentMinute = now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+
+      tasks.forEach(task => {
+        if (!task.isCompleted && task.dueDate) {
+          const taskTime = task.dueDate.slice(0, 16);
+          // Simple check to avoid double firing if SW also fires
+          // (SW usually handles tag deduplication, but this is safety)
+          if (taskTime === currentMinute && now.getSeconds() < 10) {
+             sendNotification(`Напоминание: ${task.title}`, "Пора выполнить задачу!");
+          }
+        }
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
 
   // --- THEME & APPEARANCE HANDLING ---
   useEffect(() => {

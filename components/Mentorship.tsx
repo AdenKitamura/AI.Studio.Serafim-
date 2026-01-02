@@ -7,6 +7,7 @@ import {
   Sparkles, XCircle, AlertCircle, Image as ImageIcon,
   Zap, Database, Target, Palette, Clock, Terminal
 } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface MentorshipProps {
   tasks: Task[];
@@ -54,7 +55,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      // FIX: continuous = false avoids duplication bugs
       rec.continuous = false;
       rec.interimResults = true;
       rec.lang = 'ru-RU';
@@ -119,11 +119,20 @@ const Mentorship: React.FC<MentorshipProps> = ({
         chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
       }
 
-      let contents: any = userQuery;
+      // --- CRITICAL TIME SYNC FIX ---
+      // We inject the exact device time into the prompt so the AI calculates relative times correctly.
+      // This prevents "random time" bugs caused by server UTC offsets.
+      const now = new Date();
+      // Format: "2023-10-25T20:00:00+03:00" - strictly keeping the offset
+      const deviceTimeISO = format(now, "yyyy-MM-dd'T'HH:mm:ssXXX"); 
+      const timeContext = `\n[SYSTEM_CONTEXT: Current Device Time is strictly ${deviceTimeISO}. If user says "today at 20:00", create a task for ${format(now, 'yyyy-MM-dd')}T20:00:00${format(now, 'XXX')}. Do not convert to UTC. Use this offset.]`;
+      
+      let contents: any = userQuery + timeContext;
+      
       if (userMsg.image) {
         contents = {
           parts: [
-            { text: userQuery || "Проанализируй это изображение." },
+            { text: userQuery + timeContext || "Проанализируй это изображение." },
             { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }
           ]
         };
@@ -139,12 +148,57 @@ const Mentorship: React.FC<MentorshipProps> = ({
           switch (fc.name) {
             case 'manage_task':
               if (args.action === 'create') {
-                onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() });
-                addLog('Задача создана', 'success');
+                // Determine due date. If AI sends a string, trust it (it should be ISO from instruction).
+                // If it's missing, default to null.
+                const taskDueDate = args.dueDate ? args.dueDate : null;
+                
+                onAddTask({ 
+                    id: Date.now().toString(), 
+                    title: args.title, 
+                    priority: args.priority || Priority.MEDIUM, 
+                    dueDate: taskDueDate, 
+                    isCompleted: false, 
+                    projectId: args.projectId, 
+                    createdAt: new Date().toISOString() 
+                });
+                
+                // Format for log
+                const timeLog = taskDueDate ? format(new Date(taskDueDate), 'HH:mm') : '';
+                addLog(`Задача создана ${timeLog ? `(${timeLog})` : ''}`, 'success');
+                
               } else if (args.action === 'complete') {
                 const task = tasks.find(t => t.title.toLowerCase().includes(args.title.toLowerCase()));
                 if (task) onUpdateTask(task.id, { isCompleted: true });
                 addLog('Задача обновлена', 'success');
+              }
+              break;
+            case 'create_idea':
+              onAddThought({
+                  id: Date.now().toString(),
+                  content: args.title,
+                  notes: args.content,
+                  type: 'idea',
+                  tags: args.tags || [],
+                  createdAt: new Date().toISOString()
+              });
+              addLog('Идея сохранена в архив', 'success');
+              break;
+            case 'add_to_project_board':
+              const project = projects.find(p => p.title.toLowerCase().includes(args.projectName.toLowerCase()));
+              if (project) {
+                  onAddThought({
+                      id: Date.now().toString(),
+                      content: args.content,
+                      type: args.contentType || 'thought',
+                      tags: [],
+                      createdAt: new Date().toISOString(),
+                      projectId: project.id,
+                      boardId: project.boards?.[0]?.id || 'default',
+                      x: 0, y: 0
+                  });
+                  addLog(`Добавлено на доску: ${project.title}`, 'success');
+              } else {
+                  addLog(`Проект "${args.projectName}" не найден`, 'info');
               }
               break;
             case 'manage_project':

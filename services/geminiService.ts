@@ -4,22 +4,73 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from 
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-// --- ОПРЕДЕЛЕНИЕ ИНСТРУМЕНТОВ СЕРАФИМА ---
+// --- ИНСТРУКЦИЯ СЕРАФИМА (БАЗА ЗНАНИЙ) ---
+const APP_MANUAL = `
+РУКОВОДСТВО ПО ИНТЕРФЕЙСУ SERAFIM OS:
+
+1. СИСТЕМНЫЕ УВЕДОМЛЕНИЯ (PWA):
+   - Ты используешь технологию Notification Triggers. Если пользователь просит напомнить, создай задачу.
+   - Уведомление сработает на уровне системы, ДАЖЕ ЕСЛИ ПРИЛОЖЕНИЕ ЗАКРЫТО или выгружено из памяти (особенно на Android).
+   - Инструмент: 'manage_task' с параметром 'dueDate'.
+
+2. РАБОТА СО ВРЕМЕНЕМ (КРИТИЧНО ВАЖНО):
+   - Ты получаешь "SYSTEM_CONTEXT" с точным временем устройства пользователя в формате ISO (например, 2023-10-25T20:00:00+03:00).
+   - ВСЕГДА используй это время как точку отсчета "СЕЙЧАС".
+   - Если пользователь просит "в 20:00", создай ISO-строку с ТЕМ ЖЕ смещением часового пояса, что и в SYSTEM_CONTEXT (не UTC/Z).
+   - Пример: Если сейчас +03:00, и просят на 20:00, результат должен быть ...T20:00:00+03:00.
+
+3. БЕСКОНЕЧНАЯ ДОСКА (В ПРОЕКТАХ):
+   - Чтобы изменить размер фото: нажми двумя пальцами на фото и разведи их (Pinch-to-Zoom на объекте).
+   - Чтобы двигать доску: используй один или два пальца на пустом месте.
+   - Чтобы переместить текстовую заметку (annotation): нажми и удерживай (Long Press), затем двигай. Обычное нажатие открывает редактирование.
+   - Центровка: кнопка "Прицел" внизу справа возвращает камеру к центру.
+   - Связи: нажми кнопку "Скребка" (Link) на одной ноде, затем на другую, чтобы связать их линией.
+
+4. АРХИВ ИДЕЙ vs ПРОЕКТЫ:
+   - "Архив Идей" (вкладка "Мысли"): Это отдельное хранилище для свободных идей, инсайтов, дневниковых записей. Они НЕ связаны с проектами.
+   - "Проекты": Здесь работа идет по задачам и на досках. То, что создается на доске проекта, живет ТОЛЬКО в проекте.
+`;
 
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает, обновляет или завершает задачи. Используй для любого планирования.",
+    description: "Создает, обновляет, планирует или завершает задачи. Используй для напоминаний и дел. dueDate ДОЛЖЕН быть в формате ISO с часовым поясом пользователя.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: { type: Type.STRING, enum: ["create", "complete", "delete"], description: "Действие с задачей." },
         title: { type: Type.STRING, description: "Название задачи." },
         priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
-        dueDate: { type: Type.STRING, description: "Дата ISO." },
+        dueDate: { type: Type.STRING, description: "Дата и время напоминания (ISO 8601 с Offset, например +03:00)." },
         projectId: { type: Type.STRING, description: "ID проекта, если применимо." }
       },
       required: ["action", "title"]
+    }
+  },
+  {
+    name: "create_idea",
+    description: "Создает новую ИДЕЮ в Архиве Идей. Используй, когда пользователь хочет 'записать мысль', 'сохранить идею', 'начать дневник' по теме, не связанной с текущими проектами.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Заголовок идеи." },
+        content: { type: Type.STRING, description: "Текст или описание идеи." },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Теги для поиска." }
+      },
+      required: ["title"]
+    }
+  },
+  {
+    name: "add_to_project_board",
+    description: "Добавляет заметку или цель на ДОСКУ конкретного проекта. Используй, если пользователь говорит 'добавь на доску проекта Х'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        projectName: { type: Type.STRING, description: "Название проекта (неточное совпадение)." },
+        contentType: { type: Type.STRING, enum: ["task_node", "thought"], description: "Тип: 'task_node' (цель) или 'thought' (заметка)." },
+        content: { type: Type.STRING, description: "Текст заметки." }
+      },
+      required: ["projectName", "content"]
     }
   },
   {
@@ -49,7 +100,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "search_memory",
-    description: "Ищет информацию в прошлом: дневнике, мыслях и архивах. Обязательно используй для вопросов типа 'Что я делал...?' или 'Какие идеи были...?'",
+    description: "Ищет информацию в прошлом: дневнике, мыслях и архивах.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -80,20 +131,9 @@ export const polishTranscript = async (text: string): Promise<string> => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `SYSTEM: You are a text correction engine.
-      TASK: Fix grammar and remove stuttering from the user input.
-      RULES:
-      1. DO NOT expand the text. Keep it concise.
-      2. DO NOT hallucinate new content. 
-      3. If the input is just noise or unintelligible, return an EMPTY STRING.
-      4. Output strictly the corrected Russian text.
-      
-      INPUT: "${text}"`,
+      contents: `SYSTEM: Fix grammar and remove stuttering. Keep conciseness. Output strictly Russian text. INPUT: "${text}"`,
     });
-    const cleaned = response.text?.trim() || text;
-    // Safety check: if cleaned text is 3x longer than input, it's likely a hallucination. Return original.
-    if (cleaned.length > text.length * 3) return text;
-    return cleaned;
+    return response.text?.trim() || text;
   } catch (e) {
     return text;
   }
@@ -109,23 +149,21 @@ export const createMentorChat = (
   }
 ): Chat => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const today = format(new Date(), 'eeee, d MMMM yyyy', { locale: ru });
+  
+  // Initial timestamp (static fallback)
+  const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
 
   const SYSTEM_INSTRUCTION = `
-Ты — Serafim OS v4 Pro, высший ИИ-агент управления личной эффективностью и знаниями.
-Твоя цель: помогать пользователю разгружать когнитивную систему и достигать целей.
+Ты — Serafim OS v4 Pro, высший ИИ-агент управления личной эффективностью.
 
-ТВОИ ВОЗМОЖНОСТИ:
-1. Управление временем: создание и закрытие задач.
-2. Архивация смыслов: поиск в дневниках и мыслях.
-3. Аналитика: ты можешь анализировать тренды в привычках и настроении.
-4. Контроль среды: ты можешь менять темы оформления приложения.
+${APP_MANUAL}
 
-ПРАВИЛА:
-- Если пользователь говорит о цели — создавай задачу.
-- Если пользователь спрашивает о прошлом — используй 'search_memory'.
-- Тон: лаконичный, футуристичный, интеллектуальный.
-- Текущая дата: ${today}.
+ВНИМАНИЕ: Для каждой реплики пользователя ты будешь получать актуальный SYSTEM_CONTEXT с временем устройства. 
+Опирайся ТОЛЬКО на него при расчете времени напоминаний. 
+Твоя задача — формировать корректные ISO строки (yyyy-MM-ddTHH:mm:ss+HH:mm) для поля dueDate.
+
+Тон: лаконичный, футуристичный, предельно полезный.
+Дата инициализации сессии: ${today}.
 `;
 
   return ai.chats.create({
@@ -141,37 +179,27 @@ export const createMentorChat = (
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = {
-    tasks: tasks.map(t => ({ title: t.title, completed: t.isCompleted, priority: t.priority })),
+    tasks: tasks.map(t => ({ title: t.title, completed: t.isCompleted })),
     habits: habits.map(h => ({ title: h.title, completions: h.completedDates.length })),
     moods: journal.map(j => j.mood).filter(Boolean)
   };
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Проанализируй текущее состояние пользователя на основе данных системы Serafim OS: ${JSON.stringify(data)}. 
-    Верни JSON объект с кратким статусом, инсайтом и областью фокуса на завтра.`,
+    contents: `Проанализируй состояние. Данные: ${JSON.stringify(data)}. JSON { status, insight, focusArea }`,
     config: { 
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          status: { type: Type.STRING, description: "Краткий статус состояния (напр. 'Стабильный прогресс')" },
-          insight: { type: Type.STRING, description: "Инсайт о поведении или продуктивности" },
-          focusArea: { type: Type.STRING, description: "Рекомендация по фокусу на завтра" }
+          status: { type: Type.STRING },
+          insight: { type: Type.STRING },
+          focusArea: { type: Type.STRING }
         },
         required: ["status", "insight", "focusArea"]
       }
     }
   });
   
-  try {
-    const text = response.text || "{}";
-    return JSON.parse(text);
-  } catch (e) {
-    return { 
-      status: "Анализ завершен", 
-      insight: "Продолжайте записывать свои мысли и выполнять задачи для более точного анализа.", 
-      focusArea: "Следование текущему плану." 
-    };
-  }
+  try { return JSON.parse(response.text || "{}"); } catch (e) { return {}; }
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Thought, Attachment } from '../types';
 import { 
@@ -11,7 +12,7 @@ import { ru } from 'date-fns/locale/ru';
 interface ThoughtsViewProps {
   thoughts: Thought[];
   onAdd: (content: string, type: 'thought' | 'idea' | 'quote' | 'link' | 'file', tags: string[], metadata?: any) => void;
-  onUpdate?: (id: string, updates: Partial<Thought>) => void; // Added for diary updates
+  onUpdate?: (id: string, updates: Partial<Thought>) => void; 
   onDelete: (id: string) => void;
 }
 
@@ -93,7 +94,12 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
       reader.readAsDataURL(file);
   };
 
-  const filteredThoughts = thoughts.filter(t => activeFilter === 'all' || t.type === activeFilter);
+  // STRICT SEPARATION: Only show thoughts that DO NOT have a projectId
+  // This separates the "Ideas Archive" from "Project Boards"
+  const filteredThoughts = thoughts.filter(t => 
+      !t.projectId && 
+      (activeFilter === 'all' || t.type === activeFilter)
+  );
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-main)]">

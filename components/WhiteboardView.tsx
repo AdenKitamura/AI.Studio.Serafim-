@@ -74,11 +74,25 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
   
   const handleTouchStart = (e: React.TouchEvent) => {
       if(e.touches.length === 2) {
-          e.preventDefault();
+          e.preventDefault(); // Critical to stop browser zoom
           isPinchingRef.current = true;
+          
+          // Check if WE ARE PINCHING AN IMAGE
+          // We check if ANY of the touches started on an image node
+          const target1 = e.touches[0].target as HTMLElement;
+          const target2 = e.touches[1].target as HTMLElement;
+          const imgNode = target1.closest('[data-type="image"]') || target2.closest('[data-type="image"]');
+
+          if (imgNode) {
+              resizingImageIdRef.current = imgNode.getAttribute('data-node-id');
+          } else {
+              resizingImageIdRef.current = null;
+          }
+
           const dist = getDistance(e.touches[0], e.touches[1]);
           const mid = getMidpoint(e.touches[0], e.touches[1]);
           lastTouchRef.current = { x: mid.x, y: mid.y, dist };
+
       } else if (e.touches.length === 1) {
           const t = e.touches[0];
           lastTouchRef.current = { x: t.clientX, y: t.clientY, dist: 0 };
@@ -86,15 +100,16 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
           const target = e.target as HTMLElement;
           const nodeEl = target.closest('[data-node-id]');
           
+          // Check for 'no-drag' class, but annotations don't have it anymore
           if (nodeEl && !target.closest('.no-drag')) {
               const nodeId = nodeEl.getAttribute('data-node-id');
               // Long press logic for moving
               longPressTimerRef.current = setTimeout(() => {
                   setDraggedNodeId(nodeId);
                   isDraggingRef.current = true;
-                  // Haptic feedback if available
+                  // Visual feedback
                   if (navigator.vibrate) navigator.vibrate(50);
-              }, 500); // 500ms long press
+              }, 500); // 500ms long press to start dragging
           }
       }
   };
@@ -104,39 +119,52 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
 
       if (e.touches.length === 2 && isPinchingRef.current) {
           const newDist = getDistance(e.touches[0], e.touches[1]);
-          const newMid = getMidpoint(e.touches[0], e.touches[1]);
-          
           const scaleFactor = newDist / (lastTouchRef.current.dist || 1);
-          const newScale = Math.min(Math.max(0.2, transform.scale * scaleFactor), 5);
 
-          // Pan + Zoom
-          const dx = newMid.x - lastTouchRef.current.x;
-          const dy = newMid.y - lastTouchRef.current.y;
+          if (resizingImageIdRef.current) {
+              // --- IMAGE RESIZE MODE ---
+              const node = thoughts.find(n => n.id === resizingImageIdRef.current);
+              if (node) {
+                  const currentWidth = node.width || 200;
+                  const newWidth = Math.max(100, Math.min(1000, currentWidth * scaleFactor));
+                  onUpdate({ ...node, width: newWidth });
+                  
+                  // Update distance reference to keep scaling smooth relative to movement
+                  lastTouchRef.current.dist = newDist;
+              }
+          } else {
+              // --- BOARD ZOOM MODE ---
+              const newMid = getMidpoint(e.touches[0], e.touches[1]);
+              const newScale = Math.min(Math.max(0.1, transform.scale * scaleFactor), 5);
 
-          // Pivot zoom around midpoint
-          // P_new = Mid_new - (Mid_old - P_old) * scaleFactor - but simpler relative delta:
-          // Adjust transform position to keep world point under finger steady-ish
-          // Simplified: Just update scale and apply drag delta
-          
-          setTransform(prev => ({
-              scale: newScale,
-              x: prev.x + dx + (newMid.x - prev.x) * (1 - scaleFactor),
-              y: prev.y + dy + (newMid.y - prev.y) * (1 - scaleFactor)
-          }));
+              // Pan correction to keep midpoint stationary relative to fingers
+              const dx = newMid.x - lastTouchRef.current.x;
+              const dy = newMid.y - lastTouchRef.current.y;
 
-          lastTouchRef.current = { x: newMid.x, y: newMid.y, dist: newDist };
+              setTransform(prev => ({
+                  scale: newScale,
+                  // Simple pan + scale centered on screen for stability, or detailed pivot:
+                  // For simplicity and stability, we just pan slightly with the pinch center movement
+                  x: prev.x + dx, 
+                  y: prev.y + dy
+              }));
+              
+              lastTouchRef.current = { x: newMid.x, y: newMid.y, dist: newDist };
+          }
 
       } else if (e.touches.length === 1) {
           const t = e.touches[0];
           const dx = t.clientX - lastTouchRef.current.x;
           const dy = t.clientY - lastTouchRef.current.y;
 
-          if (longPressTimerRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+          // If moving significantly, cancel long press (it's a scroll/pan, not a hold)
+          if (longPressTimerRef.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
               clearTimeout(longPressTimerRef.current);
               longPressTimerRef.current = null;
           }
 
           if (isDraggingRef.current && draggedNodeId) {
+              // --- DRAG NODE ---
               const node = thoughts.find(n => n.id === draggedNodeId);
               if (node) {
                   onUpdate({ 
@@ -145,8 +173,8 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                       y: (node.y || 0) + dy / transform.scale 
                   });
               }
-          } else if (!draggedNodeId && !isPinchingRef.current) {
-              // Pan Board
+          } else if (!draggedNodeId && !isPinchingRef.current && !resizingImageIdRef.current) {
+              // --- PAN BOARD ---
               setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
           }
           lastTouchRef.current = { ...lastTouchRef.current, x: t.clientX, y: t.clientY };
@@ -161,6 +189,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       setDraggedNodeId(null);
       isDraggingRef.current = false;
       isPinchingRef.current = false;
+      resizingImageIdRef.current = null;
   };
 
   // --- ACTIONS ---
@@ -254,11 +283,11 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                         data-type={node.type}
                         onClick={() => {
                             if(connectingSourceId && connectingSourceId !== node.id) initiateLink(node.id, {} as any);
-                            else if (!isDraggingRef.current) setEditingNodeId(node.id);
+                            // Single click on annotation does nothing (allows editing), logic handled inside textarea focus usually
                         }}
                         className={`absolute flex flex-col items-center justify-center transition-all duration-200
-                            ${node.type === 'annotation' ? '' : 'rounded-2xl border shadow-xl backdrop-blur-md'}
-                            ${draggedNodeId === node.id ? 'scale-110 shadow-2xl z-[100]' : 'z-10'}
+                            ${node.type === 'annotation' ? 'opacity-70 hover:opacity-100' : 'rounded-2xl border shadow-xl backdrop-blur-md'}
+                            ${draggedNodeId === node.id ? 'scale-110 shadow-2xl z-[100] cursor-grabbing' : 'z-10'}
                             ${node.type === 'task_node' ? 'bg-[#18181b] border-l-4 border-l-emerald-500 border-white/10 w-64' : ''}
                             ${node.type === 'thought' ? 'bg-[#121214]/90 border-white/10 w-56' : ''}
                             ${node.type === 'image' ? 'p-1 bg-white/5 border-transparent' : ''}
@@ -288,8 +317,9 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                             <textarea
                                 value={node.content}
                                 onChange={(e) => onUpdate({ ...node, content: e.target.value })}
-                                className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden no-drag"
+                                className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden"
                                 style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}
+                                // Removing no-drag to allow long press detection on wrapper
                             />
                         ) : (
                             <div className="w-full p-4">
