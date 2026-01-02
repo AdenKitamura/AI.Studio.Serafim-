@@ -2,9 +2,9 @@
 // Serafim Google Services
 // Handles Auth, Drive Sync, Tasks, and Calendar interactions
 
-const CLIENT_ID = '471911508632-3k4nh72anrutqfgq83tdu6k1ahvs6pk.apps.googleusercontent.com';
-// Using the specific API Key provided in the technical assignment to ensure GAPI initializes correctly in the browser.
-const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs'; 
+// Applying .trim() to ensure no accidental spaces from copy-pasting cause 400/401 errors
+const CLIENT_ID = '471911508632-3k4nh72anrutqfgq83tdu6k1ahvs6pk.apps.googleusercontent.com'.trim();
+const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs'.trim();
 
 const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
@@ -21,9 +21,9 @@ let gisInited = false;
 // Helper to wait for GAPI script
 const waitForGapi = (): Promise<void> => {
   return new Promise((resolve) => {
-    if ((window as any).gapi) return resolve();
+    if ((window as any).gapi && (window as any).gapi.client) return resolve();
     const interval = setInterval(() => {
-      if ((window as any).gapi) {
+      if ((window as any).gapi && (window as any).gapi.client) {
         clearInterval(interval);
         resolve();
       }
@@ -84,10 +84,15 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
       }
       console.log('GIS Token Received');
       
-      // CRITICAL FIX: Pass the token to GAPI client!
-      // Without this, GAPI requests (Drive, Tasks) are unauthenticated even if GIS succeeded.
+      // CRITICAL FIX: Ensure GAPI is actually ready before setting the token.
+      // This prevents the race condition where auth finishes before GAPI loads.
+      await waitForGapi();
+
       if ((window as any).gapi && (window as any).gapi.client) {
           (window as any).gapi.client.setToken(resp);
+          console.log('GAPI Token Set Successfully');
+      } else {
+          console.error('CRITICAL: GAPI client not found when setting token');
       }
 
       // Store token loosely just for checks
@@ -102,7 +107,7 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
 
 export const signIn = () => {
   if (tokenClient) {
-    // Force prompt to ensure user selects account
+    // Force prompt to ensure user selects account and consents permissions
     tokenClient.requestAccessToken({ prompt: 'consent' });
   } else {
     console.warn('TokenClient not initialized yet. Waiting...');

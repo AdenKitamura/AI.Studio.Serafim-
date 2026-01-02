@@ -4,8 +4,8 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from 
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-// Use the same key as Google Services
-const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs';
+// Use the same key as Google Services with trim to avoid copy-paste errors
+const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs'.trim();
 
 // --- ИНСТРУКЦИЯ СЕРАФИМА (БАЗА ЗНАНИЙ) ---
 const APP_MANUAL = `
