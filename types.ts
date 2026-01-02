@@ -18,6 +18,12 @@ export interface ProjectColumn {
   id: string;
   title: string;
   order: number;
+  color?: string; // Column color indicator
+}
+
+export interface ProjectBoard {
+  id: string;
+  title: string;
 }
 
 export interface Project {
@@ -26,20 +32,21 @@ export interface Project {
   description?: string;
   color: string;
   createdAt: string;
-  columns?: ProjectColumn[]; // Kanban columns
+  columns?: ProjectColumn[];
+  boards?: ProjectBoard[]; // Multiple boards per project
 }
 
 export interface Task {
   id: string;
   title: string;
-  description?: string;
-  dueDate: string | null; // Nullable for backlog tasks
+  description?: string; // Notes/Description
+  dueDate: string | null;
   reminderTime?: string;
   isCompleted: boolean;
   priority: Priority;
   projectId?: string;
-  columnId?: string; // Kanban column linkage
-  attachments?: Attachment[]; // Files/Links
+  columnId?: string;
+  attachments?: Attachment[];
   createdAt: string;
 }
 
@@ -48,21 +55,24 @@ export type LinkType = 'related' | 'cause' | 'effect' | 'hypothesis' | 'blocker'
 export interface NodeLink {
   targetId: string;
   type: LinkType;
+  color?: string; // Custom link color
 }
 
 export interface Thought {
   id: string;
   content: string;
-  type: 'thought' | 'idea' | 'insight' | 'quote' | 'link' | 'file' | 'task_node';
+  type: 'thought' | 'idea' | 'insight' | 'quote' | 'link' | 'file' | 'task_node' | 'image' | 'annotation';
   tags: string[];
   author?: string;
   projectId?: string;
+  boardId?: string; // To allow multiple boards
   createdAt: string;
   x?: number;
   y?: number;
+  width?: number; // Custom width for images/annotations
   linkedIds?: string[];
   links?: NodeLink[];
-  attachments?: Attachment[]; // Files/Links for whiteboard nodes
+  attachments?: Attachment[];
   isArchived?: boolean; 
   metadata?: {
     url?: string;
@@ -71,6 +81,7 @@ export interface Thought {
     fileData?: string;
     isTaskSynced?: boolean;
     taskStatus?: boolean;
+    imageSrc?: string; // For image nodes
   };
 }
 
