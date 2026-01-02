@@ -16,12 +16,15 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import Fab from './components/Fab';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
+import NotificationModal from './components/NotificationModal';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { requestNotificationPermission, sendNotification, scheduleSystemNotification } from './services/notificationService';
+import { playAlarmSound } from './services/audioService';
 import { 
   Zap, Loader2, Settings as SettingsIcon
 } from 'lucide-react';
+import { addMinutes } from 'date-fns';
 
 // Extend window definition to store PWA prompt
 declare global {
@@ -47,6 +50,10 @@ const App = () => {
   const [showQuotes, setShowQuotes] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   
+  // ALARM STATE
+  const [activeAlarmTask, setActiveAlarmTask] = useState<Task | null>(null);
+  const [triggeredAlarms, setTriggeredAlarms] = useState<Set<string>>(new Set());
+
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
   const [thoughts, setThoughts] = useState<Thought[]>([]);
@@ -73,35 +80,84 @@ const App = () => {
     requestNotificationPermission();
   }, []);
 
-  // --- NOTIFICATION SCHEDULING (HYBRID: Polling + System Triggers) ---
+  // --- ALARM CLOCK LOGIC (1 Second Precision) ---
   useEffect(() => {
-    // 1. SYSTEM LEVEL: Register all future tasks with Service Worker
-    // This allows notifications to fire even if app is killed (on supported Androids)
+    // 1. Register future tasks with System SW (for background redundancy)
     tasks.forEach(task => {
         if (!task.isCompleted && task.dueDate) {
             scheduleSystemNotification(task);
         }
     });
 
-    // 2. APP LEVEL: Fallback polling for open app / unsupported browsers
+    // 2. High Precision In-App Loop
     const interval = setInterval(() => {
-      const now = new Date();
-      const currentMinute = now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+      const now = new Date().getTime();
 
       tasks.forEach(task => {
-        if (!task.isCompleted && task.dueDate) {
-          const taskTime = task.dueDate.slice(0, 16);
-          // Simple check to avoid double firing if SW also fires
-          // (SW usually handles tag deduplication, but this is safety)
-          if (taskTime === currentMinute && now.getSeconds() < 10) {
-             sendNotification(`Напоминание: ${task.title}`, "Пора выполнить задачу!");
-          }
+        // Skip completed or dateless tasks
+        if (!task.dueDate || task.isCompleted) return;
+
+        // Skip if already triggered in this session to avoid infinite loop
+        if (triggeredAlarms.has(task.id)) return;
+
+        const dueTime = new Date(task.dueDate).getTime();
+        
+        // Trigger if time has passed (within last 60 seconds tolerance to catch missed ones)
+        // OR exactly now.
+        if (now >= dueTime && (now - dueTime) < 60000) {
+           triggerAlarm(task);
         }
       });
-    }, 30000);
+    }, 1000); // Check every second
 
     return () => clearInterval(interval);
-  }, [tasks]);
+  }, [tasks, triggeredAlarms]);
+
+  const triggerAlarm = (task: Task) => {
+    // 1. Mark as triggered so we don't spam
+    setTriggeredAlarms(prev => new Set(prev).add(task.id));
+    
+    // 2. Play Sound
+    playAlarmSound();
+
+    // 3. Vibrate device (if supported)
+    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
+
+    // 4. Show Modal (UI)
+    setActiveAlarmTask(task);
+
+    // 5. Send System Notification (Backup)
+    sendNotification(`Напоминание: ${task.title}`, "Время пришло! Нажмите, чтобы открыть.");
+  };
+
+  // --- ALARM HANDLERS ---
+  const handleAlarmComplete = () => {
+    if (activeAlarmTask) {
+      handleUpdateTask(activeAlarmTask.id, { isCompleted: true });
+      setActiveAlarmTask(null);
+    }
+  };
+
+  const handleAlarmSnooze = (minutes: number) => {
+    if (activeAlarmTask && activeAlarmTask.dueDate) {
+      const newTime = addMinutes(new Date(), minutes).toISOString();
+      handleUpdateTask(activeAlarmTask.id, { dueDate: newTime });
+      // Remove from triggered set so it can trigger again later
+      setTriggeredAlarms(prev => {
+        const next = new Set(prev);
+        next.delete(activeAlarmTask.id);
+        return next;
+      });
+      setActiveAlarmTask(null);
+    }
+  };
+
+  const handleAlarmReschedule = () => {
+     // Just close modal, user can edit manually. 
+     // Or we could navigate to planner.
+     if(activeAlarmTask) navigateTo('planner');
+     setActiveAlarmTask(null);
+  };
 
   // --- THEME & APPEARANCE HANDLING ---
   useEffect(() => {
@@ -237,7 +293,7 @@ const App = () => {
   };
 
   // Check if any modal is open to trigger scale effect
-  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
+  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer || activeAlarmTask;
 
   if (!userName && isDataReady) return <Onboarding onComplete={handleOnboardingComplete} />;
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
@@ -358,6 +414,17 @@ const App = () => {
       </div>
 
       {/* MODALS LAYER (Above Scaled Content) */}
+      {/* ALARM MODAL */}
+      {activeAlarmTask && (
+        <NotificationModal 
+          task={activeAlarmTask}
+          onClose={() => setActiveAlarmTask(null)}
+          onComplete={handleAlarmComplete}
+          onSnooze={handleAlarmSnooze}
+          onReschedule={handleAlarmReschedule}
+        />
+      )}
+
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
       {showQuotes && <QuotesLibrary myQuotes={thoughts} onAddQuote={(text, author, cat) => setThoughts([{id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString()}, ...thoughts])} onDeleteQuote={(id) => setThoughts(thoughts.filter(t => t.id !== id))} onClose={() => setShowQuotes(false)} />}
       
