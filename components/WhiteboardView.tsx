@@ -7,7 +7,7 @@ import {
   Wrench, LayoutGrid, Focus, Trash2,
   Sparkles, PlusCircle, ArrowRight, Circle,
   Paperclip, Image as ImageIcon, FileText, GitBranch,
-  Type as TypeIcon, Palette
+  Type as TypeIcon, Palette, Link2
 } from 'lucide-react';
 
 interface WhiteboardViewProps {
@@ -18,25 +18,24 @@ interface WhiteboardViewProps {
   onDelete: (id: string) => void;
 }
 
-const LINK_COLORS = ['#94a3b8', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899'];
-
 const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId, onAdd, onUpdate, onDelete }) => {
   // Transform State (Pan/Zoom)
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
-  const [isPanning, setIsPanning] = useState(false);
   
   // Interaction State
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
-  const [linkingSourceId, setLinkingSourceId] = useState<string | null>(null);
-  const [tempLinkEnd, setTempLinkEnd] = useState<{x: number, y: number} | null>(null);
+  const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null); // For connecting lines
   
+  // Gesture State
+  const lastTouchRef = useRef<{ x: number, y: number, dist: number }>({ x: 0, y: 0, dist: 0 });
+  const isPinchingRef = useRef(false);
+  const resizingImageIdRef = useRef<string | null>(null); // Track if we are resizing an image
+
   // UI State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [linkMenu, setLinkMenu] = useState<{ x: number, y: number, sourceId: string, targetId: string } | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastMousePos = useRef({ x: 0, y: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initial Center
@@ -45,6 +44,19 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
   }, []);
 
   // --- HELPERS ---
+  const getDistance = (t1: React.Touch, t2: React.Touch) => {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getMidpoint = (t1: React.Touch, t2: React.Touch) => {
+      return {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2
+      };
+  };
+
   const screenToWorld = (screenX: number, screenY: number) => {
       return {
           x: (screenX - transform.x) / transform.scale,
@@ -52,73 +64,131 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       };
   };
 
-  // --- INPUT HANDLERS (Performance Optimized) ---
-  const handleWheel = (e: React.WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          const zoomSensitivity = 0.001;
-          const delta = -e.deltaY * zoomSensitivity;
-          const newScale = Math.min(Math.max(0.1, transform.scale + delta), 5);
+  // --- TOUCH HANDLERS (Gestures) ---
+  
+  const handleTouchStart = (e: React.TouchEvent) => {
+      if (e.touches.length === 2) {
+          isPinchingRef.current = true;
+          // Check if both touches are on an image node to trigger resize
+          const target1 = e.touches[0].target as HTMLElement;
+          const imgNode = target1.closest('[data-type="image"]');
           
-          // Zoom towards pointer
-          const worldPos = screenToWorld(e.clientX, e.clientY);
-          const newX = e.clientX - worldPos.x * newScale;
-          const newY = e.clientY - worldPos.y * newScale;
+          if (imgNode) {
+              resizingImageIdRef.current = imgNode.getAttribute('data-node-id');
+          } else {
+              resizingImageIdRef.current = null;
+          }
 
-          setTransform({ x: newX, y: newY, scale: newScale });
-      } else {
-          setTransform(prev => ({ ...prev, x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
+          lastTouchRef.current.dist = getDistance(e.touches[0], e.touches[1]);
+          // If board zoom, store midpoint
+          if (!resizingImageIdRef.current) {
+             const mid = getMidpoint(e.touches[0], e.touches[1]);
+             lastTouchRef.current.x = mid.x;
+             lastTouchRef.current.y = mid.y;
+          }
+      } else if (e.touches.length === 1) {
+          isPinchingRef.current = false;
+          lastTouchRef.current.x = e.touches[0].clientX;
+          lastTouchRef.current.y = e.touches[0].clientY;
+          
+          const target = e.target as HTMLElement;
+          // Drag node check
+          const nodeEl = target.closest('[data-node-id]');
+          if (nodeEl && !target.closest('.no-drag')) {
+              setDraggedNodeId(nodeEl.getAttribute('data-node-id'));
+          } else if (!target.closest('.ui-layer')) {
+              // Pan board start
+          }
       }
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest('.node-interactive') || target.closest('.ui-layer')) return;
-      
-      setIsPanning(true);
-      setEditingNodeId(null);
-      setLinkMenu(null);
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
-      containerRef.current?.setPointerCapture(e.pointerId);
+  const handleTouchMove = (e: React.TouchEvent) => {
+      if (e.touches.length === 2 && isPinchingRef.current) {
+          const newDist = getDistance(e.touches[0], e.touches[1]);
+          const scaleFactor = newDist / lastTouchRef.current.dist;
+
+          if (resizingImageIdRef.current) {
+              // --- IMAGE RESIZE ---
+              const node = thoughts.find(n => n.id === resizingImageIdRef.current);
+              if (node) {
+                  const currentWidth = node.width || 200; // Default width
+                  // Apply scale factor to width
+                  const newWidth = Math.max(100, Math.min(800, currentWidth * scaleFactor));
+                  onUpdate({ ...node, width: newWidth });
+              }
+          } else {
+              // --- BOARD ZOOM ---
+              const newScale = Math.min(Math.max(0.1, transform.scale * scaleFactor), 5);
+              
+              // Zoom towards center of pinch
+              const mid = getMidpoint(e.touches[0], e.touches[1]);
+              const worldMid = screenToWorld(mid.x, mid.y);
+              
+              // Adjust position to keep worldMid under mid
+              const newX = mid.x - worldMid.x * newScale;
+              const newY = mid.y - worldMid.y * newScale;
+
+              setTransform({ x: newX, y: newY, scale: newScale });
+          }
+          lastTouchRef.current.dist = newDist;
+
+      } else if (e.touches.length === 1 && !isPinchingRef.current) {
+          const dx = e.touches[0].clientX - lastTouchRef.current.x;
+          const dy = e.touches[0].clientY - lastTouchRef.current.y;
+
+          if (draggedNodeId) {
+              // --- DRAG NODE ---
+              const node = thoughts.find(n => n.id === draggedNodeId);
+              if (node) {
+                  onUpdate({ ...node, x: (node.x || 0) + dx / transform.scale, y: (node.y || 0) + dy / transform.scale });
+              }
+          } else {
+              // --- PAN BOARD ---
+              setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+          }
+          lastTouchRef.current.x = e.touches[0].clientX;
+          lastTouchRef.current.y = e.touches[0].clientY;
+      }
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-      if (isPanning) {
-          const dx = e.clientX - lastMousePos.current.x;
-          const dy = e.clientY - lastMousePos.current.y;
-          setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
-          lastMousePos.current = { x: e.clientX, y: e.clientY };
-      } else if (draggedNodeId) {
-          const dx = (e.clientX - lastMousePos.current.x) / transform.scale;
-          const dy = (e.clientY - lastMousePos.current.y) / transform.scale;
+  const handleTouchEnd = () => {
+      setDraggedNodeId(null);
+      isPinchingRef.current = false;
+      resizingImageIdRef.current = null;
+  };
+
+  // --- MOUSE HANDLERS (Fallback for desktop) ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.ui-layer')) return;
+      const nodeEl = target.closest('[data-node-id]');
+      
+      if (nodeEl && !target.closest('.no-drag')) {
+          setDraggedNodeId(nodeEl.getAttribute('data-node-id'));
+      }
+      lastTouchRef.current.x = e.clientX;
+      lastTouchRef.current.y = e.clientY;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+      if (e.buttons !== 1) return; // Only drag on left click
+      const dx = e.clientX - lastTouchRef.current.x;
+      const dy = e.clientY - lastTouchRef.current.y;
+
+      if (draggedNodeId) {
           const node = thoughts.find(n => n.id === draggedNodeId);
           if (node) {
-              onUpdate({ ...node, x: (node.x || 0) + dx, y: (node.y || 0) + dy });
+              onUpdate({ ...node, x: (node.x || 0) + dx / transform.scale, y: (node.y || 0) + dy / transform.scale });
           }
-          lastMousePos.current = { x: e.clientX, y: e.clientY };
-      } else if (linkingSourceId) {
-          const worldPos = screenToWorld(e.clientX, e.clientY);
-          setTempLinkEnd(worldPos);
+      } else {
+          setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
       }
+      lastTouchRef.current.x = e.clientX;
+      lastTouchRef.current.y = e.clientY;
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-      setIsPanning(false);
+  const handleMouseUp = () => {
       setDraggedNodeId(null);
-      
-      if (linkingSourceId) {
-          // Check if dropped on a node
-          const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-node-id]');
-          if (targetEl) {
-              const targetId = targetEl.getAttribute('data-node-id');
-              if (targetId && targetId !== linkingSourceId) {
-                  setLinkMenu({ x: e.clientX, y: e.clientY, sourceId: linkingSourceId, targetId });
-              }
-          }
-          setLinkingSourceId(null);
-          setTempLinkEnd(null);
-      }
-      containerRef.current?.releasePointerCapture(e.pointerId);
   };
 
   // --- ACTIONS ---
@@ -132,7 +202,8 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
           createdAt: new Date().toISOString(),
           x: pos.x,
           y: pos.y,
-          metadata
+          metadata,
+          width: type === 'image' ? 200 : undefined
       });
       setIsMenuOpen(false);
   };
@@ -146,16 +217,26 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       }
   };
 
-  const createLink = (color: string) => {
-      if (linkMenu) {
-          const source = thoughts.find(n => n.id === linkMenu.sourceId);
+  const initiateLink = (nodeId: string, e: React.MouseEvent | React.TouchEvent) => {
+      e.stopPropagation();
+      if (connectingSourceId === nodeId) {
+          setConnectingSourceId(null); // Cancel
+      } else if (connectingSourceId) {
+          // Complete Connection
+          const source = thoughts.find(n => n.id === connectingSourceId);
           if (source) {
-              onUpdate({
-                  ...source,
-                  links: [...(source.links || []), { targetId: linkMenu.targetId, type: 'related', color }]
-              });
+              // Avoid duplicates
+              if (!source.links?.some(l => l.targetId === nodeId)) {
+                  onUpdate({
+                      ...source,
+                      links: [...(source.links || []), { targetId: nodeId, type: 'related', color: '#555' }]
+                  });
+              }
           }
-          setLinkMenu(null);
+          setConnectingSourceId(null);
+      } else {
+          // Start Connection
+          setConnectingSourceId(nodeId);
       }
   };
 
@@ -164,10 +245,12 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
     <div 
         ref={containerRef}
         className="w-full h-full relative overflow-hidden bg-[#0a0a0a] touch-none select-none cursor-grab active:cursor-grabbing"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
     >
         {/* GRID BACKGROUND (Moves with transform) */}
         <div 
@@ -187,30 +270,17 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
         >
             {/* LINKS LAYER (SVG) */}
             <svg className="absolute top-[-50000px] left-[-50000px] w-[100000px] h-[100000px] pointer-events-none overflow-visible">
-                <defs>
-                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="20" refY="3" orient="auto">
-                        <path d="M0,0 L0,6 L9,3 z" fill="#555" />
-                    </marker>
-                </defs>
                 {thoughts.map(node => (node.links || []).map((link, i) => {
                     const target = thoughts.find(n => n.id === link.targetId);
                     if(!target) return null;
-                    // Coordinate offset handled by SVG wrapper big size
                     const sx = 50000 + (node.x || 0); 
                     const sy = 50000 + (node.y || 0);
                     const tx = 50000 + (target.x || 0);
                     const ty = 50000 + (target.y || 0);
-                    return <line key={`${node.id}-${i}`} x1={sx} y1={sy} x2={tx} y2={ty} stroke={link.color || '#555'} strokeWidth="2" markerEnd="url(#arrow)" />;
+                    return <line key={`${node.id}-${i}`} x1={sx} y1={sy} x2={tx} y2={ty} stroke={link.color || '#555'} strokeWidth="2" strokeOpacity="0.6" />;
                 }))}
-                {linkingSourceId && tempLinkEnd && (() => {
-                    const source = thoughts.find(n => n.id === linkingSourceId);
-                    if(!source) return null;
-                    const sx = 50000 + (source.x || 0);
-                    const sy = 50000 + (source.y || 0);
-                    const tx = 50000 + tempLinkEnd.x;
-                    const ty = 50000 + tempLinkEnd.y;
-                    return <line x1={sx} y1={sy} x2={tx} y2={ty} stroke="white" strokeDasharray="5,5" strokeWidth="2" />;
-                })()}
+                
+                {/* Visual feedback line would go here if we tracked cursor pos, currently we just highlight nodes */}
             </svg>
 
             {/* NODES LAYER */}
@@ -218,58 +288,55 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                 <div
                     key={node.id}
                     data-node-id={node.id}
-                    onPointerDown={(e) => {
-                        e.stopPropagation();
-                        // Drag logic
-                        if((e.target as HTMLElement).closest('.resize-handle')) return;
-                        setDraggedNodeId(node.id);
-                        setEditingNodeId(node.id);
-                        lastMousePos.current = { x: e.clientX, y: e.clientY };
-                    }}
-                    className={`absolute node-interactive group flex flex-col items-center justify-center transition-shadow duration-200
+                    data-type={node.type}
+                    onClick={() => { if(connectingSourceId && connectingSourceId !== node.id) initiateLink(node.id, {} as any); }}
+                    className={`absolute flex flex-col items-center justify-center transition-all duration-200
                         ${node.type === 'annotation' ? '' : 'rounded-2xl border shadow-xl backdrop-blur-md'}
                         ${editingNodeId === node.id ? 'ring-2 ring-[var(--accent)] z-50' : 'z-10'}
                         ${node.type === 'task_node' ? 'bg-[#18181b] border-l-4 border-l-emerald-500 border-white/10 w-64' : ''}
                         ${node.type === 'thought' ? 'bg-[#121214]/90 border-white/10 w-56' : ''}
                         ${node.type === 'image' ? 'p-1 bg-white/5 border-transparent' : ''}
+                        ${connectingSourceId === node.id ? 'ring-4 ring-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.5)]' : ''}
+                        ${connectingSourceId && connectingSourceId !== node.id ? 'hover:ring-2 hover:ring-yellow-500/50 cursor-pointer' : ''}
                     `}
                     style={{
                         left: node.x, top: node.y,
-                        transform: 'translate(-50%, -50%)'
+                        transform: 'translate(-50%, -50%)',
+                        width: node.type === 'image' ? (node.width || 200) : undefined // Apply resized width
                     }}
                 >
+                    {/* Link Trigger Button (On every node) */}
+                    <button 
+                        onClick={(e) => initiateLink(node.id, e)}
+                        className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center border no-drag transition-all z-20 ${connectingSourceId === node.id ? 'bg-yellow-500 text-black border-yellow-500 rotate-12 scale-110' : 'bg-[#18181b] text-white/50 border-white/10 hover:text-white hover:border-[var(--accent)]'}`}
+                    >
+                        <Link2 size={14} />
+                    </button>
+
                     {/* Node Content */}
                     {node.type === 'image' ? (
-                        <div className="relative group/img">
-                            <img src={node.metadata?.imageSrc} className="max-w-xs rounded-lg shadow-lg pointer-events-none" />
-                            <button onClick={() => onDelete(node.id)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-auto"><X size={12}/></button>
+                        <div className="relative group/img w-full h-full">
+                            <img src={node.metadata?.imageSrc} className="w-full h-full rounded-lg shadow-lg pointer-events-none select-none" />
+                            <button onTouchEnd={() => onDelete(node.id)} onMouseUp={() => onDelete(node.id)} className="no-drag absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-auto"><X size={12}/></button>
                         </div>
                     ) : node.type === 'annotation' ? (
                         <textarea
                             value={node.content}
                             onChange={(e) => onUpdate({ ...node, content: e.target.value })}
-                            className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden"
+                            className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden no-drag"
                             style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}
-                            onPointerDown={e => e.stopPropagation()} // Allow selecting text
                         />
                     ) : (
                         <div className="w-full p-4">
                             <div className="flex justify-between items-center mb-2 opacity-50 text-[10px] font-black uppercase tracking-widest">
                                 <span>{node.type === 'task_node' ? 'Цель' : 'Заметка'}</span>
-                                <div className="flex gap-1">
-                                    <div 
-                                        className="w-4 h-4 bg-white/10 rounded-full cursor-crosshair hover:bg-[var(--accent)] pointer-events-auto"
-                                        onPointerDown={(e) => { e.stopPropagation(); setLinkingSourceId(node.id); setTempLinkEnd({x: node.x||0, y: node.y||0}); }}
-                                    />
-                                    <button onClick={() => onDelete(node.id)} className="hover:text-red-500"><X size={12}/></button>
-                                </div>
+                                <button onTouchEnd={() => onDelete(node.id)} onMouseUp={() => onDelete(node.id)} className="hover:text-red-500 no-drag"><X size={12}/></button>
                             </div>
                             <textarea
                                 value={node.content}
                                 onChange={(e) => onUpdate({ ...node, content: e.target.value })}
-                                className="w-full bg-transparent text-white text-sm outline-none resize-none font-medium pointer-events-auto"
+                                className="w-full bg-transparent text-white text-sm outline-none resize-none font-medium pointer-events-auto no-drag"
                                 rows={3}
-                                onPointerDown={e => e.stopPropagation()}
                             />
                         </div>
                     )}
@@ -279,52 +346,37 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
 
         {/* UI LAYER (Static) */}
         <div className="absolute inset-0 pointer-events-none ui-layer">
-            {/* Tools Menu */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto">
-                <div className={`flex gap-2 bg-[#18181b]/80 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl transition-all ${isMenuOpen ? 'scale-100 opacity-100' : 'scale-90 opacity-0 pointer-events-none translate-y-10'}`}>
-                    <button onClick={() => createNode('task_node')} className="flex flex-col items-center gap-1 p-2 hover:bg-white/10 rounded-xl w-16">
-                        <Target size={20} className="text-emerald-400"/> <span className="text-[8px]">Цель</span>
+            
+            {/* Context Info */}
+            {connectingSourceId && (
+                <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest animate-pulse shadow-lg pointer-events-auto" onClick={() => setConnectingSourceId(null)}>
+                    Выберите объект для связи... (Нажми чтобы отменить)
+                </div>
+            )}
+
+            {/* Tools Menu (Bottom Left) */}
+            <div className="absolute bottom-8 left-8 flex flex-col items-start gap-4 pointer-events-auto">
+                <div className={`flex flex-col gap-2 bg-[#18181b]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl transition-all origin-bottom-left ${isMenuOpen ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none translate-y-10'}`}>
+                    <button onClick={() => createNode('task_node')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <Target size={18} className="text-emerald-400"/> <span className="text-[10px] font-bold text-white">Цель</span>
                     </button>
-                    <button onClick={() => createNode('thought')} className="flex flex-col items-center gap-1 p-2 hover:bg-white/10 rounded-xl w-16">
-                        <PlusCircle size={20} className="text-blue-400"/> <span className="text-[8px]">Заметка</span>
+                    <button onClick={() => createNode('thought')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <PlusCircle size={18} className="text-blue-400"/> <span className="text-[10px] font-bold text-white">Заметка</span>
                     </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-1 p-2 hover:bg-white/10 rounded-xl w-16">
-                        <ImageIcon size={20} className="text-purple-400"/> <span className="text-[8px]">Фото</span>
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <ImageIcon size={18} className="text-purple-400"/> <span className="text-[10px] font-bold text-white">Фото</span>
                     </button>
-                    <button onClick={() => createNode('annotation')} className="flex flex-col items-center gap-1 p-2 hover:bg-white/10 rounded-xl w-16">
-                        <TypeIcon size={20} className="text-yellow-400"/> <span className="text-[8px]">Текст</span>
+                    <button onClick={() => createNode('annotation')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <TypeIcon size={18} className="text-yellow-400"/> <span className="text-[10px] font-bold text-white">Текст</span>
                     </button>
                 </div>
                 <button 
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="h-14 w-14 bg-[var(--accent)] rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 transition-transform"
+                    className="h-14 w-14 bg-[var(--accent)] rounded-full flex items-center justify-center text-white shadow-[0_0_30px_var(--accent-glow)] hover:scale-110 transition-transform active:scale-90"
                 >
                     <Plus size={28} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-45' : ''}`} />
                 </button>
             </div>
-
-            {/* Zoom Controls */}
-            <div className="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto">
-                <button onClick={() => setTransform(prev => ({...prev, scale: prev.scale + 0.1}))} className="p-3 bg-[#18181b] border border-white/10 rounded-xl text-white hover:bg-white/10">+</button>
-                <button onClick={() => setTransform(prev => ({...prev, scale: Math.max(0.1, prev.scale - 0.1)}))} className="p-3 bg-[#18181b] border border-white/10 rounded-xl text-white hover:bg-white/10">-</button>
-            </div>
-
-            {/* Link Menu Modal */}
-            {linkMenu && (
-                <div 
-                    className="absolute pointer-events-auto bg-[#18181b] p-2 rounded-xl border border-white/10 shadow-2xl flex gap-2"
-                    style={{ left: linkMenu.x, top: linkMenu.y }}
-                >
-                    {LINK_COLORS.map(c => (
-                        <button 
-                            key={c}
-                            onClick={() => createLink(c)}
-                            className="w-6 h-6 rounded-full border border-white/20 hover:scale-125 transition-transform"
-                            style={{ backgroundColor: c }}
-                        />
-                    ))}
-                </div>
-            )}
         </div>
 
         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />

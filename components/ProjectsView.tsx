@@ -7,7 +7,7 @@ import {
   Calendar, Clock, AlertCircle, Paperclip,
   Link as LinkIcon, FileText, Image as ImageIcon,
   MoreVertical, Layout, Grid, List, Edit2, Move,
-  ChevronRight, Mic, Palette, Maximize2, Download
+  ChevronRight, Mic, Palette, Maximize2, Download, Eye
 } from 'lucide-react';
 import TaskItem from './TaskItem';
 import WhiteboardView from './WhiteboardView'; 
@@ -50,6 +50,9 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   const [viewingTask, setViewingTask] = useState<Task | null>(null); // For Detail View
   const [isTaskCreateOpen, setIsTaskCreateOpen] = useState(false); // For Simple Create
   const [createColumnId, setCreateColumnId] = useState<string>('');
+  
+  // Preview State
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
 
   // Task Form (Shared)
   const [taskForm, setTaskForm] = useState<{
@@ -205,6 +208,15 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
       reader.readAsDataURL(file);
   };
 
+  const handleDeleteAttachment = (e: React.MouseEvent, attId: string) => {
+      e.stopPropagation();
+      const newAttachments = taskForm.attachments.filter(a => a.id !== attId);
+      setTaskForm(prev => ({ ...prev, attachments: newAttachments }));
+      if (viewingTask) {
+          onUpdateTask(viewingTask.id, { attachments: newAttachments });
+      }
+  };
+
   // --- BOARD MANAGEMENT ---
   const handleAddBoard = () => {
       const title = prompt("Название доски:");
@@ -215,20 +227,10 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
       }
   };
 
-  const handleDeleteBoard = (boardId: string) => {
-      if(selectedProject && (selectedProject.boards?.length || 0) > 1) {
-          if(confirm('Удалить доску?')) {
-              onUpdateProject(selectedProject.id, { boards: selectedProject.boards!.filter(b => b.id !== boardId) });
-              setActiveBoardId(selectedProject.boards![0].id);
-          }
-      }
-  };
-
   // --- COLUMNS ---
   const handleChangeColumnColor = (colId: string) => {
       const col = selectedProject?.columns?.find(c => c.id === colId);
       if(!col || !selectedProject) return;
-      // In a real app, a color picker modal. Here, cycle random/preset.
       const nextColor = COLORS[(COLORS.indexOf(col.color || COLORS[0]) + 1) % COLORS.length];
       const updated = selectedProject.columns!.map(c => c.id === colId ? {...c, color: nextColor} : c);
       onUpdateProject(selectedProject.id, { columns: updated });
@@ -268,7 +270,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                 <List size={14} /> ЗАДАЧИ
             </button>
             <button onClick={() => setActiveTab('canvas')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'canvas' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}>
-                <Layout size={14} /> ВОР-РУМ
+                <Layout size={14} /> ДОСКА
             </button>
           </div>
         </div>
@@ -309,7 +311,6 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                            </div>
                        );
                    })}
-                   {/* Add Col Button here if needed */}
                </div>
             </div>
           )}
@@ -430,17 +431,31 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                             {taskForm.attachments.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
                                     {taskForm.attachments.map(att => (
-                                        <div key={att.id} className="relative group rounded-xl overflow-hidden border border-[var(--border-color)] bg-[var(--bg-item)] aspect-square flex flex-col">
+                                        <div 
+                                            key={att.id} 
+                                            onClick={() => setPreviewAttachment(att)}
+                                            className="relative group rounded-xl overflow-hidden border border-[var(--border-color)] bg-[var(--bg-item)] aspect-square flex flex-col cursor-zoom-in"
+                                        >
                                             {att.type === 'image' ? (
                                                 <img src={att.content} className="w-full h-full object-cover" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]"><FileText size={32}/></div>
                                             )}
-                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button className="p-2 bg-white/10 rounded-full text-white hover:bg-white/20"><Maximize2 size={16}/></button>
-                                                <button onClick={() => setTaskForm(prev => ({...prev, attachments: prev.attachments.filter(a => a.id !== att.id)}))} className="p-2 bg-red-500/20 text-red-500 rounded-full hover:bg-red-500/40"><Trash2 size={16}/></button>
+                                            
+                                            {/* Hover Overlay */}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                                <Eye size={24} className="text-white" />
                                             </div>
-                                            <div className="absolute bottom-0 w-full p-2 bg-black/50 text-[9px] text-white truncate">{att.name}</div>
+
+                                            {/* Delete Button */}
+                                            <button 
+                                                onClick={(e) => handleDeleteAttachment(e, att.id)} 
+                                                className="absolute top-2 right-2 p-1.5 bg-black/50 text-white/70 hover:text-red-500 rounded-full hover:bg-black/70 pointer-events-auto"
+                                            >
+                                                <Trash2 size={14}/>
+                                            </button>
+
+                                            <div className="absolute bottom-0 w-full p-2 bg-black/60 backdrop-blur-sm text-[9px] text-white truncate">{att.name}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -480,6 +495,32 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                             Сохранить изменения
                         </button>
                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- ATTACHMENT PREVIEW MODAL --- */}
+        {previewAttachment && (
+            <div 
+                className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-in zoom-in-95"
+                onClick={() => setPreviewAttachment(null)}
+            >
+                <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+                    {previewAttachment.type === 'image' ? (
+                        <img src={previewAttachment.content} className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain" />
+                    ) : (
+                        <div className="w-80 h-80 bg-white/10 rounded-2xl flex flex-col items-center justify-center gap-4 text-white">
+                            <FileText size={64} />
+                            <p className="text-xl font-bold">{previewAttachment.name}</p>
+                            <a href={previewAttachment.content} download className="px-6 py-2 bg-[var(--accent)] rounded-lg font-bold">Скачать</a>
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => setPreviewAttachment(null)} 
+                        className="absolute -top-12 right-0 text-white/50 hover:text-white p-2"
+                    >
+                        <X size={32} />
+                    </button>
                 </div>
             </div>
         )}
