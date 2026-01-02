@@ -19,8 +19,8 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
     setStatus('Анализирую запрос...');
 
     try {
-      // Fix: Create a new GoogleGenAI instance right before making an API call
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Fix: Use the same hardcoded key to ensure functionality
+      const ai = new GoogleGenAI({ apiKey: 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview', // Upgraded to Pro
         contents: `User request: "${input}". 

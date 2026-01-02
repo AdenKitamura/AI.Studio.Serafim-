@@ -16,22 +16,25 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import Fab from './components/Fab';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
-import NotificationModal from './components/NotificationModal';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
-import { requestNotificationPermission, sendNotification } from './services/notificationService';
-import { playAlarmSound, initAudioSystem } from './services/audioService';
+import { requestNotificationPermission } from './services/notificationService';
+import * as googleService from './services/googleService';
 import { 
-  Zap, Loader2, Settings as SettingsIcon
+  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw
 } from 'lucide-react';
-import { addMinutes } from 'date-fns';
+import { addMinutes, addHours } from 'date-fns';
 
 // Extend window definition to store PWA prompt
 declare global {
   interface Window {
     deferredPrompt: any;
+    google: any;
+    gapi: any;
   }
 }
+
+type SyncStatus = 'offline' | 'synced' | 'syncing' | 'error' | 'auth_needed';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
@@ -49,10 +52,11 @@ const App = () => {
   const [showPWAInstall, setShowPWAInstall] = useState(false);
   const [showQuotes, setShowQuotes] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
-  
-  // ALARM STATE
-  const [activeAlarmTask, setActiveAlarmTask] = useState<Task | null>(null);
-  const [triggeredAlarms, setTriggeredAlarms] = useState<Set<string>>(new Set());
+
+  // GOOGLE / SYNC STATE
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
+  const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
+  const syncTimeoutRef = useRef<any>(null);
 
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -64,11 +68,70 @@ const App = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
+  // --- INIT GOOGLE SERVICES ---
+  useEffect(() => {
+    const initGoogle = async () => {
+      try {
+        // Only set status to synced AFTER successful init and optional restoration
+        await googleService.initGapiClient();
+        await googleService.initGisClient(async () => {
+          // Callback when token received (User Signed In via popup)
+          setSyncStatus('synced');
+          const profile = await googleService.getUserProfile();
+          setGoogleUser(profile);
+        });
+        
+        // Initial online check
+        setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
+
+        // Check if we have a token from a previous session in this load (unlikely for pure oauth2 without storage, but safety check)
+        if(googleService.checkSignInStatus()) {
+             const profile = await googleService.getUserProfile();
+             setGoogleUser(profile);
+             setSyncStatus('synced');
+        }
+
+      } catch (e) {
+        console.error("Google Init Failed", e);
+        setSyncStatus('error');
+      }
+    };
+    initGoogle();
+
+    window.addEventListener('online', () => setSyncStatus('auth_needed'));
+    window.addEventListener('offline', () => setSyncStatus('offline'));
+  }, []);
+
+  // --- AUTO SYNC LOGIC (Drive) ---
+  const triggerAutoSync = useCallback(() => {
+    // CRITICAL: Do not sync if error, offline, or auth is missing.
+    if (syncStatus === 'offline' || syncStatus === 'auth_needed' || syncStatus === 'error') return;
+
+    setSyncStatus('syncing');
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+
+    syncTimeoutRef.current = setTimeout(async () => {
+      try {
+        const fullDump = { tasks, thoughts, journal, projects, habits, sessions, user: userName };
+        const result = await googleService.syncToDrive(fullDump);
+        if (result) setSyncStatus('synced');
+        else setSyncStatus('auth_needed'); // Fallback if sync skipped
+      } catch (e) {
+        console.error("Auto Sync Failed", e);
+        // Do not set global error state to avoid blocking UI, just visual indicator
+        setSyncStatus('error'); 
+      }
+    }, 5000); // Debounce 5 seconds
+  }, [tasks, thoughts, journal, projects, habits, sessions, userName, syncStatus]);
+
+  useEffect(() => {
+    if (isDataReady) triggerAutoSync();
+  }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady, triggerAutoSync]);
+
   // --- PWA PROMPT CAPTURE ---
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
-      // Store event globally for Settings component to use
       window.deferredPrompt = e;
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -79,79 +142,6 @@ const App = () => {
   useEffect(() => {
     requestNotificationPermission();
   }, []);
-
-  // --- GLOBAL INTERACTION HANDLER (For Audio Keep-Alive) ---
-  const handleInteraction = useCallback(() => {
-     // Initialize the silent audio loop on first click to keep app running in background
-     initAudioSystem();
-  }, []);
-
-  // --- ALARM CLOCK LOGIC (1 Second Precision) ---
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-
-      tasks.forEach(task => {
-        // Skip completed or dateless tasks
-        if (!task.dueDate || task.isCompleted) return;
-
-        // Skip if already triggered in this session
-        if (triggeredAlarms.has(task.id)) return;
-
-        const dueTime = new Date(task.dueDate).getTime();
-        
-        // Trigger logic
-        if (now >= dueTime && (now - dueTime) < 60000) {
-           triggerAlarm(task);
-        }
-      });
-    }, 1000); // Check every second
-
-    return () => clearInterval(interval);
-  }, [tasks, triggeredAlarms]);
-
-  const triggerAlarm = (task: Task) => {
-    setTriggeredAlarms(prev => new Set(prev).add(task.id));
-    
-    // 1. Play Sound (Main Thread)
-    playAlarmSound();
-
-    // 2. Show Modal (UI)
-    setActiveAlarmTask(task);
-
-    // 3. Vibrate
-    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
-
-    // 4. Send System Notification (Service Worker push for lock screen visibility)
-    sendNotification(`НАПОМИНАНИЕ: ${task.title}`, "Время пришло! Нажмите, чтобы открыть.");
-  };
-
-  // --- ALARM HANDLERS ---
-  const handleAlarmComplete = () => {
-    if (activeAlarmTask) {
-      handleUpdateTask(activeAlarmTask.id, { isCompleted: true });
-      setActiveAlarmTask(null);
-    }
-  };
-
-  const handleAlarmSnooze = (minutes: number) => {
-    if (activeAlarmTask && activeAlarmTask.dueDate) {
-      const newTime = addMinutes(new Date(), minutes).toISOString();
-      handleUpdateTask(activeAlarmTask.id, { dueDate: newTime });
-      // Remove from triggered set so it can trigger again later
-      setTriggeredAlarms(prev => {
-        const next = new Set(prev);
-        next.delete(activeAlarmTask.id);
-        return next;
-      });
-      setActiveAlarmTask(null);
-    }
-  };
-
-  const handleAlarmReschedule = () => {
-     if(activeAlarmTask) navigateTo('planner');
-     setActiveAlarmTask(null);
-  };
 
   // --- THEME & APPEARANCE HANDLING ---
   useEffect(() => {
@@ -223,6 +213,27 @@ const App = () => {
     } 
   }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
 
+  // --- HANDLERS WITH GOOGLE INTEGRATION ---
+
+  const handleAddTask = (task: Task) => {
+    setTasks(prev => [task, ...prev]);
+    
+    // Google Integration
+    if (task.dueDate) {
+       // Push to Google Tasks
+       googleService.createGoogleTask(task.title, task.description || '', task.dueDate);
+       
+       // If specifically formatted or user implies duration (future enhancement), add to Calendar
+       // For now, if priority is HIGH, duplicate to Calendar for extra alerting
+       if (task.priority === Priority.HIGH) {
+         const end = addHours(new Date(task.dueDate), 1).toISOString();
+         googleService.createCalendarEvent(task.title, task.dueDate, end, task.description || '');
+       }
+    } else {
+       googleService.createGoogleTask(task.title, task.description || '');
+    }
+  };
+
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
@@ -272,21 +283,26 @@ const App = () => {
     setUserName(name);
     localStorage.setItem('sb_user_name', name);
     setTimeout(() => setShowPWAInstall(true), 1000);
-    // Init audio on first interaction via onboarding
-    initAudioSystem();
   };
 
-  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer || activeAlarmTask;
+  const handleCloudClick = () => {
+    if (syncStatus === 'auth_needed' || syncStatus === 'error') {
+      googleService.signIn();
+    } else if (syncStatus === 'synced') {
+      // Manual sync
+      triggerAutoSync();
+    }
+  };
 
-  if (!userName && isDataReady) return <Onboarding onComplete={handleOnboardingComplete} />;
+  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
+
+  // Pass googleUser to Onboarding so it can reactively update
+  if (!userName && isDataReady) return <Onboarding onComplete={handleOnboardingComplete} googleUser={googleUser} />;
+  
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    <div 
-      className="h-[100dvh] w-full overflow-hidden bg-black relative" 
-      onClick={handleInteraction} 
-      onTouchStart={handleInteraction}
-    >
+    <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
       
       {/* MAIN APP CONTENT */}
       <div 
@@ -307,6 +323,22 @@ const App = () => {
           </button>
 
           <div className="flex items-center gap-3">
+             {/* Cloud Status Indicator */}
+            <button 
+              onClick={handleCloudClick}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center glass-panel transition-all glass-btn ${
+                syncStatus === 'synced' ? 'text-emerald-500' :
+                syncStatus === 'syncing' ? 'text-amber-500' :
+                syncStatus === 'offline' ? 'text-[var(--text-muted)] opacity-50' :
+                'text-rose-500'
+              }`}
+            >
+               {syncStatus === 'syncing' ? <RefreshCw size={20} className="animate-spin" /> : 
+                syncStatus === 'offline' ? <CloudOff size={20} /> : 
+                googleUser ? <img src={googleUser.picture} className="w-6 h-6 rounded-full border border-emerald-500/50" alt="user" /> : <Cloud size={20} />
+               }
+            </button>
+
             <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
             <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"><SettingsIcon size={20} /></button>
           </div>
@@ -315,7 +347,7 @@ const App = () => {
         <Ticker thoughts={thoughts} onClick={() => setShowQuotes(true)} />
 
         <main className="flex-1 relative overflow-hidden z-10 page-enter">
-          {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={t => setTasks([t, ...tasks])} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
+          {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={handleAddTask} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
           {view === 'chat' && (
             <Mentorship 
               tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
@@ -323,7 +355,7 @@ const App = () => {
               onUpdateMessages={(msgs) => setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, lastInteraction: Date.now() } : s))}
               onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); }}
               onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
-              onAddTask={t => setTasks(prev => [t, ...prev])}
+              onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
               onAddThought={t => setThoughts(prev => [t, ...prev])}
               onAddProject={p => setProjects(prev => [p, ...prev])}
@@ -356,7 +388,7 @@ const App = () => {
               projects={projects} 
               habits={habits} 
               thoughts={thoughts}
-              onAddTask={t => setTasks([t, ...tasks])} 
+              onAddTask={handleAddTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
               onAddThought={t => setThoughts([t, ...thoughts])}
               onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
@@ -374,7 +406,7 @@ const App = () => {
               onAddProject={p => setProjects([p, ...projects])} 
               onUpdateProject={handleUpdateProject}
               onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} 
-              onAddTask={t => setTasks([t, ...tasks])} 
+              onAddTask={handleAddTask} 
               onUpdateTask={handleUpdateTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
               onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} 
@@ -396,16 +428,6 @@ const App = () => {
           onVoiceChat={() => { setView('chat'); setVoiceTrigger(v => v + 1); }}
         />
       </div>
-
-      {activeAlarmTask && (
-        <NotificationModal 
-          task={activeAlarmTask}
-          onClose={() => setActiveAlarmTask(null)}
-          onComplete={handleAlarmComplete}
-          onSnooze={handleAlarmSnooze}
-          onReschedule={handleAlarmReschedule}
-        />
-      )}
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
       {showQuotes && <QuotesLibrary myQuotes={thoughts} onAddQuote={(text, author, cat) => setThoughts([{id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString()}, ...thoughts])} onDeleteQuote={(id) => setThoughts(thoughts.filter(t => t.id !== id))} onClose={() => setShowQuotes(false)} />}
@@ -435,6 +457,7 @@ const App = () => {
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} 
           hasAiKey={hasAiKey}
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
+          googleUser={googleUser}
         />
       )}
 

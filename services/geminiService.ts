@@ -4,6 +4,9 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from 
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
+// Use the same key as Google Services
+const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs';
+
 // --- ИНСТРУКЦИЯ СЕРАФИМА (БАЗА ЗНАНИЙ) ---
 const APP_MANUAL = `
 РУКОВОДСТВО ПО ИНТЕРФЕЙСУ SERAFIM OS:
@@ -128,7 +131,7 @@ const tools: FunctionDeclaration[] = [
 export const polishTranscript = async (text: string): Promise<string> => {
   if (!text || text.trim().length < 3) return text;
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `SYSTEM: Fix grammar and remove stuttering. Keep conciseness. Output strictly Russian text. INPUT: "${text}"`,
@@ -148,7 +151,7 @@ export const createMentorChat = (
     habits: Habit[]
   }
 ): Chat => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   
   // Initial timestamp (static fallback)
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
@@ -177,7 +180,7 @@ ${APP_MANUAL}
 };
 
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const data = {
     tasks: tasks.map(t => ({ title: t.title, completed: t.isCompleted })),
     habits: habits.map(h => ({ title: h.title, completions: h.completedDates.length })),
