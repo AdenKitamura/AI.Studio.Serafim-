@@ -19,8 +19,8 @@ import ChatHistoryModal from './components/ChatHistoryModal';
 import NotificationModal from './components/NotificationModal';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
-import { requestNotificationPermission, sendNotification, scheduleSystemNotification } from './services/notificationService';
-import { playAlarmSound } from './services/audioService';
+import { requestNotificationPermission, sendNotification } from './services/notificationService';
+import { playAlarmSound, initAudioSystem } from './services/audioService';
 import { 
   Zap, Loader2, Settings as SettingsIcon
 } from 'lucide-react';
@@ -80,16 +80,14 @@ const App = () => {
     requestNotificationPermission();
   }, []);
 
+  // --- GLOBAL INTERACTION HANDLER (For Audio Keep-Alive) ---
+  const handleInteraction = useCallback(() => {
+     // Initialize the silent audio loop on first click to keep app running in background
+     initAudioSystem();
+  }, []);
+
   // --- ALARM CLOCK LOGIC (1 Second Precision) ---
   useEffect(() => {
-    // 1. Register future tasks with System SW (for background redundancy)
-    tasks.forEach(task => {
-        if (!task.isCompleted && task.dueDate) {
-            scheduleSystemNotification(task);
-        }
-    });
-
-    // 2. High Precision In-App Loop
     const interval = setInterval(() => {
       const now = new Date().getTime();
 
@@ -97,13 +95,12 @@ const App = () => {
         // Skip completed or dateless tasks
         if (!task.dueDate || task.isCompleted) return;
 
-        // Skip if already triggered in this session to avoid infinite loop
+        // Skip if already triggered in this session
         if (triggeredAlarms.has(task.id)) return;
 
         const dueTime = new Date(task.dueDate).getTime();
         
-        // Trigger if time has passed (within last 60 seconds tolerance to catch missed ones)
-        // OR exactly now.
+        // Trigger logic
         if (now >= dueTime && (now - dueTime) < 60000) {
            triggerAlarm(task);
         }
@@ -114,20 +111,19 @@ const App = () => {
   }, [tasks, triggeredAlarms]);
 
   const triggerAlarm = (task: Task) => {
-    // 1. Mark as triggered so we don't spam
     setTriggeredAlarms(prev => new Set(prev).add(task.id));
     
-    // 2. Play Sound
+    // 1. Play Sound (Main Thread)
     playAlarmSound();
 
-    // 3. Vibrate device (if supported)
-    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
-
-    // 4. Show Modal (UI)
+    // 2. Show Modal (UI)
     setActiveAlarmTask(task);
 
-    // 5. Send System Notification (Backup)
-    sendNotification(`Напоминание: ${task.title}`, "Время пришло! Нажмите, чтобы открыть.");
+    // 3. Vibrate
+    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
+
+    // 4. Send System Notification (Service Worker push for lock screen visibility)
+    sendNotification(`НАПОМИНАНИЕ: ${task.title}`, "Время пришло! Нажмите, чтобы открыть.");
   };
 
   // --- ALARM HANDLERS ---
@@ -153,32 +149,23 @@ const App = () => {
   };
 
   const handleAlarmReschedule = () => {
-     // Just close modal, user can edit manually. 
-     // Or we could navigate to planner.
      if(activeAlarmTask) navigateTo('planner');
      setActiveAlarmTask(null);
   };
 
   // --- THEME & APPEARANCE HANDLING ---
   useEffect(() => {
-    // Fallback if currentTheme is invalid (from old save)
     const validTheme = themes[currentTheme] ? currentTheme : 'emerald';
     const theme = themes[validTheme];
     const root = document.documentElement;
     const body = document.body;
 
-    // Apply Colors
     Object.entries(theme.colors).forEach(([key, value]) => {
       root.style.setProperty(key, value as string);
     });
 
-    // Apply Font (Forced JetBrains Mono)
     root.style.setProperty('--app-font', `"JetBrains Mono", monospace`);
-    
-    // Apply Icon Weight
     root.style.setProperty('--icon-weight', iconWeight);
-
-    // Apply Background
     body.setAttribute('data-theme-type', theme.type);
     
     if (customBg) {
@@ -189,7 +176,6 @@ const App = () => {
       root.style.removeProperty('--custom-bg');
     }
 
-    // Save preferences
     localStorage.setItem('sb_theme', validTheme);
     localStorage.setItem('sb_icon_weight', iconWeight);
     if (customBg) localStorage.setItem('sb_custom_bg', customBg);
@@ -201,9 +187,7 @@ const App = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Try migration first
         await dbService.migrateFromLocalStorage();
-
         const [t, th, j, p, h, s] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
@@ -251,7 +235,6 @@ const App = () => {
     setThoughts(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
-  // --- HABIT HANDLERS ---
   const handleAddHabit = (habit: Habit) => {
     setHabits(prev => [habit, ...prev]);
   };
@@ -285,28 +268,31 @@ const App = () => {
   
   const hasAiKey = useMemo(() => !!process.env.API_KEY, []);
 
-  // Handle Onboarding Completion
   const handleOnboardingComplete = (name: string) => {
     setUserName(name);
     localStorage.setItem('sb_user_name', name);
     setTimeout(() => setShowPWAInstall(true), 1000);
+    // Init audio on first interaction via onboarding
+    initAudioSystem();
   };
 
-  // Check if any modal is open to trigger scale effect
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer || activeAlarmTask;
 
   if (!userName && isDataReady) return <Onboarding onComplete={handleOnboardingComplete} />;
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
+    <div 
+      className="h-[100dvh] w-full overflow-hidden bg-black relative" 
+      onClick={handleInteraction} 
+      onTouchStart={handleInteraction}
+    >
       
-      {/* MAIN APP CONTENT - Scales down when modal opens */}
+      {/* MAIN APP CONTENT */}
       <div 
         className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        {/* GLOBAL HEADER */}
         <header className="flex-none flex items-center justify-between px-6 py-6 z-40 bg-transparent relative">
           <button 
             onClick={() => setShowChatHistory(true)}
@@ -326,7 +312,6 @@ const App = () => {
           </div>
         </header>
 
-        {/* TICKER moved INSIDE scale wrapper so it doesn't overlap modals */}
         <Ticker thoughts={thoughts} onClick={() => setShowQuotes(true)} />
 
         <main className="flex-1 relative overflow-hidden z-10 page-enter">
@@ -401,20 +386,17 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
-        {/* PRIMARY NAVIGATION FAB */}
         <Fab 
           onNavigate={navigateTo}
           currentView={view}
           onAddTask={() => { setView('planner'); }} 
-          onAddThought={(type) => { setView('thoughts'); /* Trigger add logic inside view if needed */ }}
+          onAddThought={(type) => { setView('thoughts'); }}
           onAddJournal={() => { setView('journal'); }}
           onOpenQuotes={() => setShowQuotes(true)}
           onVoiceChat={() => { setView('chat'); setVoiceTrigger(v => v + 1); }}
         />
       </div>
 
-      {/* MODALS LAYER (Above Scaled Content) */}
-      {/* ALARM MODAL */}
       {activeAlarmTask && (
         <NotificationModal 
           task={activeAlarmTask}
@@ -435,19 +417,8 @@ const App = () => {
           projects={projects}
           onSelectSession={(id) => { setActiveSessionId(id); setView('chat'); setShowChatHistory(false); }}
           onNewSession={(title, projectId) => {
-             const ns: ChatSession = { 
-               id: Date.now().toString(), 
-               title, 
-               category: 'general', 
-               projectId: projectId, 
-               messages: [], 
-               lastInteraction: Date.now(), 
-               createdAt: new Date().toISOString() 
-             };
-             setSessions(prev => [ns, ...prev]); 
-             setActiveSessionId(ns.id); 
-             setView('chat'); 
-             setShowChatHistory(false);
+             const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
+             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); setView('chat'); setShowChatHistory(false);
           }}
           onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
           onClose={() => setShowChatHistory(false)}
@@ -463,16 +434,7 @@ const App = () => {
           onClose={() => setShowSettings(false)} 
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} 
           hasAiKey={hasAiKey}
-          customization={{
-            font: 'JetBrains Mono',
-            setFont: () => {}, // Disabled
-            iconWeight,
-            setIconWeight,
-            texture: customBg ? 'custom' : 'none', // Derived
-            setTexture: () => {}, // Disabled in favor of image
-            customBg,
-            setCustomBg
-          }}
+          customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
         />
       )}
 

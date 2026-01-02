@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'serafim-core-v3.3';
+const CACHE_NAME = 'serafim-core-v3.4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -37,38 +37,16 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// --- TRUE BACKGROUND NOTIFICATIONS (Notification Triggers API) ---
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SCHEDULE_TASK') {
-    const { id, title, timestamp } = event.data.payload;
-    
-    // Check if TimestampTrigger is supported (Chrome Android / PWA)
-    if ('showTrigger' in Notification.prototype) {
-      self.registration.showNotification(title, {
-        body: 'Время пришло! Нажми, чтобы открыть Serafim.',
-        icon: 'https://img.icons8.com/fluency/512/artificial-intelligence.png',
-        tag: `task-${id}`, // Unique tag to replace/update existing schedules
-        vibrate: [200, 100, 200, 100, 200],
-        data: { url: '/' },
-        // @ts-ignore - TimestampTrigger is experimental but works in PWA
-        showTrigger: new TimestampTrigger(timestamp) 
-      });
-    }
-  }
-});
-
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       if (clientList.length > 0) {
         let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
-          }
+        // Focus existing window
+        if ('focus' in client) {
+            return client.focus();
         }
-        return client.focus();
       }
       return clients.openWindow('./');
     })
