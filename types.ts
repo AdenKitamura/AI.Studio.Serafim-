@@ -20,6 +20,7 @@ export interface Task {
   title: string;
   description?: string;
   dueDate: string | null;
+  reminderTime?: string;
   isCompleted: boolean;
   priority: Priority;
   projectId?: string;
@@ -43,16 +44,16 @@ export interface Thought {
   createdAt: string;
   x?: number;
   y?: number;
-  linkedIds?: string[]; // Legacy
-  links?: NodeLink[]; // New semantic links
+  linkedIds?: string[];
+  links?: NodeLink[];
   isArchived?: boolean; 
   metadata?: {
     url?: string;
     fileName?: string;
     fileType?: string;
-    fileData?: string; // Base64
+    fileData?: string;
     isTaskSynced?: boolean;
-    taskStatus?: boolean; // For visual task nodes
+    taskStatus?: boolean;
   };
 }
 
@@ -93,43 +94,25 @@ export interface ChatSession {
   id: string;
   title: string;
   category: ChatCategory;
-  projectId?: string; // Link to a project
+  projectId?: string;
   messages: ChatMessage[];
   lastInteraction: number;
   createdAt: string;
 }
 
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
-export type ThemeKey = 'slate' | 'emerald' | 'rose' | 'ocean' | 'amber' | 'carbon' | 'amethyst' | 'crimson' | 'neon' | 'polar' | 'paper' | 'lilac';
 
-// Expanded Font List (10)
-export type FontFamily = 
-  | 'Plus Jakarta Sans' 
-  | 'Inter' 
-  | 'JetBrains Mono' 
-  | 'Playfair Display' 
-  | 'Space Grotesk'
-  | 'Outfit'
-  | 'Syne'
-  | 'DM Sans'
-  | 'Manrope'
-  | 'Cormorant Garamond';
+// Restricted Theme List
+export type ThemeKey = 'emerald' | 'amber' | 'neon' | 'ocean';
 
-// Expanded Icon Weights (5)
+// Restricted Font List (Only Mono)
+export type FontFamily = 'JetBrains Mono';
+
+// Expanded Icon Weights
 export type IconWeight = '1px' | '1.5px' | '2px' | '2.5px' | '3px';
 
-// Expanded Textures (10)
-export type TextureType = 
-  | 'none' 
-  | 'noise' 
-  | 'grid' 
-  | 'dots' 
-  | 'paper' 
-  | 'mesh' 
-  | 'carbon' 
-  | 'circuit' 
-  | 'waves' 
-  | 'brushed';
+// Texture Types (Added custom)
+export type TextureType = 'custom' | 'none';
 
 export type CalendarMode = 'week' | 'month';
 

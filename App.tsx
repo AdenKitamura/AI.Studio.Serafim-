@@ -34,11 +34,10 @@ const App = () => {
   const [userName, setUserName] = useState(() => localStorage.getItem('sb_user_name') || '');
   const [view, setView] = useState<ViewState>('dashboard');
   
-  // Customization State
-  const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'slate') as ThemeKey);
-  const [currentFont, setCurrentFont] = useState<FontFamily>(() => (localStorage.getItem('sb_font') || 'Plus Jakarta Sans') as FontFamily);
+  // Customization State - Forced Mono
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'emerald') as ThemeKey);
   const [iconWeight, setIconWeight] = useState<IconWeight>(() => (localStorage.getItem('sb_icon_weight') || '2px') as IconWeight);
-  const [textureType, setTextureType] = useState<TextureType>(() => (localStorage.getItem('sb_texture_type') || 'noise') as TextureType);
+  const [customBg, setCustomBg] = useState<string>(() => localStorage.getItem('sb_custom_bg') || '');
 
   // App Logic States
   const [showSettings, setShowSettings] = useState(false);
@@ -70,7 +69,9 @@ const App = () => {
 
   // --- THEME & APPEARANCE HANDLING ---
   useEffect(() => {
-    const theme = themes[currentTheme];
+    // Fallback if currentTheme is invalid (from old save)
+    const validTheme = themes[currentTheme] ? currentTheme : 'emerald';
+    const theme = themes[validTheme];
     const root = document.documentElement;
     const body = document.body;
 
@@ -79,28 +80,30 @@ const App = () => {
       root.style.setProperty(key, value as string);
     });
 
-    // Apply Font
-    root.style.setProperty('--app-font', `"${currentFont}", sans-serif`);
-    if (['Playfair Display', 'Cormorant Garamond'].includes(currentFont)) {
-       root.style.setProperty('--app-font', `"${currentFont}", serif`);
-    } else if (['JetBrains Mono'].includes(currentFont)) {
-       root.style.setProperty('--app-font', `"${currentFont}", monospace`);
-    }
+    // Apply Font (Forced JetBrains Mono)
+    root.style.setProperty('--app-font', `"JetBrains Mono", monospace`);
     
     // Apply Icon Weight
     root.style.setProperty('--icon-weight', iconWeight);
 
-    // Apply Attributes
+    // Apply Background
     body.setAttribute('data-theme-type', theme.type);
-    body.setAttribute('data-texture', textureType);
+    
+    if (customBg) {
+      body.setAttribute('data-texture', 'custom');
+      root.style.setProperty('--custom-bg', `url(${customBg})`);
+    } else {
+      body.setAttribute('data-texture', 'none');
+      root.style.removeProperty('--custom-bg');
+    }
 
     // Save preferences
-    localStorage.setItem('sb_theme', currentTheme);
-    localStorage.setItem('sb_font', currentFont);
+    localStorage.setItem('sb_theme', validTheme);
     localStorage.setItem('sb_icon_weight', iconWeight);
-    localStorage.setItem('sb_texture_type', textureType);
+    if (customBg) localStorage.setItem('sb_custom_bg', customBg);
+    else localStorage.removeItem('sb_custom_bg');
 
-  }, [currentTheme, currentFont, iconWeight, textureType]);
+  }, [currentTheme, iconWeight, customBg]);
 
   // --- DATA LOADING ---
   useEffect(() => {
@@ -118,7 +121,7 @@ const App = () => {
           dbService.getAll<ChatSession>('chat_sessions')
         ]);
         setTasks(t); setThoughts(th); setJournal(j); setHabits(h);
-        setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#6366f1', createdAt: new Date().toISOString() }]); 
+        setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#10b981', createdAt: new Date().toISOString() }]); 
         
         if (s.length > 0) {
           const sorted = s.sort((a, b) => b.lastInteraction - a.lastInteraction);
@@ -271,7 +274,22 @@ const App = () => {
               onDeleteHabit={handleDeleteHabit}
             />
           )}
-          {view === 'projects' && <ProjectsView projects={projects} tasks={tasks} thoughts={thoughts} onAddProject={p => setProjects([p, ...projects])} onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} onAddTask={t => setTasks([t, ...tasks])} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} />}
+          {view === 'projects' && (
+            <ProjectsView 
+              projects={projects} 
+              tasks={tasks} 
+              thoughts={thoughts} 
+              onAddProject={p => setProjects([p, ...projects])} 
+              onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} 
+              onAddTask={t => setTasks([t, ...tasks])} 
+              onUpdateTask={handleUpdateTask} 
+              onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
+              onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} 
+              onAddThought={t => setThoughts([t, ...thoughts])}
+              onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
+              onDeleteThought={id => setThoughts(prev => prev.filter(t => t.id !== id))}
+            />
+          )}
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
@@ -327,12 +345,14 @@ const App = () => {
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} 
           hasAiKey={hasAiKey}
           customization={{
-            font: currentFont,
-            setFont: setCurrentFont,
+            font: 'JetBrains Mono',
+            setFont: () => {}, // Disabled
             iconWeight,
             setIconWeight,
-            texture: textureType,
-            setTexture: setTextureType
+            texture: customBg ? 'custom' : 'none', // Derived
+            setTexture: () => {}, // Disabled in favor of image
+            customBg,
+            setCustomBg
           }}
         />
       )}

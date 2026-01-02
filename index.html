@@ -22,13 +22,13 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 10 Trendy Fonts for 2025 -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@400;500;700&family=Outfit:wght@400;500;700&family=Syne:wght@400;700&family=DM+Sans:wght@400;500;700&family=Manrope:wght@400;600;800&family=Cormorant+Garamond:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Only JetBrains Mono per user request -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
     
     <style>
       :root {
         --icon-weight: 2px;
-        --app-font: 'Plus Jakarta Sans', sans-serif;
+        --app-font: 'JetBrains Mono', monospace;
       }
 
       body {
@@ -59,7 +59,7 @@
         transition: stroke-width 0.3s ease;
       }
 
-      /* --- HIGH VISIBILITY TEXTURES --- */
+      /* --- TEXTURES --- */
       
       .texture-layer {
         position: fixed;
@@ -70,83 +70,19 @@
         pointer-events: none;
         z-index: 0;
         transition: background-image 0.5s ease, opacity 0.5s ease;
-        background-repeat: repeat;
-        /* Key change: Overlay allows texture to interact with color without hiding it */
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: cover;
+        /* Standard overlay mode for custom images to blend with theme */
         mix-blend-mode: overlay; 
       }
 
-      /* 1. NONE */
       body[data-texture="none"] .texture-layer { display: none; }
 
-      /* 2. NOISE - High visibility */
-      body[data-texture="noise"] .texture-layer {
-        opacity: 0.4;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-      }
-
-      /* 3. GRID - Sharp lines */
-      body[data-texture="grid"] .texture-layer {
-        opacity: 0.15;
-        background-image: 
-          linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
-        background-size: 32px 32px;
-      }
-      
-      /* 4. DOTS */
-      body[data-texture="dots"] .texture-layer {
-        opacity: 0.25;
-        background-image: radial-gradient(rgba(255,255,255,0.6) 1.5px, transparent 1.5px);
-        background-size: 20px 20px;
-      }
-
-      /* 5. PAPER - Strong texture */
-      body[data-texture="paper"] .texture-layer {
-        opacity: 0.6;
-        mix-blend-mode: multiply; /* Paper usually darkens */
-        background-image: url("https://www.transparenttextures.com/patterns/cream-paper.png");
-      }
-      /* In dark mode, invert paper blend */
-      @media (prefers-color-scheme: dark) {
-        body[data-texture="paper"] .texture-layer { mix-blend-mode: overlay; opacity: 0.3; }
-      }
-
-      /* 6. MESH */
-      body[data-texture="mesh"] .texture-layer {
-        opacity: 0.15;
-        background-image: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.8) 2px, transparent 2.5px);
-        background-size: 10px 10px; 
-      }
-
-      /* 7. CARBON - Distinct weave */
-      body[data-texture="carbon"] .texture-layer {
-        opacity: 0.3;
-        background:
-          linear-gradient(27deg, rgba(255,255,255,0.1) 5px, transparent 5px) 0 5px,
-          linear-gradient(207deg, rgba(255,255,255,0.1) 5px, transparent 5px) 10px 0px,
-          linear-gradient(27deg, rgba(255,255,255,0.1) 5px, transparent 5px) 0px 10px,
-          linear-gradient(207deg, rgba(255,255,255,0.1) 5px, transparent 5px) 10px 5px,
-          linear-gradient(90deg, rgba(255,255,255,0.05) 10px, transparent 10px);
-        background-size: 20px 20px;
-      }
-
-      /* 8. CIRCUIT */
-      body[data-texture="circuit"] .texture-layer {
-        opacity: 0.15;
-        background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10 L90 10 M10 10 L10 90' stroke='white' stroke-width='1' fill='none'/%3E%3Ccircle cx='10' cy='10' r='2' fill='white'/%3E%3C/svg%3E");
-        background-size: 60px 60px;
-      }
-
-      /* 9. WAVES */
-      body[data-texture="waves"] .texture-layer {
-        opacity: 0.1;
-        background-image: repeating-radial-gradient(circle at 0 0, transparent 0, rgba(255,255,255,0.1) 10px), repeating-linear-gradient(rgba(255,255,255,0.1) 50%, transparent);
-      }
-
-      /* 10. BRUSHED */
-      body[data-texture="brushed"] .texture-layer {
-         opacity: 0.3;
-         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.5' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'/%3E%3C/svg%3E");
+      /* CUSTOM PHOTO BACKGROUND */
+      body[data-texture="custom"] .texture-layer {
+        opacity: 0.25; /* Subtle blend */
+        background-image: var(--custom-bg);
       }
 
       .background-gradient {
@@ -161,7 +97,6 @@
       }
 
       /* --- REFINED FROSTED GLASS --- */
-      /* More transparency so texture shows through */
       
       .glass-panel {
         background-color: color-mix(in srgb, var(--bg-item), transparent 60%); 

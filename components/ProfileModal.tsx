@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType } from '../types';
 import Settings from './Settings';
 import { 
-  X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, Download, HelpCircle, ChevronDown
+  X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, HelpCircle
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -21,6 +21,8 @@ interface ProfileModalProps {
     setIconWeight: (w: IconWeight) => void;
     texture: TextureType;
     setTexture: (t: TextureType) => void;
+    customBg?: string;
+    setCustomBg?: (bg: string) => void;
   };
 }
 
@@ -30,14 +32,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [activeTab, setActiveTab] = useState<'settings' | 'system' | 'faq'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
-
-  useEffect(() => {
-    // Retrieve global deferredPrompt if available
-    if (window.deferredPrompt) {
-      setInstallPrompt(window.deferredPrompt);
-    }
-  }, []);
 
   const runDiagnostics = useCallback(async () => {
     setLastCheck(new Date().toLocaleTimeString());
@@ -60,20 +54,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   useEffect(() => {
     runDiagnostics();
   }, [runDiagnostics]);
-
-  const handleInstallClick = async () => {
-    if (installPrompt) {
-      installPrompt.prompt();
-      const { outcome } = await installPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setInstallPrompt(null);
-        window.deferredPrompt = null;
-      }
-    } else {
-      // Fallback instructions for iOS or if prompt is missing
-      alert("На iOS: Нажмите 'Поделиться' -> 'На экран Домой'.\nНа Android: Меню браузера -> 'Установить приложение'.");
-    }
-  };
 
   const handleForceUpdate = () => {
     if (confirm('Это обновит приложение до последней версии с сервера. Продолжить?')) {
@@ -141,15 +121,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {activeTab === 'settings' && (
               <div className="h-full overflow-y-auto no-scrollbar pb-24">
                 <div className="p-6">
-                  {/* Install Button */}
-                  <button 
-                    onClick={handleInstallClick}
-                    className="w-full mb-6 py-4 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center gap-3 shadow-[0_10px_20px_var(--accent-glow)] active:scale-95 transition-all"
-                  >
-                    <Download size={20} />
-                    <span className="font-bold uppercase text-xs tracking-widest">Установить Приложение</span>
-                  </button>
-
                   <Settings 
                     currentTheme={currentTheme} 
                     setTheme={setTheme} 
