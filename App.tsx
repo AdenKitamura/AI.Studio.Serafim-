@@ -71,31 +71,36 @@ const App = () => {
   // --- INIT GOOGLE SERVICES ---
   useEffect(() => {
     const initGoogle = async () => {
-      try {
-        // Only set status to synced AFTER successful init and optional restoration
-        await googleService.initGapiClient();
-        await googleService.initGisClient(async () => {
+      // Parallel initialization so Auth (GIS) doesn't wait for API (GAPI)
+      // This prevents "try again in a second" errors if GAPI fails
+      
+      // 1. Initialize API Client (for Drive/Tasks calls)
+      googleService.initGapiClient().catch(err => {
+        console.error("GAPI Init Failed:", err);
+        setSyncStatus('error');
+      });
+
+      // 2. Initialize Auth Client (for Sign In button)
+      googleService.initGisClient(async () => {
           // Callback when token received (User Signed In via popup)
           setSyncStatus('synced');
           const profile = await googleService.getUserProfile();
           setGoogleUser(profile);
-        });
-        
-        // Initial online check
-        setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
+      }).catch(err => {
+        console.error("GIS Init Failed:", err);
+      });
+      
+      // Initial online check
+      setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
 
-        // Check if we have a token from a previous session in this load (unlikely for pure oauth2 without storage, but safety check)
-        if(googleService.checkSignInStatus()) {
-             const profile = await googleService.getUserProfile();
-             setGoogleUser(profile);
-             setSyncStatus('synced');
-        }
-
-      } catch (e) {
-        console.error("Google Init Failed", e);
-        setSyncStatus('error');
+      // Check if we have a token from a previous session in this load (unlikely for pure oauth2 without storage, but safety check)
+      if(googleService.checkSignInStatus()) {
+            const profile = await googleService.getUserProfile();
+            setGoogleUser(profile);
+            setSyncStatus('synced');
       }
     };
+
     initGoogle();
 
     window.addEventListener('online', () => setSyncStatus('auth_needed'));

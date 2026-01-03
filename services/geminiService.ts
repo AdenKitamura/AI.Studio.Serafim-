@@ -4,8 +4,10 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from 
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-// Use the same key as Google Services with trim to avoid copy-paste errors
-const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs'.trim();
+// Retrieve API Key from Environment
+// NOTE: GoogleGenAI library expects process.env.API_KEY by default in some contexts,
+// but we allow fallback to the REACT_APP_ style for consistency with the rest of the app.
+const API_KEY = (process.env.API_KEY || process.env.REACT_APP_GOOGLE_API_KEY || '').trim();
 
 // --- ИНСТРУКЦИЯ СЕРАФИМА (БАЗА ЗНАНИЙ) ---
 const APP_MANUAL = `
@@ -130,6 +132,8 @@ const tools: FunctionDeclaration[] = [
 
 export const polishTranscript = async (text: string): Promise<string> => {
   if (!text || text.trim().length < 3) return text;
+  if (!API_KEY) return text; // Fallback if no key
+
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const response = await ai.models.generateContent({
@@ -151,6 +155,10 @@ export const createMentorChat = (
     habits: Habit[]
   }
 ): Chat => {
+  if (!API_KEY) {
+      throw new Error("API Key not configured");
+  }
+
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   
   // Initial timestamp (static fallback)
@@ -180,6 +188,8 @@ ${APP_MANUAL}
 };
 
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
+  if (!API_KEY) return {};
+
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const data = {
     tasks: tasks.map(t => ({ title: t.title, completed: t.isCompleted })),

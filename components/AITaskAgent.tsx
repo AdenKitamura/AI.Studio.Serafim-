@@ -19,8 +19,15 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
     setStatus('Анализирую запрос...');
 
     try {
-      // Fix: Use the same hardcoded key to ensure functionality
-      const ai = new GoogleGenAI({ apiKey: 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs' });
+      // Securely access API key from environment variables
+      // Supports standard CRA/Vercel naming or the strict GenAI requirement
+      const key = process.env.API_KEY || process.env.REACT_APP_GOOGLE_API_KEY;
+      
+      if (!key) {
+        throw new Error("API Key not found in environment variables");
+      }
+
+      const ai = new GoogleGenAI({ apiKey: key });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview', // Upgraded to Pro
         contents: `User request: "${input}". 
@@ -51,7 +58,7 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
 
     } catch (e) {
       console.error(e);
-      setStatus('Не удалось распознать задачу. Попробуйте еще раз.');
+      setStatus('Не удалось распознать задачу. Проверьте API Key.');
     } finally {
       setIsProcessing(false);
     }

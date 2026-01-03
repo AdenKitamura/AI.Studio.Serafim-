@@ -2,9 +2,10 @@
 // Serafim Google Services
 // Handles Auth, Drive Sync, Tasks, and Calendar interactions
 
-// Applying .trim() to ensure no accidental spaces from copy-pasting cause 400/401 errors
-const CLIENT_ID = '471911508632-3k4nh72anrutqfgq83tdu6k1ahvs6pk.apps.googleusercontent.com'.trim();
-const API_KEY = 'AIzaSyCzvzjeEsnpwEAv9d0iOpgyxMWO2SinSCs'.trim();
+// Accessing environment variables. 
+// Ensure REACT_APP_GOOGLE_CLIENT_ID and REACT_APP_GOOGLE_API_KEY are set in your Vercel/Environment config.
+const CLIENT_ID = (process.env.REACT_APP_GOOGLE_CLIENT_ID || '').trim();
+const API_KEY = (process.env.REACT_APP_GOOGLE_API_KEY || '').trim();
 
 const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
@@ -20,12 +21,20 @@ let gisInited = false;
 
 // Helper to wait for GAPI script
 const waitForGapi = (): Promise<void> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if ((window as any).gapi && (window as any).gapi.client) return resolve();
+    let count = 0;
     const interval = setInterval(() => {
+      count++;
       if ((window as any).gapi && (window as any).gapi.client) {
         clearInterval(interval);
         resolve();
+      }
+      if (count > 50) { // 5 seconds timeout
+        clearInterval(interval);
+        // Don't reject, just resolve to allow race condition check later to fail gracefully
+        console.warn("GAPI script load timed out");
+        resolve(); 
       }
     }, 100);
   });
@@ -35,10 +44,17 @@ const waitForGapi = (): Promise<void> => {
 const waitForGIS = (): Promise<void> => {
   return new Promise((resolve) => {
     if ((window as any).google && (window as any).google.accounts) return resolve();
+    let count = 0;
     const interval = setInterval(() => {
+      count++;
       if ((window as any).google && (window as any).google.accounts) {
         clearInterval(interval);
         resolve();
+      }
+      if (count > 50) {
+          clearInterval(interval);
+          console.warn("GIS script load timed out");
+          resolve();
       }
     }, 100);
   });
@@ -48,9 +64,18 @@ const waitForGIS = (): Promise<void> => {
 export const initGapiClient = async () => {
   if (typeof window === 'undefined') return;
   
+  if (!API_KEY) {
+      console.error("GAPI Init Error: API_KEY is missing from environment variables.");
+      return;
+  }
+
   await waitForGapi();
 
   return new Promise<void>((resolve, reject) => {
+    if (!(window as any).gapi) {
+        console.error("GAPI script not loaded");
+        return reject("GAPI script not loaded");
+    }
     (window as any).gapi.load('client', async () => {
       try {
         await (window as any).gapi.client.init({
@@ -71,51 +96,76 @@ export const initGapiClient = async () => {
 // Initialize GIS (for Auth)
 export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => void) => {
   if (typeof window === 'undefined') return;
+  if (tokenClient) return; // Idempotent
+
+  if (!CLIENT_ID) {
+      console.error("GIS Init Error: CLIENT_ID is missing from environment variables.");
+      return;
+  }
 
   await waitForGIS();
 
-  tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    callback: async (resp: any) => {
-      if (resp.error !== undefined) {
-        console.error('GIS Auth Error:', resp);
-        throw (resp);
+  try {
+      if (!(window as any).google) {
+          throw new Error("Google GIS script not loaded");
       }
-      console.log('GIS Token Received');
-      
-      // CRITICAL FIX: Ensure GAPI is actually ready before setting the token.
-      // This prevents the race condition where auth finishes before GAPI loads.
-      await waitForGapi();
+      tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: async (resp: any) => {
+          if (resp.error !== undefined) {
+            console.error('GIS Auth Error:', resp);
+            alert(`Ошибка авторизации Google: ${JSON.stringify(resp.error)}`);
+            throw (resp);
+          }
+          console.log('GIS Token Received');
+          
+          // Ensure GAPI is ready before setting token
+          // If GAPI failed to init, we just log it, but Auth succeeded so we can at least know who the user is.
+          if ((window as any).gapi && (window as any).gapi.client) {
+              (window as any).gapi.client.setToken(resp);
+              console.log('GAPI Token Set Successfully');
+          } else {
+              console.warn('GAPI client not found. Token valid but API calls may fail.');
+          }
 
-      if ((window as any).gapi && (window as any).gapi.client) {
-          (window as any).gapi.client.setToken(resp);
-          console.log('GAPI Token Set Successfully');
-      } else {
-          console.error('CRITICAL: GAPI client not found when setting token');
-      }
-
-      // Store token loosely just for checks
-      localStorage.setItem('sb_google_token_exists', 'true');
-      
-      if (onTokenReceived) onTokenReceived(resp);
-    },
-  });
-  gisInited = true;
-  console.log('GIS initialized');
+          localStorage.setItem('sb_google_token_exists', 'true');
+          
+          if (onTokenReceived) onTokenReceived(resp);
+        },
+      });
+      gisInited = true;
+      console.log('GIS initialized');
+  } catch (e) {
+      console.error("Error initializing GIS client", e);
+  }
 };
 
 export const signIn = () => {
+  // Check configurations first
+  if (!CLIENT_ID) {
+      alert("Ошибка конфигурации: Не найден Google Client ID. Убедитесь, что переменная REACT_APP_GOOGLE_CLIENT_ID добавлена в Vercel и сделан Redeploy.");
+      return;
+  }
+  
+  // Debug info for user
+  console.log("Attempting Sign In. CLIENT_ID present:", !!CLIENT_ID);
+  console.log("TokenClient present:", !!tokenClient);
+
   if (tokenClient) {
     // Force prompt to ensure user selects account and consents permissions
     tokenClient.requestAccessToken({ prompt: 'consent' });
   } else {
-    console.warn('TokenClient not initialized yet. Waiting...');
-    // Retry once after short delay if scripts were slow
-    setTimeout(() => {
-        if(tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
-        else alert('Сервисы Google еще загружаются. Попробуйте через секунду.');
-    }, 1000);
+    // Try to init immediately if missed
+    initGisClient().then(() => {
+        if(tokenClient) {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            alert('Сервисы Google не удалось инициализировать. Проверьте консоль и блокировщики рекламы.');
+        }
+    }).catch(e => {
+        alert('Ошибка инициализации Google Services: ' + e);
+    });
   }
 };
 
