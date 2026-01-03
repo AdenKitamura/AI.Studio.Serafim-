@@ -125,9 +125,15 @@ export const initGapiClient = async () => {
 export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null> => {
     // Check for tokens in URL (Implicit flow return)
     const hash = window.location.hash;
-    const search = window.location.search;
     
-    console.log('[GoogleService] Checking URL for OAuth tokens...', { hash, search });
+    // Check for errors first
+    if (hash.includes('error=')) {
+        console.error('OAuth Error in URL:', hash);
+        window.history.replaceState(null, '', window.location.pathname);
+        return null;
+    }
+
+    console.log('[GoogleService] Checking URL for OAuth tokens...');
 
     let accessToken = '';
 
@@ -157,88 +163,50 @@ export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null
     return null;
 };
 
-// Initialize GIS (for Auth)
+// Initialize GIS (for Auth) - Kept for compatibility but SignIn now uses Redirect
 export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => void) => {
   if (typeof window === 'undefined') return;
-  if (tokenClient) return; // Idempotent if success
-
-  if (!CLIENT_ID) {
-      console.error("[GoogleService] GIS Init Error: REACT_APP_GOOGLE_CLIENT_ID is missing in environment.");
-      return;
-  }
-
+  // We keep this to initialize the library, but the primary flow is now manual redirect
   await waitForGIS();
-
-  try {
-      if (!(window as any).google) {
-          throw new Error("Google GIS script not loaded");
-      }
-      tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        // ux_mode: 'popup', // Default. Can use 'redirect' if popup fails consistently.
-        callback: async (resp: any) => {
-          if (resp.error !== undefined) {
-            console.error('GIS Auth Error:', resp);
-            alert(`Ошибка авторизации Google: ${JSON.stringify(resp.error)}`);
-            throw (resp);
-          }
-          console.log('GIS Token Received via Callback');
-          
-          // Ensure GAPI is ready before setting token
-          if ((window as any).gapi && (window as any).gapi.client) {
-              (window as any).gapi.client.setToken(resp);
-              console.log('GAPI Token Set Successfully');
-          } else {
-              console.warn('GAPI client not found. Token valid but API calls may fail.');
-          }
-
-          localStorage.setItem('sb_google_token_exists', 'true');
-          
-          if (onTokenReceived) onTokenReceived(resp);
-        },
-      });
-      gisInited = true;
-      console.log('GIS initialized');
-  } catch (e) {
-      console.error("Error initializing GIS client", e);
-  }
 };
 
+// MANUAL REDIRECT SIGN IN (Fixes Mobile "Infinite Loading")
 export const signIn = () => {
-  // Debug info for user
   if (!CLIENT_ID) {
       alert("Ошибка: REACT_APP_GOOGLE_CLIENT_ID не найден в переменных окружения.");
       return;
   }
+
+  // Determine the current origin to return to
+  const redirect_uri = window.location.origin;
   
-  if (tokenClient) {
-    // Add prompt: 'consent' to force account picker, helps if session is stale
-    tokenClient.requestAccessToken({ prompt: 'consent' });
-  } else {
-    // Retry initialization
-    console.log("TokenClient missing, retrying initialization...");
-    initGisClient().then(() => {
-        if(tokenClient) {
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            alert('Не удалось инициализировать Google Sign-In. Проверьте консоль (F12) на ошибки блокировщиков.');
-        }
-    }).catch(e => {
-        alert('Ошибка инициализации: ' + e);
-    });
-  }
+  console.log('[GoogleService] Initiating Redirect Flow to:', redirect_uri);
+
+  // Build OAuth 2.0 URL manually
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&include_granted_scopes=true&state=pass-through-value&prompt=consent`;
+  
+  // Force full page redirect
+  window.location.href = url;
 };
 
 export const signOut = () => {
   if (!(window as any).gapi?.client) return;
   const token = (window as any).gapi.client.getToken();
   if (token !== null) {
-    (window as any).google.accounts.oauth2.revoke(token.access_token, () => {
-      (window as any).gapi.client.setToken('');
+    // Try to revoke if library is loaded, otherwise just clear local state
+    if ((window as any).google && (window as any).google.accounts) {
+        (window as any).google.accounts.oauth2.revoke(token.access_token, () => {
+          (window as any).gapi.client.setToken('');
+          localStorage.removeItem('sb_google_token_exists');
+          window.location.reload(); 
+        });
+    } else {
+        localStorage.removeItem('sb_google_token_exists');
+        window.location.reload();
+    }
+  } else {
       localStorage.removeItem('sb_google_token_exists');
-      window.location.reload(); 
-    });
+      window.location.reload();
   }
 };
 
