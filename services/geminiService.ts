@@ -5,24 +5,18 @@ import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
 const getApiKey = () => {
-  if (typeof process !== 'undefined' && process.env) {
-    if (process.env.REACT_APP_GOOGLE_API_KEY) return process.env.REACT_APP_GOOGLE_API_KEY;
-    if (process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
-    if (process.env.API_KEY) return process.env.API_KEY;
+  if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) {
+    return process.env.REACT_APP_GOOGLE_API_KEY;
   }
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
     // @ts-ignore
-    if (import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
-    // @ts-ignore
-    if (import.meta.env.GOOGLE_API_KEY) return import.meta.env.GOOGLE_API_KEY;
-    // @ts-ignore
-    if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+    return import.meta.env.VITE_GOOGLE_API_KEY;
   }
   return '';
 };
 
-const API_KEY = getApiKey().trim();
+const API_KEY = getApiKey();
 
 // --- ИНСТРУКЦИЯ СЕРАФИМА (БАЗА ЗНАНИЙ) ---
 const APP_MANUAL = `

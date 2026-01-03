@@ -2,46 +2,39 @@
 // Serafim Google Services
 // Handles Auth, Drive Sync, Tasks, and Calendar interactions
 
-// Accessing environment variables explicitly for bundler replacement.
-// Dynamic access (process.env[key]) often fails in frontend builds.
+// STRICTLY accessing via process.env properties for Vercel/CRA compatibility.
+// No dynamic lookups to satisfy security scanners.
 
 const getClientId = () => {
-  // 1. Try CRA / Standard (Must start with REACT_APP_)
   if (typeof process !== 'undefined' && process.env) {
+    // Primary for Vercel/CRA
     if (process.env.REACT_APP_GOOGLE_CLIENT_ID) return process.env.REACT_APP_GOOGLE_CLIENT_ID;
-    if (process.env.GOOGLE_CLIENT_ID) return process.env.GOOGLE_CLIENT_ID; // Sometimes injected directly
   }
-  // 2. Try Vite
+  // Fallback for Vite
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
     // @ts-ignore
-    if (import.meta.env.VITE_GOOGLE_CLIENT_ID) return import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    // @ts-ignore
-    if (import.meta.env.GOOGLE_CLIENT_ID) return import.meta.env.GOOGLE_CLIENT_ID;
+    return import.meta.env.VITE_GOOGLE_CLIENT_ID;
   }
   return '';
 };
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env) {
+    // Primary for Vercel/CRA
     if (process.env.REACT_APP_GOOGLE_API_KEY) return process.env.REACT_APP_GOOGLE_API_KEY;
-    if (process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
   }
+  // Fallback for Vite
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
     // @ts-ignore
-    if (import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
-    // @ts-ignore
-    if (import.meta.env.GOOGLE_API_KEY) return import.meta.env.GOOGLE_API_KEY;
+    return import.meta.env.VITE_GOOGLE_API_KEY;
   }
   return '';
 };
 
-const CLIENT_ID = getClientId().trim();
-const API_KEY = getApiKey().trim();
-
-// Debug Log
-console.log(`[GoogleService] Config Check: ClientID present: ${!!CLIENT_ID}, APIKey present: ${!!API_KEY}`);
+const CLIENT_ID = getClientId();
+const API_KEY = getApiKey();
 
 const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
@@ -100,7 +93,7 @@ export const initGapiClient = async () => {
   if (typeof window === 'undefined') return;
   
   if (!API_KEY) {
-      console.error("[GoogleService] GAPI Init Error: API_KEY is missing. Check Vercel Env Vars (must typically start with REACT_APP_)");
+      console.error("[GoogleService] GAPI Init Error: REACT_APP_GOOGLE_API_KEY is missing in environment.");
       return;
   }
 
@@ -134,7 +127,7 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
   if (tokenClient) return; // Idempotent if success
 
   if (!CLIENT_ID) {
-      console.error("[GoogleService] GIS Init Error: CLIENT_ID is missing. Check Vercel Env Vars (must typically start with REACT_APP_)");
+      console.error("[GoogleService] GIS Init Error: REACT_APP_GOOGLE_CLIENT_ID is missing in environment.");
       return;
   }
 
@@ -178,7 +171,7 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
 export const signIn = () => {
   // Debug info for user
   if (!CLIENT_ID) {
-      alert("Ошибка: CLIENT_ID не найден. Убедитесь, что в Vercel переменная называется REACT_APP_GOOGLE_CLIENT_ID и сделан Redeploy.");
+      alert("Ошибка: REACT_APP_GOOGLE_CLIENT_ID не найден в переменных окружения.");
       return;
   }
   

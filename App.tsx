@@ -283,16 +283,12 @@ const App = () => {
   };
   
   const hasAiKey = useMemo(() => {
-     if (typeof process !== 'undefined' && process.env) {
-         if (process.env.REACT_APP_GOOGLE_API_KEY) return true;
-         if (process.env.GOOGLE_API_KEY) return true;
+     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) {
+         return true;
      }
      // @ts-ignore
-     if (typeof import.meta !== 'undefined' && import.meta.env) {
-         // @ts-ignore
-         if (import.meta.env.VITE_GOOGLE_API_KEY) return true;
-         // @ts-ignore
-         if (import.meta.env.GOOGLE_API_KEY) return true;
+     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
+         return true;
      }
      return false;
   }, []);

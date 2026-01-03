@@ -19,23 +19,21 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
     setStatus('Анализирую запрос...');
 
     try {
-      // Robust Env Var Extraction
-      const getEnv = (k: string) => {
-         if(typeof process !== 'undefined' && process.env) {
-             return process.env[`REACT_APP_${k}`] || process.env[`VITE_${k}`] || process.env[k];
-         }
-         // @ts-ignore
-         if(typeof import.meta !== 'undefined' && import.meta.env) {
-             // @ts-ignore
-             return import.meta.env[`VITE_${k}`] || import.meta.env[k];
-         }
-         return '';
+      let key = '';
+      
+      // Strict process.env check for Vercel/CRA
+      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) {
+          key = process.env.REACT_APP_GOOGLE_API_KEY;
+      } 
+      // Fallback for Vite
+      // @ts-ignore
+      else if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
+          // @ts-ignore
+          key = import.meta.env.VITE_GOOGLE_API_KEY;
       }
-
-      const key = getEnv('GOOGLE_API_KEY') || getEnv('API_KEY');
       
       if (!key) {
-        throw new Error("API Key not found. Please set REACT_APP_GOOGLE_API_KEY or VITE_GOOGLE_API_KEY.");
+        throw new Error("API Key not found. Please check REACT_APP_GOOGLE_API_KEY.");
       }
 
       const ai = new GoogleGenAI({ apiKey: key });
