@@ -2,17 +2,38 @@
 // Serafim Google Services
 // Handles Auth, Drive Sync, Tasks, and Calendar interactions
 
-// Accessing environment variables. 
-// Ensure REACT_APP_GOOGLE_CLIENT_ID and REACT_APP_GOOGLE_API_KEY are set in your Vercel/Environment config.
-const CLIENT_ID = (process.env.REACT_APP_GOOGLE_CLIENT_ID || '').trim();
-const API_KEY = (process.env.REACT_APP_GOOGLE_API_KEY || '').trim();
+// Helper to safely get env vars across different build tools (Vite, CRA, Next.js)
+// Bundlers often replace process.env.KEY statically, so we must be explicit.
+const getEnvVar = (key: string) => {
+  // 1. Try standard process.env (CRA/Node/Webpack)
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env[`REACT_APP_${key}`]) return process.env[`REACT_APP_${key}`];
+    if (process.env[`VITE_${key}`]) return process.env[`VITE_${key}`];
+    if (process.env[`NEXT_PUBLIC_${key}`]) return process.env[`NEXT_PUBLIC_${key}`];
+    if (process.env[key]) return process.env[key];
+  }
+  
+  // 2. Try import.meta.env (Vite native)
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    // @ts-ignore
+    if (import.meta.env[`VITE_${key}`]) return import.meta.env[`VITE_${key}`];
+    // @ts-ignore
+    if (import.meta.env[key]) return import.meta.env[key];
+  }
+
+  return '';
+};
+
+const CLIENT_ID = getEnvVar('GOOGLE_CLIENT_ID').trim();
+const API_KEY = getEnvVar('GOOGLE_API_KEY').trim();
 
 const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
   'https://www.googleapis.com/discovery/v1/apis/tasks/v1/rest',
   'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'
 ];
-// Added openid email profile to scopes
+
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.events openid email profile';
 
 let tokenClient: any;
@@ -21,7 +42,7 @@ let gisInited = false;
 
 // Helper to wait for GAPI script
 const waitForGapi = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if ((window as any).gapi && (window as any).gapi.client) return resolve();
     let count = 0;
     const interval = setInterval(() => {
@@ -30,10 +51,9 @@ const waitForGapi = (): Promise<void> => {
         clearInterval(interval);
         resolve();
       }
-      if (count > 50) { // 5 seconds timeout
+      if (count > 100) { // 10 seconds timeout
         clearInterval(interval);
-        // Don't reject, just resolve to allow race condition check later to fail gracefully
-        console.warn("GAPI script load timed out");
+        console.warn("GAPI script load timed out or blocked");
         resolve(); 
       }
     }, 100);
@@ -51,9 +71,9 @@ const waitForGIS = (): Promise<void> => {
         clearInterval(interval);
         resolve();
       }
-      if (count > 50) {
+      if (count > 100) {
           clearInterval(interval);
-          console.warn("GIS script load timed out");
+          console.warn("GIS script load timed out or blocked");
           resolve();
       }
     }, 100);
@@ -65,7 +85,7 @@ export const initGapiClient = async () => {
   if (typeof window === 'undefined') return;
   
   if (!API_KEY) {
-      console.error("GAPI Init Error: API_KEY is missing from environment variables.");
+      console.error("GAPI Init Error: API_KEY is missing. Check REACT_APP_GOOGLE_API_KEY or VITE_GOOGLE_API_KEY.");
       return;
   }
 
@@ -73,7 +93,7 @@ export const initGapiClient = async () => {
 
   return new Promise<void>((resolve, reject) => {
     if (!(window as any).gapi) {
-        console.error("GAPI script not loaded");
+        // If script blocked, reject gracefully
         return reject("GAPI script not loaded");
     }
     (window as any).gapi.load('client', async () => {
@@ -96,10 +116,10 @@ export const initGapiClient = async () => {
 // Initialize GIS (for Auth)
 export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => void) => {
   if (typeof window === 'undefined') return;
-  if (tokenClient) return; // Idempotent
+  if (tokenClient) return; // Idempotent if success
 
   if (!CLIENT_ID) {
-      console.error("GIS Init Error: CLIENT_ID is missing from environment variables.");
+      console.error("GIS Init Error: CLIENT_ID is missing. Check REACT_APP_GOOGLE_CLIENT_ID or VITE_GOOGLE_CLIENT_ID.");
       return;
   }
 
@@ -121,7 +141,6 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
           console.log('GIS Token Received');
           
           // Ensure GAPI is ready before setting token
-          // If GAPI failed to init, we just log it, but Auth succeeded so we can at least know who the user is.
           if ((window as any).gapi && (window as any).gapi.client) {
               (window as any).gapi.client.setToken(resp);
               console.log('GAPI Token Set Successfully');
@@ -142,29 +161,25 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
 };
 
 export const signIn = () => {
-  // Check configurations first
+  // Debug info for user
   if (!CLIENT_ID) {
-      alert("Ошибка конфигурации: Не найден Google Client ID. Убедитесь, что переменная REACT_APP_GOOGLE_CLIENT_ID добавлена в Vercel и сделан Redeploy.");
+      alert("Ошибка конфигурации: Не найден Google Client ID (REACT_APP_GOOGLE_CLIENT_ID или VITE_GOOGLE_CLIENT_ID).");
       return;
   }
   
-  // Debug info for user
-  console.log("Attempting Sign In. CLIENT_ID present:", !!CLIENT_ID);
-  console.log("TokenClient present:", !!tokenClient);
-
   if (tokenClient) {
-    // Force prompt to ensure user selects account and consents permissions
     tokenClient.requestAccessToken({ prompt: 'consent' });
   } else {
-    // Try to init immediately if missed
+    // Retry initialization
+    console.log("TokenClient missing, retrying initialization...");
     initGisClient().then(() => {
         if(tokenClient) {
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
-            alert('Сервисы Google не удалось инициализировать. Проверьте консоль и блокировщики рекламы.');
+            alert('Не удалось инициализировать Google Sign-In. Проверьте консоль и блокировщики рекламы.');
         }
     }).catch(e => {
-        alert('Ошибка инициализации Google Services: ' + e);
+        alert('Ошибка инициализации: ' + e);
     });
   }
 };
@@ -176,7 +191,7 @@ export const signOut = () => {
     (window as any).google.accounts.oauth2.revoke(token.access_token, () => {
       (window as any).gapi.client.setToken('');
       localStorage.removeItem('sb_google_token_exists');
-      window.location.reload(); // Simple refresh to clear state
+      window.location.reload(); 
     });
   }
 };
@@ -192,7 +207,6 @@ export interface GoogleUserProfile {
 }
 
 export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
-    // Wait slightly to ensure token is set in GAPI client
     await new Promise(r => setTimeout(r, 500));
     
     if (!checkSignInStatus()) {
@@ -200,7 +214,6 @@ export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
         return null;
     }
     try {
-        // Use the access token to fetch userinfo
         const accessToken = (window as any).gapi.client.getToken().access_token;
         const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: {
@@ -209,7 +222,6 @@ export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
         });
         if(response.ok) {
             const data = await response.json();
-            console.log('User profile fetched:', data);
             return data;
         }
         return null;
@@ -223,7 +235,6 @@ export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
 
 const BACKUP_FILENAME = 'serafim_backup.json';
 
-// Upload (Create or Update)
 export const syncToDrive = async (data: any) => {
   if (!checkSignInStatus()) {
       console.warn("Skipping sync: Not signed in");
@@ -239,7 +250,6 @@ export const syncToDrive = async (data: any) => {
       parents: ['appDataFolder']
     };
 
-    // 1. Check if file exists
     const response = await (window as any).gapi.client.drive.files.list({
       q: `name='${BACKUP_FILENAME}' and 'appDataFolder' in parents and trashed=false`,
       fields: 'files(id)',
@@ -247,18 +257,15 @@ export const syncToDrive = async (data: any) => {
     });
 
     const existingFile = response.result.files[0];
-
     const accessToken = (window as any).gapi.client.getToken().access_token;
 
     if (existingFile) {
-      // Update
       await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart`, {
         method: 'PATCH',
         headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
-        body: constructMultipartBody(null, file) // Metadata null for update unless renaming
+        body: constructMultipartBody(null, file)
       });
     } else {
-      // Create
       await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
@@ -273,7 +280,6 @@ export const syncToDrive = async (data: any) => {
   }
 };
 
-// Restore
 export const restoreFromDrive = async (): Promise<any | null> => {
   if (!checkSignInStatus()) return null;
 
@@ -292,14 +298,13 @@ export const restoreFromDrive = async (): Promise<any | null> => {
       alt: 'media'
     });
 
-    return result.result; // GAPI returns parsed JSON for alt=media usually
+    return result.result; 
   } catch (e) {
     console.error('Drive Restore Error', e);
     return null;
   }
 };
 
-// Helper for Multipart upload
 function constructMultipartBody(metadata: any, file: Blob) {
   const formData = new FormData();
   if (metadata) {
@@ -309,16 +314,12 @@ function constructMultipartBody(metadata: any, file: Blob) {
   return formData;
 }
 
-
-// --- GOOGLE TASKS ---
-
 export const createGoogleTask = async (title: string, notes: string = '', dueDate?: string) => {
   if (!checkSignInStatus()) return;
 
   try {
     const taskResource: any = { title, notes };
     if (dueDate) {
-        // Google Tasks 'due' is strict RFC3339.
         taskResource.due = dueDate;
     }
 
@@ -330,8 +331,6 @@ export const createGoogleTask = async (title: string, notes: string = '', dueDat
     console.error('Google Tasks API Error', e);
   }
 };
-
-// --- GOOGLE CALENDAR ---
 
 export const createCalendarEvent = async (title: string, startTime: string, endTime: string, description: string = '') => {
   if (!checkSignInStatus()) return;

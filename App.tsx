@@ -282,7 +282,17 @@ const App = () => {
     setView(newView);
   };
   
-  const hasAiKey = useMemo(() => !!process.env.API_KEY, []);
+  const hasAiKey = useMemo(() => {
+     if (typeof process !== 'undefined' && process.env) {
+         if (process.env.REACT_APP_GOOGLE_API_KEY || process.env.VITE_GOOGLE_API_KEY || process.env.GOOGLE_API_KEY) return true;
+     }
+     // @ts-ignore
+     if (typeof import.meta !== 'undefined' && import.meta.env) {
+         // @ts-ignore
+         if (import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.GOOGLE_API_KEY) return true;
+     }
+     return false;
+  }, []);
 
   const handleOnboardingComplete = (name: string) => {
     setUserName(name);

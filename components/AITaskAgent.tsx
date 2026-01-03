@@ -19,17 +19,28 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
     setStatus('Анализирую запрос...');
 
     try {
-      // Securely access API key from environment variables
-      // Supports standard CRA/Vercel naming or the strict GenAI requirement
-      const key = process.env.API_KEY || process.env.REACT_APP_GOOGLE_API_KEY;
+      // Robust Env Var Extraction
+      const getEnv = (k: string) => {
+         if(typeof process !== 'undefined' && process.env) {
+             return process.env[`REACT_APP_${k}`] || process.env[`VITE_${k}`] || process.env[k];
+         }
+         // @ts-ignore
+         if(typeof import.meta !== 'undefined' && import.meta.env) {
+             // @ts-ignore
+             return import.meta.env[`VITE_${k}`] || import.meta.env[k];
+         }
+         return '';
+      }
+
+      const key = getEnv('GOOGLE_API_KEY') || getEnv('API_KEY');
       
       if (!key) {
-        throw new Error("API Key not found in environment variables");
+        throw new Error("API Key not found. Please set REACT_APP_GOOGLE_API_KEY or VITE_GOOGLE_API_KEY.");
       }
 
       const ai = new GoogleGenAI({ apiKey: key });
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview', // Upgraded to Pro
+        model: 'gemini-3-pro-preview', 
         contents: `User request: "${input}". 
         Extract a task. Return JSON ONLY: { "title": "string", "priority": "High" | "Medium" | "Low" }.
         Use "priority": "Medium" by default unless specified.
@@ -38,7 +49,6 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
       });
       
       const text = response.text;
-      // Basic cleanup for JSON just in case, though responseMimeType usually handles it
       const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const data = JSON.parse(cleanText);
 
