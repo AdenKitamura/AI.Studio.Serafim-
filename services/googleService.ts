@@ -121,6 +121,42 @@ export const initGapiClient = async () => {
   });
 };
 
+// Handle OAuth Redirect Callback (Critical for Mobile/Tablet)
+export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null> => {
+    // Check for tokens in URL (Implicit flow return)
+    const hash = window.location.hash;
+    const search = window.location.search;
+    
+    console.log('[GoogleService] Checking URL for OAuth tokens...', { hash, search });
+
+    let accessToken = '';
+
+    // Regex to find access_token in hash
+    const tokenMatch = hash.match(/access_token=([^&]*)/);
+    if (tokenMatch && tokenMatch[1]) {
+        accessToken = tokenMatch[1];
+    }
+
+    if (accessToken) {
+        console.log('[GoogleService] Access Token found in URL. Restoring session...');
+        
+        // Ensure GAPI is ready before setting token
+        await initGapiClient();
+
+        if ((window as any).gapi && (window as any).gapi.client) {
+            (window as any).gapi.client.setToken({ access_token: accessToken });
+            console.log('[GoogleService] Session restored via URL token.');
+            
+            // Clean URL to hide token
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            localStorage.setItem('sb_google_token_exists', 'true');
+            return await getUserProfile();
+        }
+    }
+    return null;
+};
+
 // Initialize GIS (for Auth)
 export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => void) => {
   if (typeof window === 'undefined') return;
@@ -140,13 +176,14 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
       tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
+        // ux_mode: 'popup', // Default. Can use 'redirect' if popup fails consistently.
         callback: async (resp: any) => {
           if (resp.error !== undefined) {
             console.error('GIS Auth Error:', resp);
             alert(`Ошибка авторизации Google: ${JSON.stringify(resp.error)}`);
             throw (resp);
           }
-          console.log('GIS Token Received');
+          console.log('GIS Token Received via Callback');
           
           // Ensure GAPI is ready before setting token
           if ((window as any).gapi && (window as any).gapi.client) {
@@ -176,6 +213,7 @@ export const signIn = () => {
   }
   
   if (tokenClient) {
+    // Add prompt: 'consent' to force account picker, helps if session is stale
     tokenClient.requestAccessToken({ prompt: 'consent' });
   } else {
     // Retry initialization
@@ -215,6 +253,7 @@ export interface GoogleUserProfile {
 }
 
 export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
+    // Wait slightly to ensure token propagation
     await new Promise(r => setTimeout(r, 500));
     
     if (!checkSignInStatus()) {

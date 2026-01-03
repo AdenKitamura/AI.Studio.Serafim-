@@ -71,33 +71,41 @@ const App = () => {
   // --- INIT GOOGLE SERVICES ---
   useEffect(() => {
     const initGoogle = async () => {
-      // Parallel initialization so Auth (GIS) doesn't wait for API (GAPI)
-      // This prevents "try again in a second" errors if GAPI fails
-      
-      // 1. Initialize API Client (for Drive/Tasks calls)
-      googleService.initGapiClient().catch(err => {
-        console.error("GAPI Init Failed:", err);
-        setSyncStatus('error');
-      });
+      try {
+        // 1. Initialize GAPI first (Required for using the token)
+        await googleService.initGapiClient();
 
-      // 2. Initialize Auth Client (for Sign In button)
-      googleService.initGisClient(async () => {
-          // Callback when token received (User Signed In via popup)
-          setSyncStatus('synced');
-          const profile = await googleService.getUserProfile();
-          setGoogleUser(profile);
-      }).catch(err => {
-        console.error("GIS Init Failed:", err);
-      });
-      
-      // Initial online check
-      setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
+        // 2. CHECK FOR REDIRECT RETURN (Critically important for Mobile/Tablet)
+        // If the browser redirected us back from Google, the token is in the URL.
+        const redirectedUser = await googleService.handleRedirectCallback();
+        
+        if (redirectedUser) {
+            console.log("App: Redirect login successful", redirectedUser);
+            setGoogleUser(redirectedUser);
+            setSyncStatus('synced');
+        } else {
+            // 3. If no redirect token, initialize normal GIS for future popup sign-ins
+            // Also check if we have a valid token in memory/session from before
+            if (googleService.checkSignInStatus()) {
+                const profile = await googleService.getUserProfile();
+                setGoogleUser(profile);
+                setSyncStatus('synced');
+            } else {
+                setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
+            }
+        }
 
-      // Check if we have a token from a previous session in this load (unlikely for pure oauth2 without storage, but safety check)
-      if(googleService.checkSignInStatus()) {
+        // Initialize GIS Button logic regardless
+        googleService.initGisClient(async () => {
+            // Callback when token received (Popup flow)
+            setSyncStatus('synced');
             const profile = await googleService.getUserProfile();
             setGoogleUser(profile);
-            setSyncStatus('synced');
+        });
+
+      } catch (err) {
+        console.error("Google Init Failed:", err);
+        setSyncStatus('error');
       }
     };
 
