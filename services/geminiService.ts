@@ -4,24 +4,25 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from 
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
-// Helper to safely get env vars
-const getEnvVar = (key: string) => {
+const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env) {
-    if (process.env[`REACT_APP_${key}`]) return process.env[`REACT_APP_${key}`];
-    if (process.env[`VITE_${key}`]) return process.env[`VITE_${key}`];
-    if (process.env[key]) return process.env[key];
+    if (process.env.REACT_APP_GOOGLE_API_KEY) return process.env.REACT_APP_GOOGLE_API_KEY;
+    if (process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
+    if (process.env.API_KEY) return process.env.API_KEY;
   }
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     // @ts-ignore
-    if (import.meta.env[`VITE_${key}`]) return import.meta.env[`VITE_${key}`];
+    if (import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
     // @ts-ignore
-    if (import.meta.env[key]) return import.meta.env[key];
+    if (import.meta.env.GOOGLE_API_KEY) return import.meta.env.GOOGLE_API_KEY;
+    // @ts-ignore
+    if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
   }
   return '';
 };
 
-const API_KEY = getEnvVar('GOOGLE_API_KEY') || getEnvVar('API_KEY');
+const API_KEY = getApiKey().trim();
 
 // --- ИНСТРУКЦИЯ СЕРАФИМА (БАЗА ЗНАНИЙ) ---
 const APP_MANUAL = `

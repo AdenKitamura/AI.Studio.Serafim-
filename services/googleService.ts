@@ -2,31 +2,46 @@
 // Serafim Google Services
 // Handles Auth, Drive Sync, Tasks, and Calendar interactions
 
-// Helper to safely get env vars across different build tools (Vite, CRA, Next.js)
-// Bundlers often replace process.env.KEY statically, so we must be explicit.
-const getEnvVar = (key: string) => {
-  // 1. Try standard process.env (CRA/Node/Webpack)
+// Accessing environment variables explicitly for bundler replacement.
+// Dynamic access (process.env[key]) often fails in frontend builds.
+
+const getClientId = () => {
+  // 1. Try CRA / Standard (Must start with REACT_APP_)
   if (typeof process !== 'undefined' && process.env) {
-    if (process.env[`REACT_APP_${key}`]) return process.env[`REACT_APP_${key}`];
-    if (process.env[`VITE_${key}`]) return process.env[`VITE_${key}`];
-    if (process.env[`NEXT_PUBLIC_${key}`]) return process.env[`NEXT_PUBLIC_${key}`];
-    if (process.env[key]) return process.env[key];
+    if (process.env.REACT_APP_GOOGLE_CLIENT_ID) return process.env.REACT_APP_GOOGLE_CLIENT_ID;
+    if (process.env.GOOGLE_CLIENT_ID) return process.env.GOOGLE_CLIENT_ID; // Sometimes injected directly
   }
-  
-  // 2. Try import.meta.env (Vite native)
+  // 2. Try Vite
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     // @ts-ignore
-    if (import.meta.env[`VITE_${key}`]) return import.meta.env[`VITE_${key}`];
+    if (import.meta.env.VITE_GOOGLE_CLIENT_ID) return import.meta.env.VITE_GOOGLE_CLIENT_ID;
     // @ts-ignore
-    if (import.meta.env[key]) return import.meta.env[key];
+    if (import.meta.env.GOOGLE_CLIENT_ID) return import.meta.env.GOOGLE_CLIENT_ID;
   }
-
   return '';
 };
 
-const CLIENT_ID = getEnvVar('GOOGLE_CLIENT_ID').trim();
-const API_KEY = getEnvVar('GOOGLE_API_KEY').trim();
+const getApiKey = () => {
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.REACT_APP_GOOGLE_API_KEY) return process.env.REACT_APP_GOOGLE_API_KEY;
+    if (process.env.GOOGLE_API_KEY) return process.env.GOOGLE_API_KEY;
+  }
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    // @ts-ignore
+    if (import.meta.env.VITE_GOOGLE_API_KEY) return import.meta.env.VITE_GOOGLE_API_KEY;
+    // @ts-ignore
+    if (import.meta.env.GOOGLE_API_KEY) return import.meta.env.GOOGLE_API_KEY;
+  }
+  return '';
+};
+
+const CLIENT_ID = getClientId().trim();
+const API_KEY = getApiKey().trim();
+
+// Debug Log
+console.log(`[GoogleService] Config Check: ClientID present: ${!!CLIENT_ID}, APIKey present: ${!!API_KEY}`);
 
 const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
@@ -85,7 +100,7 @@ export const initGapiClient = async () => {
   if (typeof window === 'undefined') return;
   
   if (!API_KEY) {
-      console.error("GAPI Init Error: API_KEY is missing. Check REACT_APP_GOOGLE_API_KEY or VITE_GOOGLE_API_KEY.");
+      console.error("[GoogleService] GAPI Init Error: API_KEY is missing. Check Vercel Env Vars (must typically start with REACT_APP_)");
       return;
   }
 
@@ -119,7 +134,7 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
   if (tokenClient) return; // Idempotent if success
 
   if (!CLIENT_ID) {
-      console.error("GIS Init Error: CLIENT_ID is missing. Check REACT_APP_GOOGLE_CLIENT_ID or VITE_GOOGLE_CLIENT_ID.");
+      console.error("[GoogleService] GIS Init Error: CLIENT_ID is missing. Check Vercel Env Vars (must typically start with REACT_APP_)");
       return;
   }
 
@@ -163,7 +178,7 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
 export const signIn = () => {
   // Debug info for user
   if (!CLIENT_ID) {
-      alert("Ошибка конфигурации: Не найден Google Client ID (REACT_APP_GOOGLE_CLIENT_ID или VITE_GOOGLE_CLIENT_ID).");
+      alert("Ошибка: CLIENT_ID не найден. Убедитесь, что в Vercel переменная называется REACT_APP_GOOGLE_CLIENT_ID и сделан Redeploy.");
       return;
   }
   
@@ -176,7 +191,7 @@ export const signIn = () => {
         if(tokenClient) {
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
-            alert('Не удалось инициализировать Google Sign-In. Проверьте консоль и блокировщики рекламы.');
+            alert('Не удалось инициализировать Google Sign-In. Проверьте консоль (F12) на ошибки блокировщиков.');
         }
     }).catch(e => {
         alert('Ошибка инициализации: ' + e);
