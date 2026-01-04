@@ -42,7 +42,37 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.google
 
 let tokenClient: any;
 let gapiInited = false;
-let gisInited = false;
+
+// --- TOKEN STORAGE HELPERS ---
+const STORAGE_KEY_TOKEN = 'serafim_google_token';
+const STORAGE_KEY_EXPIRY = 'serafim_token_expiry';
+
+const saveTokenToStorage = (token: string, expiresInSeconds: number) => {
+    const expiryTime = Date.now() + (expiresInSeconds * 1000);
+    localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_EXPIRY, expiryTime.toString());
+};
+
+const getTokenFromStorage = (): string | null => {
+    const token = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const expiry = localStorage.getItem(STORAGE_KEY_EXPIRY);
+    
+    if (!token || !expiry) return null;
+    
+    // Check if expired (leave 5 min buffer)
+    if (Date.now() > parseInt(expiry) - 5 * 60 * 1000) {
+        console.log('[GoogleService] Stored token expired');
+        clearTokenStorage();
+        return null;
+    }
+    return token;
+};
+
+const clearTokenStorage = () => {
+    localStorage.removeItem(STORAGE_KEY_TOKEN);
+    localStorage.removeItem(STORAGE_KEY_EXPIRY);
+    localStorage.removeItem('sb_google_token_exists');
+};
 
 // Helper to wait for GAPI script
 const waitForGapi = (): Promise<void> => {
@@ -103,6 +133,15 @@ export const initGapiClient = async () => {
           discoveryDocs: DISCOVERY_DOCS,
         });
         gapiInited = true;
+        
+        // AUTO-RESTORE TOKEN FROM STORAGE IF AVAILABLE
+        const storedToken = getTokenFromStorage();
+        if (storedToken) {
+            console.log('[GoogleService] Restoring token from LocalStorage');
+            (window as any).gapi.client.setToken({ access_token: storedToken });
+            localStorage.setItem('sb_google_token_exists', 'true');
+        }
+
         console.log('GAPI initialized');
         resolve();
       } catch (err) {
@@ -120,24 +159,29 @@ export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null
     const queryParams = new URLSearchParams(window.location.search);
     
     let accessToken = hashParams.get('access_token') || queryParams.get('access_token');
+    let expiresIn = hashParams.get('expires_in') || queryParams.get('expires_in') || '3599'; // Default 1 hour
     
     if (accessToken) {
-        // Clear URL immediately to look clean, but keep token in memory
+        // SAVE TOKEN IMMEDIATELY
+        saveTokenToStorage(accessToken, parseInt(expiresIn));
+        
+        // Clear URL immediately to look clean
         window.history.replaceState(null, '', window.location.pathname);
-        alert('Токен получен! Инициализация сессии...');
     } else {
-        return null;
+        // If no token in URL, check storage
+        accessToken = getTokenFromStorage();
+        if (!accessToken) return null;
     }
 
-    console.log('[GoogleService] Token found. Initializing GAPI...');
+    console.log('[GoogleService] Token available. Ensuring GAPI ready...');
 
-    // 2. Ensure GAPI is ready (Important: Load scripts if not loaded)
+    // 2. Ensure GAPI is ready 
     await waitForGapi();
     if(!(window as any).gapi?.client) {
          await initGapiClient();
     }
 
-    // 3. Set Token
+    // 3. Set Token in GAPI
     if ((window as any).gapi?.client) {
         (window as any).gapi.client.setToken({ access_token: accessToken });
         localStorage.setItem('sb_google_token_exists', 'true');
@@ -164,13 +208,13 @@ export const initGisClient = async () => {
         client_id: CLIENT_ID,
         scope: SCOPES,
         ux_mode: 'redirect', 
-        redirect_uri: window.location.origin, // Matches Vercel deployment
+        redirect_uri: window.location.origin, 
         callback: (resp: any) => {
             if (resp.error) console.error(resp);
+            // Note: In redirect mode, this callback is rarely hit, logic happens on reload
         },
       });
       
-      gisInited = true;
       console.log('GIS initialized (Redirect Mode)');
   } catch (e) {
       console.error("Error initializing GIS client", e);
@@ -194,27 +238,30 @@ export const signIn = () => {
 };
 
 export const signOut = () => {
-  if (!(window as any).gapi?.client) return;
+  clearTokenStorage();
+  if (!(window as any).gapi?.client) {
+      window.location.reload();
+      return;
+  }
   const token = (window as any).gapi.client.getToken();
   if (token !== null) {
     if ((window as any).google && (window as any).google.accounts) {
         (window as any).google.accounts.oauth2.revoke(token.access_token, () => {
           (window as any).gapi.client.setToken('');
-          localStorage.removeItem('sb_google_token_exists');
           window.location.reload(); 
         });
     } else {
-        localStorage.removeItem('sb_google_token_exists');
         window.location.reload();
     }
   } else {
-      localStorage.removeItem('sb_google_token_exists');
       window.location.reload();
   }
 };
 
 export const checkSignInStatus = (): boolean => {
-    return !!(window as any).gapi?.client?.getToken();
+    // Check GAPI memory OR LocalStorage
+    const gapiToken = (window as any).gapi?.client?.getToken();
+    return !!gapiToken || !!getTokenFromStorage();
 };
 
 export interface GoogleUserProfile {
@@ -224,12 +271,16 @@ export interface GoogleUserProfile {
 }
 
 export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
-    await new Promise(r => setTimeout(r, 500));
+    // Retry logic if called too early
+    for (let i = 0; i < 3; i++) {
+        if ((window as any).gapi?.client?.getToken()) break;
+        await new Promise(r => setTimeout(r, 500));
+    }
     
     if (!checkSignInStatus()) {
-        console.log('User profile fetch skipped: Not signed in');
         return null;
     }
+
     try {
         const accessToken = (window as any).gapi.client.getToken().access_token;
         const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -244,6 +295,8 @@ export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
         return null;
     } catch (e) {
         console.error("Failed to fetch profile", e);
+        // If profile fetch fails (e.g. 401), the token might be bad. Clear it.
+        clearTokenStorage();
         return null;
     }
 }
@@ -252,7 +305,6 @@ const BACKUP_FILENAME = 'serafim_backup.json';
 
 export const syncToDrive = async (data: any) => {
   if (!checkSignInStatus()) {
-      console.warn("Skipping sync: Not signed in");
       return false;
   }
 
@@ -291,6 +343,10 @@ export const syncToDrive = async (data: any) => {
     return true;
   } catch (e) {
     console.error('Drive Sync Error', e);
+    // If sync fails with 401/403, consider clearing token
+    if ((e as any).status === 401) {
+        clearTokenStorage();
+    }
     throw e;
   }
 };

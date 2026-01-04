@@ -80,23 +80,16 @@ const App = () => {
         // 1. Initialize GAPI first (Loads scripts)
         await googleService.initGapiClient();
 
-        // 2. CHECK FOR REDIRECT RETURN (Critically important)
-        // We do this immediately after GAPI is ready to catch the token from URL
+        // 2. CHECK FOR REDIRECT RETURN OR EXISTING TOKEN
+        // handleRedirectCallback now checks URL AND LocalStorage
         const redirectedUser = await googleService.handleRedirectCallback();
         
         if (redirectedUser) {
-            console.log("App: Redirect login successful", redirectedUser);
+            console.log("App: Auth restored", redirectedUser);
             setGoogleUser(redirectedUser);
             setSyncStatus('synced');
         } else {
-            // 3. If no redirect token, check if we have a valid token in memory
-            if (googleService.checkSignInStatus()) {
-                const profile = await googleService.getUserProfile();
-                setGoogleUser(profile);
-                setSyncStatus('synced');
-            } else {
-                setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
-            }
+            setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
         }
 
         // Initialize GIS for future clicks (redirect mode)
@@ -110,9 +103,9 @@ const App = () => {
 
     initGoogle();
 
-    window.addEventListener('online', () => setSyncStatus('auth_needed'));
+    window.addEventListener('online', () => setSyncStatus(googleUser ? 'synced' : 'auth_needed'));
     window.addEventListener('offline', () => setSyncStatus('offline'));
-  }, []);
+  }, []); // Run once on mount
 
   // --- AUTO SYNC LOGIC (Drive) ---
   const triggerAutoSync = useCallback(() => {
