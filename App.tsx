@@ -37,7 +37,6 @@ type SyncStatus = 'offline' | 'synced' | 'syncing' | 'error' | 'auth_needed';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
-  // HARDCODED USER NAME: Aden
   const [userName] = useState('Aden'); 
   const [view, setView] = useState<ViewState>('dashboard');
   
@@ -54,7 +53,7 @@ const App = () => {
   const [showChatHistory, setShowChatHistory] = useState(false);
 
   // GOOGLE / SYNC STATE
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing'); // Start assuming we try to sync
   const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
   const syncTimeoutRef = useRef<any>(null);
 
@@ -68,48 +67,35 @@ const App = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
-  // Force save name to localStorage for consistency
   useEffect(() => {
       localStorage.setItem('sb_user_name', 'Aden');
   }, []);
 
-  // --- INIT GOOGLE SERVICES ---
+  // --- BACKGROUND AUTH ---
   useEffect(() => {
-    const initGoogle = async () => {
+    const performBackgroundAuth = async () => {
       try {
-        // 1. Initialize GAPI first (Loads scripts)
-        await googleService.initGapiClient();
-
-        // 2. CHECK FOR REDIRECT RETURN OR EXISTING TOKEN
-        // handleRedirectCallback now checks URL AND LocalStorage
-        const redirectedUser = await googleService.handleRedirectCallback();
-        
-        if (redirectedUser) {
-            console.log("App: Auth restored", redirectedUser);
-            setGoogleUser(redirectedUser);
+        // Attempt to get token from server (Vercel function)
+        const user = await googleService.initAndAuth();
+        if (user) {
+            setGoogleUser(user);
             setSyncStatus('synced');
         } else {
-            setSyncStatus(navigator.onLine ? 'auth_needed' : 'offline');
+            setSyncStatus('offline'); // Just offline mode, no annoying login prompts
         }
-
-        // Initialize GIS for future clicks (redirect mode)
-        googleService.initGisClient();
-
       } catch (err) {
-        console.error("Google Init Failed:", err);
-        setSyncStatus('error');
+        console.error("Background Auth Failed", err);
+        setSyncStatus('offline');
       }
     };
 
-    initGoogle();
-
-    window.addEventListener('online', () => setSyncStatus(googleUser ? 'synced' : 'auth_needed'));
-    window.addEventListener('offline', () => setSyncStatus('offline'));
-  }, []); // Run once on mount
+    performBackgroundAuth();
+  }, []); 
 
   // --- AUTO SYNC LOGIC (Drive) ---
   const triggerAutoSync = useCallback(() => {
-    if (syncStatus === 'offline' || syncStatus === 'auth_needed' || syncStatus === 'error') return;
+    // If we are offline or auth failed, don't try
+    if (syncStatus === 'offline' || syncStatus === 'error') return;
 
     setSyncStatus('syncing');
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
@@ -119,7 +105,11 @@ const App = () => {
         const fullDump = { tasks, thoughts, journal, projects, habits, sessions, user: userName };
         const result = await googleService.syncToDrive(fullDump);
         if (result) setSyncStatus('synced');
-        else setSyncStatus('auth_needed'); 
+        else {
+            // Only mark error if network is actually up
+            if (navigator.onLine) setSyncStatus('error');
+            else setSyncStatus('offline');
+        }
       } catch (e) {
         console.error("Auto Sync Failed", e);
         setSyncStatus('error'); 
@@ -283,16 +273,16 @@ const App = () => {
   }, []);
 
   const handleCloudClick = () => {
-    if (syncStatus === 'auth_needed' || syncStatus === 'error') {
-      googleService.signIn();
-    } else if (syncStatus === 'synced') {
+    if (syncStatus === 'synced') {
       triggerAutoSync();
+    } else {
+      // Retry background auth
+      window.location.reload();
     }
   };
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
-  // REMOVED ONBOARDING LOGIC COMPLETELY
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
@@ -322,8 +312,7 @@ const App = () => {
               className={`w-11 h-11 rounded-2xl flex items-center justify-center glass-panel transition-all glass-btn ${
                 syncStatus === 'synced' ? 'text-emerald-500' :
                 syncStatus === 'syncing' ? 'text-amber-500' :
-                syncStatus === 'offline' ? 'text-[var(--text-muted)] opacity-50' :
-                'text-rose-500'
+                'text-[var(--text-muted)] opacity-50'
               }`}
             >
                {syncStatus === 'syncing' ? <RefreshCw size={20} className="animate-spin" /> : 
