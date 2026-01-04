@@ -43,7 +43,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [activeTab, setActiveTab] = useState<'board' | 'canvas'>('board');
+  const [activeTab, setActiveTab] = useState<string>('board');
   
   // --- STATE ---
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
@@ -309,7 +309,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                        return (
                            <div key={col.id} className="flex-none w-72 flex flex-col h-full bg-[var(--bg-item)]/30 rounded-2xl border border-[var(--border-color)]">
                                <div className="p-3 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-item)] rounded-t-2xl relative overflow-hidden">
-                                   <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: col.color || COLORS[0] }}></div>
+                                   <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: col.color || COLORS[0] }}></div>
                                    <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">{col.title}</span>
                                    <div className="flex gap-1">
                                        <button onClick={() => handleChangeColumnColor(col.id)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text-main)]"><Palette size={12} /></button>

@@ -70,8 +70,9 @@ export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
         const response = await fetch('/api/auth');
         
         if (!response.ok) {
-            console.warn('[GoogleService] Server auth endpoint failed. Offline mode.');
-            return null;
+            const errText = await response.text();
+            console.error('[GoogleService] Server Auth Failed:', response.status, errText);
+            throw new Error(`Server Error ${response.status}: ${errText}`);
         }
 
         const data = await response.json();
@@ -85,22 +86,39 @@ export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
             console.log('[GoogleService] Auth Successful. Token injected.');
             
             // 4. Get User Profile to confirm identity
-            return await getUserProfile();
+            // If profile fetch fails but token is valid, use fallback to ensure app stays "Online"
+            const profile = await getUserProfile();
+            if (profile) return profile;
+            
+            return {
+                name: 'System User',
+                email: 'connected@server',
+                picture: ''
+            };
         } else {
-            console.error('[GoogleService] No access token returned from server.');
-            return null;
+            console.error('[GoogleService] No access token returned from server.', data);
+            throw new Error('No access_token in server response');
         }
 
     } catch (e) {
-        console.error('[GoogleService] Auth Flow Error:', e);
-        return null;
+        console.error('[GoogleService] Auth Flow Critical Error:', e);
+        throw e; // Propagate error to UI
     }
 };
 
-// No longer needed, but kept for compatibility
-export const signIn = () => {
-    alert("Авторизация происходит автоматически через сервер.");
-    window.location.reload();
+// Debug function for UI
+export const testConnection = async (): Promise<any> => {
+    try {
+        const response = await fetch('/api/auth');
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch {
+            return { error: 'Invalid JSON', raw: text };
+        }
+    } catch (e) {
+        return { error: 'Fetch Failed', details: e };
+    }
 };
 
 export const signOut = () => {
@@ -146,7 +164,11 @@ const BACKUP_FILENAME = 'serafim_backup.json';
 export const syncToDrive = async (data: any) => {
   if (!checkSignInStatus()) {
       // Try to re-auth silently if token is missing
-      await initAndAuth();
+      try {
+        await initAndAuth();
+      } catch (e) {
+        return false;
+      }
       if (!checkSignInStatus()) return false;
   }
 
@@ -190,7 +212,9 @@ export const syncToDrive = async (data: any) => {
 };
 
 export const restoreFromDrive = async (): Promise<any | null> => {
-  if (!checkSignInStatus()) await initAndAuth();
+  if (!checkSignInStatus()) {
+      try { await initAndAuth(); } catch(e) { return null; }
+  }
   if (!checkSignInStatus()) return null;
 
   try {

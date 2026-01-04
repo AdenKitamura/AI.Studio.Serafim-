@@ -12,13 +12,14 @@ import {
 
 interface WhiteboardViewProps {
   thoughts: Thought[];
-  activeBoardId: string;
+  activeBoardId?: string;
   onAdd: (thought: Thought) => void;
   onUpdate: (thought: Thought) => void;
   onDelete: (id: string) => void;
+  onConvertToTask?: (title: string) => void;
 }
 
-const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId, onAdd, onUpdate, onDelete }) => {
+const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId, onAdd, onUpdate, onDelete, onConvertToTask }) => {
   // Transform State (Pan/Zoom)
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   

@@ -5,7 +5,7 @@ import Settings from './Settings';
 import * as googleService from '../services/googleService';
 import { 
   X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, HelpCircle,
-  Cloud, CheckCircle, AlertCircle, LogOut, User, Calendar, CheckSquare, FileText
+  Cloud, CheckCircle, AlertCircle, LogOut, User, Calendar, CheckSquare, FileText, Server, AlertTriangle
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -27,15 +27,18 @@ interface ProfileModalProps {
     setCustomBg?: (bg: string) => void;
   };
   googleUser?: googleService.GoogleUserProfile | null;
+  authError?: string | null;
+  onRetryAuth?: () => void;
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
-    appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey, customization, googleUser
+    appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey, customization, googleUser, authError, onRetryAuth
 }) => {
   const [activeTab, setActiveTab] = useState<'settings' | 'google' | 'system' | 'faq'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
   const [isSyncing, setIsSyncing] = useState(false);
+  const [diagResult, setDiagResult] = useState<any>(null);
 
   const runDiagnostics = useCallback(async () => {
     setLastCheck(new Date().toLocaleTimeString());
@@ -60,10 +63,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   }, [runDiagnostics]);
 
   const handleManualSync = async () => {
-      if(!googleUser) {
-          googleService.signIn();
-          return;
-      }
       setIsSyncing(true);
       try {
           await googleService.syncToDrive(appState);
@@ -73,6 +72,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       } finally {
           setIsSyncing(false);
       }
+  };
+
+  const handleTestConnection = async () => {
+      setDiagResult('Testing...');
+      const res = await googleService.testConnection();
+      setDiagResult(res);
   };
 
   const handleForceUpdate = () => {
@@ -104,7 +109,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <div className="flex items-center gap-2">
                        <div className={`w-1.5 h-1.5 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}></div>
                        <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">
-                           {googleUser ? 'Google Connected' : 'Local User'}
+                           {googleUser ? 'Server Connected' : 'Offline Mode'}
                        </p>
                     </div>
                 </div>
@@ -127,7 +132,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     onClick={() => setActiveTab('google')} 
                     className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'google' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 >
-                    <Cloud size={14} /> Google
+                    <Cloud size={14} /> Server
                 </button>
                 <button 
                     onClick={() => setActiveTab('system')} 
@@ -168,12 +173,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         <div className={`absolute top-0 left-0 w-full h-1 ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" className="w-8 h-8" />
+                                <Server size={32} className="text-black" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-lg text-[var(--text-main)]">Google Services</h3>
+                                <h3 className="font-bold text-lg text-[var(--text-main)]">Cloud Server</h3>
                                 <p className="text-xs text-[var(--text-muted)]">
-                                    {googleUser ? googleUser.email : 'Аккаунт не подключен'}
+                                    {googleUser ? 'Подключено к Vercel Backend' : 'Ошибка соединения'}
                                 </p>
                             </div>
                         </div>
@@ -186,14 +191,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                          <div className="flex-1">
                                              <p className="text-sm font-bold text-[var(--text-main)]">Google Tasks</p>
                                              <p className="text-[10px] text-[var(--text-muted)]">Синхронизация задач</p>
-                                         </div>
-                                         <CheckCircle size={16} className="text-emerald-500" />
-                                     </div>
-                                     <div className="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl">
-                                         <div className="p-2 bg-orange-500/10 text-orange-500 rounded-lg"><Calendar size={16}/></div>
-                                         <div className="flex-1">
-                                             <p className="text-sm font-bold text-[var(--text-main)]">Google Calendar</p>
-                                             <p className="text-[10px] text-[var(--text-muted)]">Синхронизация событий</p>
                                          </div>
                                          <CheckCircle size={16} className="text-emerald-500" />
                                      </div>
@@ -222,14 +219,38 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                  </div>
                              </div>
                         ) : (
-                             <div className="text-center py-4">
-                                 <p className="text-sm text-[var(--text-muted)] mb-6">Подключите аккаунт для облачной синхронизации и уведомлений на телефон.</p>
+                             <div className="space-y-4">
+                                 <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
+                                     <div className="flex items-center gap-2 mb-2 text-rose-500">
+                                         <AlertTriangle size={18} />
+                                         <span className="font-bold text-xs uppercase">Ошибка авторизации</span>
+                                     </div>
+                                     <p className="text-[10px] text-[var(--text-muted)] font-mono break-all">
+                                         {authError || 'Неизвестная ошибка сервера'}
+                                     </p>
+                                 </div>
+
                                  <button 
-                                     onClick={() => googleService.signIn()}
-                                     className="w-full py-4 bg-white text-black rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                                     onClick={onRetryAuth}
+                                     className="w-full py-4 bg-[var(--bg-item)] border border-[var(--border-color)] text-[var(--text-main)] rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[var(--bg-main)] transition-colors"
                                  >
-                                     Войти через Google
+                                     <RefreshCw size={16} /> Повторить попытку
                                  </button>
+
+                                 <div className="border-t border-[var(--border-color)] pt-4 mt-4">
+                                     <h4 className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-2">Диагностика API</h4>
+                                     <button 
+                                        onClick={handleTestConnection}
+                                        className="text-[10px] text-blue-400 hover:underline mb-2 block"
+                                     >
+                                         Запустить тест соединения (/api/auth)
+                                     </button>
+                                     {diagResult && (
+                                         <pre className="bg-black p-2 rounded text-[9px] text-green-400 overflow-x-auto">
+                                             {JSON.stringify(diagResult, null, 2)}
+                                         </pre>
+                                     )}
+                                 </div>
                              </div>
                         )}
                     </div>

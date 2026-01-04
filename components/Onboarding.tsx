@@ -59,9 +59,14 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, googleUser }) => {
     }
   };
 
-  const connectGoogle = () => {
+  const connectGoogle = async () => {
     setIsGoogleConnecting(true);
-    googleService.signIn();
+    try {
+      await googleService.initAndAuth();
+    } catch (e) {
+      console.error(e);
+      setIsGoogleConnecting(false);
+    }
     // No timeout needed, App.tsx will update googleUser prop when auth finishes
   };
 

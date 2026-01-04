@@ -20,7 +20,7 @@ import { dbService } from './services/dbService';
 import { requestNotificationPermission } from './services/notificationService';
 import * as googleService from './services/googleService';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw
+  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { addHours } from 'date-fns';
 
@@ -53,8 +53,9 @@ const App = () => {
   const [showChatHistory, setShowChatHistory] = useState(false);
 
   // GOOGLE / SYNC STATE
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing'); // Start assuming we try to sync
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing'); 
   const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null); // NEW: Error state
   const syncTimeoutRef = useRef<any>(null);
 
   // Data
@@ -72,29 +73,29 @@ const App = () => {
   }, []);
 
   // --- BACKGROUND AUTH ---
-  useEffect(() => {
-    const performBackgroundAuth = async () => {
-      try {
-        // Attempt to get token from server (Vercel function)
-        const user = await googleService.initAndAuth();
-        if (user) {
-            setGoogleUser(user);
-            setSyncStatus('synced');
-        } else {
-            setSyncStatus('offline'); // Just offline mode, no annoying login prompts
-        }
-      } catch (err) {
-        console.error("Background Auth Failed", err);
-        setSyncStatus('offline');
+  const performBackgroundAuth = async () => {
+    setAuthError(null);
+    try {
+      const user = await googleService.initAndAuth();
+      if (user) {
+          setGoogleUser(user);
+          setSyncStatus('synced');
+      } else {
+          setSyncStatus('offline');
       }
-    };
+    } catch (err: any) {
+      console.error("Background Auth Failed", err);
+      setSyncStatus('offline');
+      setAuthError(err.message || 'Unknown Auth Error');
+    }
+  };
 
+  useEffect(() => {
     performBackgroundAuth();
   }, []); 
 
   // --- AUTO SYNC LOGIC (Drive) ---
   const triggerAutoSync = useCallback(() => {
-    // If we are offline or auth failed, don't try
     if (syncStatus === 'offline' || syncStatus === 'error') return;
 
     setSyncStatus('syncing');
@@ -106,7 +107,6 @@ const App = () => {
         const result = await googleService.syncToDrive(fullDump);
         if (result) setSyncStatus('synced');
         else {
-            // Only mark error if network is actually up
             if (navigator.onLine) setSyncStatus('error');
             else setSyncStatus('offline');
         }
@@ -276,8 +276,7 @@ const App = () => {
     if (syncStatus === 'synced') {
       triggerAutoSync();
     } else {
-      // Retry background auth
-      window.location.reload();
+      performBackgroundAuth();
     }
   };
 
@@ -312,12 +311,14 @@ const App = () => {
               className={`w-11 h-11 rounded-2xl flex items-center justify-center glass-panel transition-all glass-btn ${
                 syncStatus === 'synced' ? 'text-emerald-500' :
                 syncStatus === 'syncing' ? 'text-amber-500' :
+                syncStatus === 'error' ? 'text-rose-500' :
                 'text-[var(--text-muted)] opacity-50'
               }`}
             >
                {syncStatus === 'syncing' ? <RefreshCw size={20} className="animate-spin" /> : 
+                syncStatus === 'error' ? <AlertCircle size={20} /> :
                 syncStatus === 'offline' ? <CloudOff size={20} /> : 
-                googleUser ? <img src={googleUser.picture} className="w-6 h-6 rounded-full border border-emerald-500/50" alt="user" /> : <Cloud size={20} />
+                googleUser ? <img src={googleUser.picture || 'https://img.icons8.com/fluency/48/user-male-circle.png'} className="w-6 h-6 rounded-full border border-emerald-500/50" alt="user" /> : <Cloud size={20} />
                }
             </button>
 
@@ -440,6 +441,8 @@ const App = () => {
           hasAiKey={hasAiKey}
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
           googleUser={googleUser}
+          authError={authError}
+          onRetryAuth={performBackgroundAuth}
         />
       )}
 
