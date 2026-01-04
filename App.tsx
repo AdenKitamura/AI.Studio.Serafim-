@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ViewState, Task, Thought, Priority, ThemeKey, JournalEntry, Project, Habit, ChatMessage, ChatSession, ChatCategory, FontFamily, IconWeight, TextureType } from './types';
+import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
 import JournalView from './components/JournalView';
@@ -22,7 +22,7 @@ import * as googleService from './services/googleService';
 import { 
   Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw
 } from 'lucide-react';
-import { addMinutes, addHours } from 'date-fns';
+import { addHours } from 'date-fns';
 
 // Extend window definition to store PWA prompt
 declare global {
@@ -37,11 +37,11 @@ type SyncStatus = 'offline' | 'synced' | 'syncing' | 'error' | 'auth_needed';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
-  // HARDCODED USER NAME AS REQUESTED
-  const [userName, setUserName] = useState('Aden'); 
+  // HARDCODED USER NAME: Aden
+  const [userName] = useState('Aden'); 
   const [view, setView] = useState<ViewState>('dashboard');
   
-  // Customization State - Forced Mono
+  // Customization State
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'emerald') as ThemeKey);
   const [iconWeight, setIconWeight] = useState<IconWeight>(() => (localStorage.getItem('sb_icon_weight') || '2px') as IconWeight);
   const [customBg, setCustomBg] = useState<string>(() => localStorage.getItem('sb_custom_bg') || '');
@@ -77,11 +77,11 @@ const App = () => {
   useEffect(() => {
     const initGoogle = async () => {
       try {
-        // 1. Initialize GAPI first (Required for using the token)
+        // 1. Initialize GAPI first (Loads scripts)
         await googleService.initGapiClient();
 
-        // 2. CHECK FOR REDIRECT RETURN (Critically important for Mobile/Tablet)
-        // If the browser redirected us back from Google, the token is in the URL.
+        // 2. CHECK FOR REDIRECT RETURN (The fix for the loop)
+        // We do this immediately after GAPI is ready to catch the token from URL
         const redirectedUser = await googleService.handleRedirectCallback();
         
         if (redirectedUser) {
@@ -89,8 +89,7 @@ const App = () => {
             setGoogleUser(redirectedUser);
             setSyncStatus('synced');
         } else {
-            // 3. If no redirect token, initialize normal GIS for future popup sign-ins
-            // Also check if we have a valid token in memory/session from before
+            // 3. If no redirect token, check if we have a valid token in memory
             if (googleService.checkSignInStatus()) {
                 const profile = await googleService.getUserProfile();
                 setGoogleUser(profile);
@@ -100,13 +99,8 @@ const App = () => {
             }
         }
 
-        // Initialize GIS Button logic regardless
-        googleService.initGisClient(async () => {
-            // Callback when token received (Popup flow)
-            setSyncStatus('synced');
-            const profile = await googleService.getUserProfile();
-            setGoogleUser(profile);
-        });
+        // Initialize GIS for future clicks (redirect mode)
+        googleService.initGisClient();
 
       } catch (err) {
         console.error("Google Init Failed:", err);
@@ -122,7 +116,6 @@ const App = () => {
 
   // --- AUTO SYNC LOGIC (Drive) ---
   const triggerAutoSync = useCallback(() => {
-    // CRITICAL: Do not sync if error, offline, or auth is missing.
     if (syncStatus === 'offline' || syncStatus === 'auth_needed' || syncStatus === 'error') return;
 
     setSyncStatus('syncing');
@@ -133,13 +126,12 @@ const App = () => {
         const fullDump = { tasks, thoughts, journal, projects, habits, sessions, user: userName };
         const result = await googleService.syncToDrive(fullDump);
         if (result) setSyncStatus('synced');
-        else setSyncStatus('auth_needed'); // Fallback if sync skipped
+        else setSyncStatus('auth_needed'); 
       } catch (e) {
         console.error("Auto Sync Failed", e);
-        // Do not set global error state to avoid blocking UI, just visual indicator
         setSyncStatus('error'); 
       }
-    }, 5000); // Debounce 5 seconds
+    }, 5000); 
   }, [tasks, thoughts, journal, projects, habits, sessions, userName, syncStatus]);
 
   useEffect(() => {
@@ -151,7 +143,6 @@ const App = () => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       window.deferredPrompt = e;
-      // Show PWA install prompt shortly after load if available
       setTimeout(() => setShowPWAInstall(true), 3000);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -163,7 +154,7 @@ const App = () => {
     requestNotificationPermission();
   }, []);
 
-  // --- THEME & APPEARANCE HANDLING ---
+  // --- THEME & APPEARANCE ---
   useEffect(() => {
     const validTheme = themes[currentTheme] ? currentTheme : 'emerald';
     const theme = themes[validTheme];
@@ -233,19 +224,13 @@ const App = () => {
     } 
   }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
 
-  // --- HANDLERS WITH GOOGLE INTEGRATION ---
+  // --- HANDLERS ---
 
   const handleAddTask = (task: Task) => {
     setTasks(prev => [task, ...prev]);
-    
-    // Google Integration
     if (task.dueDate) {
-       // Push to Google Tasks
        googleService.createGoogleTask(task.title, task.description || '', task.dueDate);
-       
-       // If specifically formatted or user implies duration (future enhancement), add to Calendar
-       // For now, if priority is HIGH, duplicate to Calendar for extra alerting
-       if (task.priority === Priority.HIGH) {
+       if (task.priority === 'High') { // Using string literal as Priority enum might be tricky in pure logic
          const end = addHours(new Date(task.dueDate), 1).toISOString();
          googleService.createCalendarEvent(task.title, task.dueDate, end, task.description || '');
        }
@@ -298,13 +283,9 @@ const App = () => {
   };
   
   const hasAiKey = useMemo(() => {
-     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) {
-         return true;
-     }
+     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
      // @ts-ignore
-     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
-         return true;
-     }
+     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return true;
      return false;
   }, []);
 
@@ -312,14 +293,13 @@ const App = () => {
     if (syncStatus === 'auth_needed' || syncStatus === 'error') {
       googleService.signIn();
     } else if (syncStatus === 'synced') {
-      // Manual sync
       triggerAutoSync();
     }
   };
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
-  // REMOVED ONBOARDING CHECK - Directly rendering app
+  // NO ONBOARDING CHECK
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
@@ -344,7 +324,6 @@ const App = () => {
           </button>
 
           <div className="flex items-center gap-3">
-             {/* Cloud Status Indicator */}
             <button 
               onClick={handleCloudClick}
               className={`w-11 h-11 rounded-2xl flex items-center justify-center glass-panel transition-all glass-btn ${

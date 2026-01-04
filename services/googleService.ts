@@ -7,10 +7,8 @@
 
 const getClientId = () => {
   if (typeof process !== 'undefined' && process.env) {
-    // Primary for Vercel/CRA
     if (process.env.REACT_APP_GOOGLE_CLIENT_ID) return process.env.REACT_APP_GOOGLE_CLIENT_ID;
   }
-  // Fallback for Vite
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
     // @ts-ignore
@@ -21,10 +19,8 @@ const getClientId = () => {
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env) {
-    // Primary for Vercel/CRA
     if (process.env.REACT_APP_GOOGLE_API_KEY) return process.env.REACT_APP_GOOGLE_API_KEY;
   }
-  // Fallback for Vite
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
     // @ts-ignore
@@ -59,12 +55,12 @@ const waitForGapi = (): Promise<void> => {
         clearInterval(interval);
         resolve();
       }
-      if (count > 100) { // 10 seconds timeout
+      if (count > 200) { 
         clearInterval(interval);
-        console.warn("GAPI script load timed out or blocked");
+        console.warn("GAPI script load timed out");
         resolve(); 
       }
-    }, 100);
+    }, 50);
   });
 };
 
@@ -79,31 +75,27 @@ const waitForGIS = (): Promise<void> => {
         clearInterval(interval);
         resolve();
       }
-      if (count > 100) {
+      if (count > 200) {
           clearInterval(interval);
-          console.warn("GIS script load timed out or blocked");
           resolve();
       }
-    }, 100);
+    }, 50);
   });
 };
 
 // Initialize GAPI (for API calls)
 export const initGapiClient = async () => {
   if (typeof window === 'undefined') return;
-  
   if (!API_KEY) {
-      console.error("[GoogleService] GAPI Init Error: REACT_APP_GOOGLE_API_KEY is missing in environment.");
+      console.error("[GoogleService] GAPI Init Error: API Key missing.");
       return;
   }
 
   await waitForGapi();
 
   return new Promise<void>((resolve, reject) => {
-    if (!(window as any).gapi) {
-        // If script blocked, reject gracefully
-        return reject("GAPI script not loaded");
-    }
+    if (!(window as any).gapi) return reject("GAPI script not loaded");
+    
     (window as any).gapi.load('client', async () => {
       try {
         await (window as any).gapi.client.init({
@@ -121,37 +113,24 @@ export const initGapiClient = async () => {
   });
 };
 
-// Handle OAuth Redirect Callback (Critical for Mobile/Tablet)
+// Handle OAuth Redirect Callback (Robust parsing)
 export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null> => {
-    // Check for tokens in URL (Implicit flow return)
-    const hash = window.location.hash;
+    const hash = window.location.hash.substring(1); // remove leading #
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
     
-    // Check for errors first
-    if (hash.includes('error=')) {
-        console.error('OAuth Error in URL:', hash);
-        window.history.replaceState(null, '', window.location.pathname);
-        return null;
-    }
-
-    console.log('[GoogleService] Checking URL for OAuth tokens...');
-
-    let accessToken = '';
-
-    // Regex to find access_token in hash (standard OAuth2 fragment)
-    const tokenMatch = hash.match(/access_token=([^&]*)/);
-    if (tokenMatch && tokenMatch[1]) {
-        accessToken = tokenMatch[1];
-    }
-
     if (accessToken) {
         console.log('[GoogleService] Access Token found in URL. Restoring session...');
         
-        // Ensure GAPI is ready before setting token
-        await initGapiClient();
+        // Ensure GAPI is ready to accept token
+        await waitForGapi();
+        if(!(window as any).gapi?.client) {
+             // Try to init if not ready
+             await initGapiClient();
+        }
 
         if ((window as any).gapi && (window as any).gapi.client) {
             (window as any).gapi.client.setToken({ access_token: accessToken });
-            console.log('[GoogleService] Session restored via URL token.');
             
             // Clean URL to hide token
             window.history.replaceState(null, '', window.location.pathname);
@@ -164,35 +143,24 @@ export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null
 };
 
 // Initialize GIS (for Auth)
-export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => void) => {
+export const initGisClient = async () => {
   if (typeof window === 'undefined') return;
-  if (tokenClient) return; // Idempotent
+  if (tokenClient) return;
 
-  if (!CLIENT_ID) {
-      console.error("[GoogleService] GIS Init Error: REACT_APP_GOOGLE_CLIENT_ID is missing in environment.");
-      return;
-  }
+  if (!CLIENT_ID) return;
 
   await waitForGIS();
 
   try {
-      if (!(window as any).google) {
-          throw new Error("Google GIS script not loaded");
-      }
+      if (!(window as any).google) throw new Error("Google GIS script not loaded");
       
-      // Use 'redirect' mode to solve mobile infinite loading issues.
-      // This redirects the page instead of opening a popup.
       tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
         ux_mode: 'redirect', 
-        // IMPORTANT: You must add this URI to 'Authorized redirect URIs' in Google Cloud Console
-        redirect_uri: window.location.origin, 
+        redirect_uri: window.location.origin, // Matches Vercel deployment
         callback: (resp: any) => {
-            // This callback is mostly for 'popup' mode, but we define it for completeness
-            if (resp.error !== undefined) {
-               throw (resp);
-            }
+            if (resp.error) console.error(resp);
         },
       });
       
@@ -205,24 +173,16 @@ export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => vo
 
 export const signIn = () => {
   if (!CLIENT_ID) {
-      alert("Ошибка: REACT_APP_GOOGLE_CLIENT_ID не найден в переменных окружения.");
+      alert("Ошибка: CLIENT_ID не найден.");
       return;
   }
   
   if (tokenClient) {
-    // This triggers the full page redirect to Google
     tokenClient.requestAccessToken({ prompt: 'consent' });
   } else {
-    // Retry initialization if button clicked too fast
-    console.log("TokenClient missing, retrying initialization...");
     initGisClient().then(() => {
-        if(tokenClient) {
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            alert('Не удалось инициализировать Google Sign-In. Попробуйте обновить страницу.');
-        }
-    }).catch(e => {
-        alert('Ошибка инициализации: ' + e);
+        if(tokenClient) tokenClient.requestAccessToken({ prompt: 'consent' });
+        else alert('Не удалось инициализировать Google Sign-In.');
     });
   }
 };
@@ -281,8 +241,6 @@ export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
         return null;
     }
 }
-
-// --- DRIVE SYNC (AppDataFolder) ---
 
 const BACKUP_FILENAME = 'serafim_backup.json';
 
