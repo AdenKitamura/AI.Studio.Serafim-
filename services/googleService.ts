@@ -137,7 +137,7 @@ export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null
 
     let accessToken = '';
 
-    // Regex to find access_token in hash
+    // Regex to find access_token in hash (standard OAuth2 fragment)
     const tokenMatch = hash.match(/access_token=([^&]*)/);
     if (tokenMatch && tokenMatch[1]) {
         accessToken = tokenMatch[1];
@@ -163,37 +163,74 @@ export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null
     return null;
 };
 
-// Initialize GIS (for Auth) - Kept for compatibility but SignIn now uses Redirect
+// Initialize GIS (for Auth)
 export const initGisClient = async (onTokenReceived?: (tokenResponse: any) => void) => {
   if (typeof window === 'undefined') return;
-  // We keep this to initialize the library, but the primary flow is now manual redirect
+  if (tokenClient) return; // Idempotent
+
+  if (!CLIENT_ID) {
+      console.error("[GoogleService] GIS Init Error: REACT_APP_GOOGLE_CLIENT_ID is missing in environment.");
+      return;
+  }
+
   await waitForGIS();
+
+  try {
+      if (!(window as any).google) {
+          throw new Error("Google GIS script not loaded");
+      }
+      
+      // Use 'redirect' mode to solve mobile infinite loading issues.
+      // This redirects the page instead of opening a popup.
+      tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        ux_mode: 'redirect', 
+        // IMPORTANT: You must add this URI to 'Authorized redirect URIs' in Google Cloud Console
+        redirect_uri: window.location.origin, 
+        callback: (resp: any) => {
+            // This callback is mostly for 'popup' mode, but we define it for completeness
+            if (resp.error !== undefined) {
+               throw (resp);
+            }
+        },
+      });
+      
+      gisInited = true;
+      console.log('GIS initialized (Redirect Mode)');
+  } catch (e) {
+      console.error("Error initializing GIS client", e);
+  }
 };
 
-// MANUAL REDIRECT SIGN IN (Fixes Mobile "Infinite Loading")
 export const signIn = () => {
   if (!CLIENT_ID) {
       alert("Ошибка: REACT_APP_GOOGLE_CLIENT_ID не найден в переменных окружения.");
       return;
   }
-
-  // Determine the current origin to return to
-  const redirect_uri = window.location.origin;
   
-  console.log('[GoogleService] Initiating Redirect Flow to:', redirect_uri);
-
-  // Build OAuth 2.0 URL manually
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect_uri)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&include_granted_scopes=true&state=pass-through-value&prompt=consent`;
-  
-  // Force full page redirect
-  window.location.href = url;
+  if (tokenClient) {
+    // This triggers the full page redirect to Google
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  } else {
+    // Retry initialization if button clicked too fast
+    console.log("TokenClient missing, retrying initialization...");
+    initGisClient().then(() => {
+        if(tokenClient) {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            alert('Не удалось инициализировать Google Sign-In. Попробуйте обновить страницу.');
+        }
+    }).catch(e => {
+        alert('Ошибка инициализации: ' + e);
+    });
+  }
 };
 
 export const signOut = () => {
   if (!(window as any).gapi?.client) return;
   const token = (window as any).gapi.client.getToken();
   if (token !== null) {
-    // Try to revoke if library is loaded, otherwise just clear local state
     if ((window as any).google && (window as any).google.accounts) {
         (window as any).google.accounts.oauth2.revoke(token.access_token, () => {
           (window as any).gapi.client.setToken('');
@@ -221,7 +258,6 @@ export interface GoogleUserProfile {
 }
 
 export const getUserProfile = async (): Promise<GoogleUserProfile | null> => {
-    // Wait slightly to ensure token propagation
     await new Promise(r => setTimeout(r, 500));
     
     if (!checkSignInStatus()) {

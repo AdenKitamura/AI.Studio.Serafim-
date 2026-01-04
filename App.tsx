@@ -10,7 +10,6 @@ import Ticker from './components/Ticker';
 import ProfileModal from './components/ProfileModal';
 import FocusTimer from './components/FocusTimer';
 import Dashboard from './components/Dashboard';
-import Onboarding from './components/Onboarding';
 import AnalyticsView from './components/AnalyticsView';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import Fab from './components/Fab';
@@ -38,7 +37,8 @@ type SyncStatus = 'offline' | 'synced' | 'syncing' | 'error' | 'auth_needed';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
-  const [userName, setUserName] = useState(() => localStorage.getItem('sb_user_name') || '');
+  // HARDCODED USER NAME AS REQUESTED
+  const [userName, setUserName] = useState('Aden'); 
   const [view, setView] = useState<ViewState>('dashboard');
   
   // Customization State - Forced Mono
@@ -67,6 +67,11 @@ const App = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
+
+  // Force save name to localStorage for consistency
+  useEffect(() => {
+      localStorage.setItem('sb_user_name', 'Aden');
+  }, []);
 
   // --- INIT GOOGLE SERVICES ---
   useEffect(() => {
@@ -146,6 +151,8 @@ const App = () => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       window.deferredPrompt = e;
+      // Show PWA install prompt shortly after load if available
+      setTimeout(() => setShowPWAInstall(true), 3000);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -301,12 +308,6 @@ const App = () => {
      return false;
   }, []);
 
-  const handleOnboardingComplete = (name: string) => {
-    setUserName(name);
-    localStorage.setItem('sb_user_name', name);
-    setTimeout(() => setShowPWAInstall(true), 1000);
-  };
-
   const handleCloudClick = () => {
     if (syncStatus === 'auth_needed' || syncStatus === 'error') {
       googleService.signIn();
@@ -318,9 +319,7 @@ const App = () => {
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
-  // Pass googleUser to Onboarding so it can reactively update
-  if (!userName && isDataReady) return <Onboarding onComplete={handleOnboardingComplete} googleUser={googleUser} />;
-  
+  // REMOVED ONBOARDING CHECK - Directly rendering app
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
