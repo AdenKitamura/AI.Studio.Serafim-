@@ -80,7 +80,7 @@ const App = () => {
         // 1. Initialize GAPI first (Loads scripts)
         await googleService.initGapiClient();
 
-        // 2. CHECK FOR REDIRECT RETURN (The fix for the loop)
+        // 2. CHECK FOR REDIRECT RETURN (Critically important)
         // We do this immediately after GAPI is ready to catch the token from URL
         const redirectedUser = await googleService.handleRedirectCallback();
         
@@ -230,7 +230,7 @@ const App = () => {
     setTasks(prev => [task, ...prev]);
     if (task.dueDate) {
        googleService.createGoogleTask(task.title, task.description || '', task.dueDate);
-       if (task.priority === 'High') { // Using string literal as Priority enum might be tricky in pure logic
+       if (task.priority === 'High') {
          const end = addHours(new Date(task.dueDate), 1).toISOString();
          googleService.createCalendarEvent(task.title, task.dueDate, end, task.description || '');
        }
@@ -299,7 +299,7 @@ const App = () => {
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
-  // NO ONBOARDING CHECK
+  // REMOVED ONBOARDING LOGIC COMPLETELY
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (

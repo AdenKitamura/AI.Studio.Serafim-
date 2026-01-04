@@ -115,29 +115,35 @@ export const initGapiClient = async () => {
 
 // Handle OAuth Redirect Callback (Robust parsing)
 export const handleRedirectCallback = async (): Promise<GoogleUserProfile | null> => {
-    const hash = window.location.hash.substring(1); // remove leading #
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get('access_token');
+    // 1. Try to get token from URL (Hash or Query)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const queryParams = new URLSearchParams(window.location.search);
+    
+    let accessToken = hashParams.get('access_token') || queryParams.get('access_token');
     
     if (accessToken) {
-        console.log('[GoogleService] Access Token found in URL. Restoring session...');
-        
-        // Ensure GAPI is ready to accept token
-        await waitForGapi();
-        if(!(window as any).gapi?.client) {
-             // Try to init if not ready
-             await initGapiClient();
-        }
+        // Clear URL immediately to look clean, but keep token in memory
+        window.history.replaceState(null, '', window.location.pathname);
+        alert('Токен получен! Инициализация сессии...');
+    } else {
+        return null;
+    }
 
-        if ((window as any).gapi && (window as any).gapi.client) {
-            (window as any).gapi.client.setToken({ access_token: accessToken });
-            
-            // Clean URL to hide token
-            window.history.replaceState(null, '', window.location.pathname);
-            
-            localStorage.setItem('sb_google_token_exists', 'true');
-            return await getUserProfile();
-        }
+    console.log('[GoogleService] Token found. Initializing GAPI...');
+
+    // 2. Ensure GAPI is ready (Important: Load scripts if not loaded)
+    await waitForGapi();
+    if(!(window as any).gapi?.client) {
+         await initGapiClient();
+    }
+
+    // 3. Set Token
+    if ((window as any).gapi?.client) {
+        (window as any).gapi.client.setToken({ access_token: accessToken });
+        localStorage.setItem('sb_google_token_exists', 'true');
+        
+        // 4. Fetch Profile
+        return await getUserProfile();
     }
     return null;
 };
