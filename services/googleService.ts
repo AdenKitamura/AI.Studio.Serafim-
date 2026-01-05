@@ -66,38 +66,36 @@ export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
         });
 
         // 2. Fetch Access Token from our Serverless Function
-        // This keeps the Refresh Token secure on the server
         const response = await fetch('/api/auth');
-        
-        if (!response.ok) {
-            const errText = await response.text();
-            console.error('[GoogleService] Server Auth Failed:', response.status, errText);
-            throw new Error(`Server Error ${response.status}: ${errText}`);
-        }
-
         const data = await response.json();
+
+        // 3. Check for Logic Errors (handled 200 OK with error payload)
+        if (data.error) {
+            console.error('[GoogleService] OAuth Error:', data);
+            throw new Error(`Google Error: ${data.error} - ${data.error_description || ''}`);
+        }
         
         if (data.access_token) {
-            // 3. Inject the token directly into GAPI
+            // 4. Inject the token directly into GAPI
             (window as any).gapi.client.setToken({ 
                 access_token: data.access_token,
                 expires_in: data.expires_in
             });
             console.log('[GoogleService] Auth Successful. Token injected.');
             
-            // 4. Get User Profile to confirm identity
-            // If profile fetch fails but token is valid, use fallback to ensure app stays "Online"
+            // 5. Get User Profile to confirm identity
             const profile = await getUserProfile();
             if (profile) return profile;
             
+            // Fallback profile if scopes prevent userinfo fetching but token is valid
             return {
                 name: 'System User',
                 email: 'connected@server',
                 picture: ''
             };
         } else {
-            console.error('[GoogleService] No access token returned from server.', data);
-            throw new Error('No access_token in server response');
+            console.error('[GoogleService] No access token in response:', data);
+            throw new Error('No access_token returned');
         }
 
     } catch (e) {
@@ -114,10 +112,10 @@ export const testConnection = async (): Promise<any> => {
         try {
             return JSON.parse(text);
         } catch {
-            return { error: 'Invalid JSON', raw: text };
+            return { error: 'Invalid JSON from server', raw: text };
         }
     } catch (e) {
-        return { error: 'Fetch Failed', details: e };
+        return { error: 'Network Fetch Failed', details: String(e) };
     }
 };
 
@@ -163,7 +161,6 @@ const BACKUP_FILENAME = 'serafim_backup.json';
 
 export const syncToDrive = async (data: any) => {
   if (!checkSignInStatus()) {
-      // Try to re-auth silently if token is missing
       try {
         await initAndAuth();
       } catch (e) {
