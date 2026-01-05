@@ -20,7 +20,7 @@ import { dbService } from './services/dbService';
 import { requestNotificationPermission } from './services/notificationService';
 import * as googleService from './services/googleService';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle
+  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle, CheckCircle
 } from 'lucide-react';
 import { addHours } from 'date-fns';
 
@@ -51,12 +51,14 @@ const App = () => {
   const [showPWAInstall, setShowPWAInstall] = useState(false);
   const [showQuotes, setShowQuotes] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   // GOOGLE / SYNC STATE
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing'); 
   const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null); // NEW: Error state
+  const [authError, setAuthError] = useState<string | null>(null); 
   const syncTimeoutRef = useRef<any>(null);
+  const retryAuthIntervalRef = useRef<any>(null);
 
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -73,13 +75,15 @@ const App = () => {
   }, []);
 
   // --- BACKGROUND AUTH ---
-  const performBackgroundAuth = async () => {
-    setAuthError(null);
+  const performBackgroundAuth = async (isRetry = false) => {
+    if (!isRetry) setAuthError(null);
     try {
       const user = await googleService.initAndAuth();
       if (user) {
           setGoogleUser(user);
           setSyncStatus('synced');
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 4000);
       } else {
           setSyncStatus('offline');
       }
@@ -92,7 +96,17 @@ const App = () => {
 
   useEffect(() => {
     performBackgroundAuth();
-  }, []); 
+    
+    // Auto-retry every 60s if offline
+    retryAuthIntervalRef.current = setInterval(() => {
+        if (!googleUser) {
+            console.log("Auto-retrying auth...");
+            performBackgroundAuth(true);
+        }
+    }, 60000);
+
+    return () => clearInterval(retryAuthIntervalRef.current);
+  }, []); // Run once on mount
 
   // --- AUTO SYNC LOGIC (Drive) ---
   const triggerAutoSync = useCallback(() => {
@@ -287,6 +301,16 @@ const App = () => {
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
       
+      {/* SUCCESS TOAST */}
+      {showSuccessToast && (
+          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-10 fade-in duration-500">
+              <div className="bg-emerald-500/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-emerald-400/30">
+                  <CheckCircle size={20} />
+                  <span className="text-xs font-black uppercase tracking-widest">Система подключена</span>
+              </div>
+          </div>
+      )}
+
       {/* MAIN APP CONTENT */}
       <div 
         className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
@@ -442,7 +466,7 @@ const App = () => {
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
           googleUser={googleUser}
           authError={authError}
-          onRetryAuth={performBackgroundAuth}
+          onRetryAuth={() => performBackgroundAuth(true)}
         />
       )}
 

@@ -5,7 +5,7 @@ import Settings from './Settings';
 import * as googleService from '../services/googleService';
 import { 
   X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, HelpCircle,
-  Cloud, CheckCircle, AlertCircle, LogOut, User, Calendar, CheckSquare, FileText, Server, AlertTriangle
+  Cloud, CheckCircle, AlertCircle, LogOut, User, Calendar, CheckSquare, FileText, Server, AlertTriangle, Terminal
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -75,7 +75,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const handleTestConnection = async () => {
-      setDiagResult('Testing...');
+      setDiagResult('Connecting to /api/auth...');
       const res = await googleService.testConnection();
       setDiagResult(res);
   };
@@ -107,9 +107,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div>
                     <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">{googleUser?.name || userName}</h3>
                     <div className="flex items-center gap-2">
-                       <div className={`w-1.5 h-1.5 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}></div>
+                       <div className={`w-1.5 h-1.5 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
                        <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">
-                           {googleUser ? 'Server Connected' : 'Offline Mode'}
+                           {googleUser ? 'Server Online' : 'Offline Mode'}
                        </p>
                     </div>
                 </div>
@@ -178,29 +178,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                             <div>
                                 <h3 className="font-bold text-lg text-[var(--text-main)]">Cloud Server</h3>
                                 <p className="text-xs text-[var(--text-muted)]">
-                                    {googleUser ? 'Подключено к Vercel Backend' : 'Ошибка соединения'}
+                                    {googleUser ? 'Vercel Function: OK' : 'Vercel Function: Error'}
                                 </p>
                             </div>
                         </div>
 
                         {googleUser ? (
                              <div className="space-y-4">
-                                 <div className="grid grid-cols-1 gap-3">
-                                     <div className="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl">
-                                         <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg"><CheckSquare size={16}/></div>
-                                         <div className="flex-1">
-                                             <p className="text-sm font-bold text-[var(--text-main)]">Google Tasks</p>
-                                             <p className="text-[10px] text-[var(--text-muted)]">Синхронизация задач</p>
-                                         </div>
-                                         <CheckCircle size={16} className="text-emerald-500" />
-                                     </div>
-                                     <div className="flex items-center gap-3 p-3 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl">
-                                         <div className="p-2 bg-green-500/10 text-green-500 rounded-lg"><FileText size={16}/></div>
-                                         <div className="flex-1">
-                                             <p className="text-sm font-bold text-[var(--text-main)]">Google Drive</p>
-                                             <p className="text-[10px] text-[var(--text-muted)]">Резервные копии (AppData)</p>
-                                         </div>
-                                         <CheckCircle size={16} className="text-emerald-500" />
+                                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+                                     <CheckCircle size={24} className="text-emerald-500" />
+                                     <div>
+                                         <p className="text-sm font-bold text-emerald-500">Система подключена</p>
+                                         <p className="text-[10px] text-[var(--text-muted)]">Авторизация через Vercel Backend успешна.</p>
                                      </div>
                                  </div>
                                  
@@ -211,7 +200,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                          className="flex-1 py-3 bg-[var(--accent)] text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
                                      >
                                          <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-                                         {isSyncing ? 'Синхронизация...' : 'Обновить'}
+                                         {isSyncing ? 'Синхронизация...' : 'Бэкап сейчас'}
                                      </button>
                                      <button onClick={googleService.signOut} className="py-3 px-4 bg-rose-500/10 text-rose-500 rounded-xl font-bold text-xs hover:bg-rose-500 hover:text-white transition-colors">
                                          <LogOut size={16} />
@@ -223,10 +212,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                  <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
                                      <div className="flex items-center gap-2 mb-2 text-rose-500">
                                          <AlertTriangle size={18} />
-                                         <span className="font-bold text-xs uppercase">Ошибка авторизации</span>
+                                         <span className="font-bold text-xs uppercase">Статус подключения</span>
                                      </div>
-                                     <p className="text-[10px] text-[var(--text-muted)] font-mono break-all">
-                                         {authError || 'Неизвестная ошибка сервера'}
+                                     <p className="text-[10px] text-[var(--text-muted)] font-mono break-all whitespace-pre-wrap">
+                                         {authError ? `Ошибка: ${authError}` : 'Необходимо подключение к серверу.'}
                                      </p>
                                  </div>
 
@@ -238,18 +227,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                  </button>
 
                                  <div className="border-t border-[var(--border-color)] pt-4 mt-4">
-                                     <h4 className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-2">Диагностика API</h4>
-                                     <button 
-                                        onClick={handleTestConnection}
-                                        className="text-[10px] text-blue-400 hover:underline mb-2 block"
-                                     >
-                                         Запустить тест соединения (/api/auth)
-                                     </button>
-                                     {diagResult && (
-                                         <pre className="bg-black p-2 rounded text-[9px] text-green-400 overflow-x-auto">
-                                             {JSON.stringify(diagResult, null, 2)}
-                                         </pre>
-                                     )}
+                                     <div className="flex justify-between items-center mb-2">
+                                         <h4 className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Диагностика API</h4>
+                                         <button onClick={handleTestConnection} className="text-[10px] text-[var(--accent)] hover:underline">Запустить тест</button>
+                                     </div>
+                                     <div className="bg-black p-3 rounded-xl border border-white/10 font-mono text-[9px] h-32 overflow-y-auto whitespace-pre-wrap break-all text-green-400">
+                                         <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-1 text-white/50"><Terminal size={10}/> /api/auth response</div>
+                                         {diagResult ? JSON.stringify(diagResult, null, 2) : 'Нажмите "Запустить тест" для проверки ответа сервера...'}
+                                     </div>
                                  </div>
                              </div>
                         )}
@@ -259,13 +244,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             
             {activeTab === 'system' && (
               <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32">
-                <div className="flex justify-between items-center px-2">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">Диагностика Хранилища</h4>
-                    <button onClick={runDiagnostics} className="p-2 bg-[var(--bg-item)] rounded-xl text-[var(--accent)] hover:text-[var(--text-main)] transition-colors border border-[var(--border-color)]">
-                        <RefreshCw size={16} />
-                    </button>
-                </div>
-                
+                {/* ... existing system tab content ... */}
                 <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group">
                     <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
                         <HardDrive size={200} />
@@ -292,9 +271,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
-                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></div>
-                         <span className="text-sm font-black text-[var(--text-main)]">Gemini AI</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Подключено</span>
+                         <div className={`w-2 h-2 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_currentColor] animate-pulse`}></div>
+                         <span className="text-sm font-black text-[var(--text-main)]">Server</span>
+                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">{googleUser ? 'Online' : 'Offline'}</span>
                     </div>
                     <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
                          <ShieldCheck size={18} className="text-indigo-400" />
@@ -306,10 +285,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 {/* UPDATE APP BUTTON */}
                 <button 
                   onClick={handleForceUpdate}
-                  className="w-full mt-4 glass-panel py-4 rounded-2xl flex items-center justify-center gap-2 text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-all border-dashed border border-[var(--border-color)]"
+                  className="w-full mt-4 glass-panel py-4 rounded-2xl flex items-center justify-center gap-2 text-rose-500 hover:bg-rose-500/10 transition-all border-dashed border border-[var(--border-color)]"
                 >
                   <RefreshCw size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Обновить приложение (Force)</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Hard Reset (Перезагрузка)</span>
                 </button>
 
                 <div className="pt-8 text-center border-t border-[var(--border-color)] mt-4">
@@ -321,18 +300,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {/* FAQ TAB */}
             {activeTab === 'faq' && (
               <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 space-y-6">
-                 <div className="text-center mb-6">
-                    <h4 className="text-2xl font-black text-[var(--text-main)]">FAQ</h4>
-                    <p className="text-xs text-[var(--text-muted)]">Часто задаваемые вопросы</p>
-                 </div>
-
+                 {/* ... existing faq ... */}
                  <div className="space-y-4">
                     {[
                       { q: "Где хранятся мои данные?", a: "Все данные (задачи, дневник, настройки) хранятся ТОЛЬКО в браузере вашего устройства (IndexedDB). Мы не имеем доступа к вашим записям." },
-                      { q: "Как работает ИИ-агент?", a: "Серафим использует Google Gemini API. Ключ API, если вы его ввели, сохраняется локально и отправляется напрямую в Google." },
-                      { q: "Приложение работает без интернета?", a: "Да. После установки на главный экран, базовые функции (задачи, дневник) работают оффлайн. ИИ требует подключения." },
-                      { q: "Что делать, если приложение тормозит?", a: "Попробуйте нажать кнопку 'Обновить приложение' во вкладке Система или очистить кэш браузера." },
-                      { q: "Как удалить данные?", a: "Очистите данные сайта в настройках браузера. В будущем появится кнопка полного сброса." }
+                      { q: "Почему не работает синхронизация?", a: "Проверьте 'Server' вкладку. Если там 'Offline', нажмите 'Повторить попытку'. Убедитесь, что серверные функции Vercel настроены." },
+                      { q: "Что делать, если приложение тормозит?", a: "Попробуйте нажать кнопку 'Hard Reset' во вкладке Система." }
                     ].map((item, idx) => (
                       <div key={idx} className="glass-panel p-5 rounded-2xl border border-[var(--border-color)]">
                          <h5 className="font-bold text-[var(--text-main)] text-sm mb-2 flex items-start gap-2">
