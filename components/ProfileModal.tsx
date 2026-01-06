@@ -88,7 +88,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <div className="flex items-center gap-2">
                        <div className={`w-1.5 h-1.5 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
                        <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">
-                           {googleUser ? 'Verified Identity' : 'Local User'}
+                           {googleUser ? 'Подтвержден' : 'Локальный'}
                        </p>
                     </div>
                 </div>
@@ -156,7 +156,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                             </div>
                             <div>
                                 <h3 className="font-bold text-lg text-[var(--text-main)]">Google Identity</h3>
-                                <p className="text-xs text-[var(--text-muted)]">OAuth 2.0 Secure Session</p>
+                                <p className="text-xs text-[var(--text-muted)]">Безопасная сессия</p>
                             </div>
                         </div>
 
@@ -228,13 +228,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                     <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
                          <div className={`w-2 h-2 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_currentColor] animate-pulse`}></div>
-                         <span className="text-sm font-black text-[var(--text-main)]">Server</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">{googleUser ? 'Online' : 'Local'}</span>
+                         <span className="text-sm font-black text-[var(--text-main)]">Сервер</span>
+                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">{googleUser ? 'Онлайн' : 'Локально'}</span>
                     </div>
                     <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
                          <ShieldCheck size={18} className="text-indigo-400" />
                          <span className="text-sm font-black text-[var(--text-main)]">Приватность</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Secure</span>
+                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Защищено</span>
                     </div>
                 </div>
 
@@ -247,7 +247,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </button>
 
                 <div className="pt-8 text-center border-t border-[var(--border-color)] mt-4">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-30">Scan Timestamp: {lastCheck}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-30">Время сканирования: {lastCheck}</p>
                 </div>
               </div>
             )}

@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types';
 import { 
@@ -64,11 +63,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="px-8 pt-12 pb-6">
         <div className="flex items-center gap-3 mb-2">
           <div className="px-2.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-md text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--accent)]/10">
-            System Online
+            Система Активна
           </div>
         </div>
         <h2 className="text-4xl font-black text-[var(--text-main)] tracking-tighter leading-none mb-3">
-          {localStorage.getItem('sb_user_name') || 'User'}.
+          {localStorage.getItem('sb_user_name') || 'Пользователь'}.
         </h2>
         <p className="text-[var(--text-muted)] text-sm font-bold opacity-60">Твой интеллект в порядке.</p>
       </div>

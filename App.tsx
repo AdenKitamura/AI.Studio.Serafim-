@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight } from './types';
 import Mentorship from './components/Mentorship';
@@ -29,6 +28,7 @@ declare global {
     deferredPrompt: any;
     google: any;
     gapi: any;
+    // aistudio declaration removed to avoid conflict with existing global type
   }
 }
 
@@ -264,7 +264,7 @@ const App = () => {
           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-10 fade-in duration-500">
               <div className="bg-emerald-500/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-emerald-400/30">
                   <CheckCircle size={20} />
-                  <span className="text-xs font-black uppercase tracking-widest">Google Identity: OK</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Google ID: Подключено</span>
               </div>
           </div>
       )}
@@ -337,7 +337,7 @@ const App = () => {
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
-              onConnectAI={() => window.aistudio?.openSelectKey()}
+              onConnectAI={() => (window as any).aistudio?.openSelectKey()}
               voiceTrigger={voiceTrigger}
             />
           )}

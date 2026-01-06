@@ -280,7 +280,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--bg-item)]/30 backdrop-blur-md border border-[var(--border-color)]">
            <div className={`w-1.5 h-1.5 rounded-full ${isThinking ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></div>
            <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest">
-             {isThinking ? 'Processing...' : 'Serafim Core Active'}
+             {isThinking ? 'Обработка...' : 'Серафим Активен'}
            </span>
         </div>
       </div>
