@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey } from '../types';
 import { createMentorChat, polishTranscript } from '../services/geminiService';
@@ -102,22 +101,23 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const handleSend = async () => {
-    if (isThinking || (!input.trim() && !attachedImage)) return;
-    if (!hasAiKey) { onConnectAI(); return; }
+    // Basic validation
+    if (isThinking) return;
+    const cleanInput = input.trim();
+    if (!cleanInput && !attachedImage) return;
 
-    const userQuery = input.trim();
+    if (!hasAiKey) { onConnectAI(); return; }
     
     // 1. Create User Message
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
-      content: userQuery, 
+      content: cleanInput, 
       image: attachedImage || undefined,
       timestamp: Date.now() 
     };
 
     // 2. Optimistic Update (Immediate UI feedback)
-    // We use a local variable to ensure we don't depend on stale state during the async operation
     const currentHistory = activeSession ? activeSession.messages : [];
     const newHistory = [...currentHistory, userMsg];
     
@@ -135,12 +135,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
       const deviceTimeISO = format(now, "yyyy-MM-dd'T'HH:mm:ssXXX"); 
       const timeContext = `\n[SYSTEM_CONTEXT: Current Device Time is strictly ${deviceTimeISO}.]`;
       
-      let contents: any = userQuery + timeContext;
+      let contents: any = cleanInput + timeContext;
       
       if (userMsg.image) {
         contents = {
           parts: [
-            { text: userQuery + timeContext || "Проанализируй это изображение." },
+            { text: cleanInput + timeContext || "Проанализируй это изображение." },
             { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }
           ]
         };
@@ -228,7 +228,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         timestamp: Date.now() 
       };
       
-      // Use the LOCAL history variable to append, ensuring no lost messages
       onUpdateMessages([...newHistory, modelMsg]);
 
     } catch (e) {
@@ -245,6 +244,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
       setIsThinking(false);
     }
   };
+
+  // Determine if send button should be clickable
+  const canSend = !isThinking && (input.trim().length > 0 || !!attachedImage);
 
   return (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
@@ -274,9 +276,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden z-10">
         {/* Fade Mask */}
-        <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-10" 
+        <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-20" 
              style={{ 
                background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` 
              }} />
@@ -308,7 +310,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </div>
 
       {/* Input Area */}
-      <div className="flex-none p-6 pb-24 relative z-20">
+      <div className="flex-none p-6 pb-24 relative z-50">
         <div className="max-w-2xl mx-auto space-y-4">
           
           {attachedImage && (
@@ -345,8 +347,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
             <button 
               onClick={handleSend}
-              disabled={isThinking || (!input.trim() && !attachedImage)}
-              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!input.trim() && !attachedImage && !isThinking ? 'opacity-20 bg-[var(--bg-main)]' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90'}`}
+              disabled={!canSend}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!canSend ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}
             >
               {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
             </button>

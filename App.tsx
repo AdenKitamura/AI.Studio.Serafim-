@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight } from './types';
 import Mentorship from './components/Mentorship';
@@ -20,9 +19,8 @@ import { dbService } from './services/dbService';
 import { requestNotificationPermission } from './services/notificationService';
 import * as googleService from './services/googleService';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle, CheckCircle
+  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle, CheckCircle, LogIn, User
 } from 'lucide-react';
-import { addHours } from 'date-fns';
 
 // Extend window definition to store PWA prompt
 declare global {
@@ -37,7 +35,6 @@ type SyncStatus = 'offline' | 'synced' | 'syncing' | 'error' | 'auth_needed';
 
 const App = () => {
   const [isDataReady, setIsDataReady] = useState(false);
-  const [userName] = useState('Aden'); 
   const [view, setView] = useState<ViewState>('dashboard');
   
   // Customization State
@@ -53,12 +50,10 @@ const App = () => {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
-  // GOOGLE / SYNC STATE
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('syncing'); 
+  // AUTH STATE (Google)
   const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null); 
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline'); 
   const syncTimeoutRef = useRef<any>(null);
-  const retryAuthIntervalRef = useRef<any>(null);
 
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -70,70 +65,49 @@ const App = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
+  const userName = googleUser?.name || 'Aden';
+
+  // --- GOOGLE AUTH CHECK ---
   useEffect(() => {
-      localStorage.setItem('sb_user_name', 'Aden');
+    const checkAuth = async () => {
+      // Small delay to ensure scripts might be ready, though service handles it
+      setTimeout(async () => {
+         const profile = await googleService.getUserProfile();
+         if (profile) {
+             setGoogleUser(profile);
+             setSyncStatus('synced');
+             setShowSuccessToast(true);
+             setTimeout(() => setShowSuccessToast(false), 3000);
+         }
+      }, 1000);
+    };
+    checkAuth();
   }, []);
 
-  // --- BACKGROUND AUTH ---
-  const performBackgroundAuth = async (isRetry = false) => {
-    if (!isRetry) setAuthError(null);
+  const handleConnectGoogle = async () => {
     try {
-      const user = await googleService.initAndAuth();
-      if (user) {
-          setGoogleUser(user);
-          setSyncStatus('synced');
-          setShowSuccessToast(true);
-          setTimeout(() => setShowSuccessToast(false), 4000);
-      } else {
-          setSyncStatus('offline');
-      }
-    } catch (err: any) {
-      console.error("Background Auth Failed", err);
-      setSyncStatus('offline');
-      setAuthError(err.message || 'Unknown Auth Error');
+        const profile = await googleService.initAndAuth();
+        if (profile) {
+            setGoogleUser(profile);
+            setSyncStatus('synced');
+        }
+    } catch (e) {
+        console.error("Auth failed", e);
+        setSyncStatus('error');
     }
   };
 
-  useEffect(() => {
-    performBackgroundAuth();
-    
-    // Auto-retry every 60s if offline
-    retryAuthIntervalRef.current = setInterval(() => {
-        if (!googleUser) {
-            console.log("Auto-retrying auth...");
-            performBackgroundAuth(true);
-        }
-    }, 60000);
-
-    return () => clearInterval(retryAuthIntervalRef.current);
-  }, []); // Run once on mount
-
-  // --- AUTO SYNC LOGIC (Drive) ---
+  // --- AUTO SYNC LOGIC ---
   const triggerAutoSync = useCallback(() => {
-    if (syncStatus === 'offline' || syncStatus === 'error') return;
-
-    setSyncStatus('syncing');
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-
-    syncTimeoutRef.current = setTimeout(async () => {
-      try {
-        const fullDump = { tasks, thoughts, journal, projects, habits, sessions, user: userName };
-        const result = await googleService.syncToDrive(fullDump);
-        if (result) setSyncStatus('synced');
-        else {
-            if (navigator.onLine) setSyncStatus('error');
-            else setSyncStatus('offline');
-        }
-      } catch (e) {
-        console.error("Auto Sync Failed", e);
-        setSyncStatus('error'); 
-      }
-    }, 5000); 
-  }, [tasks, thoughts, journal, projects, habits, sessions, userName, syncStatus]);
+    if (!googleUser) return;
+    
+    // Future: Sync implementation
+    setSyncStatus('synced');
+  }, [googleUser]);
 
   useEffect(() => {
-    if (isDataReady) triggerAutoSync();
-  }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady, triggerAutoSync]);
+    if (isDataReady && googleUser) triggerAutoSync();
+  }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady, triggerAutoSync, googleUser]);
 
   // --- PWA PROMPT CAPTURE ---
   useEffect(() => {
@@ -225,15 +199,6 @@ const App = () => {
 
   const handleAddTask = (task: Task) => {
     setTasks(prev => [task, ...prev]);
-    if (task.dueDate) {
-       googleService.createGoogleTask(task.title, task.description || '', task.dueDate);
-       if (task.priority === 'High') {
-         const end = addHours(new Date(task.dueDate), 1).toISOString();
-         googleService.createCalendarEvent(task.title, task.dueDate, end, task.description || '');
-       }
-    } else {
-       googleService.createGoogleTask(task.title, task.description || '');
-    }
   };
 
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
@@ -286,14 +251,6 @@ const App = () => {
      return false;
   }, []);
 
-  const handleCloudClick = () => {
-    if (syncStatus === 'synced') {
-      triggerAutoSync();
-    } else {
-      performBackgroundAuth();
-    }
-  };
-
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
@@ -306,7 +263,7 @@ const App = () => {
           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-10 fade-in duration-500">
               <div className="bg-emerald-500/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-emerald-400/30">
                   <CheckCircle size={20} />
-                  <span className="text-xs font-black uppercase tracking-widest">Система подключена</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Google Identity: OK</span>
               </div>
           </div>
       )}
@@ -330,21 +287,30 @@ const App = () => {
           </button>
 
           <div className="flex items-center gap-3">
-            <button 
-              onClick={handleCloudClick}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center glass-panel transition-all glass-btn ${
-                syncStatus === 'synced' ? 'text-emerald-500' :
-                syncStatus === 'syncing' ? 'text-amber-500' :
-                syncStatus === 'error' ? 'text-rose-500' :
-                'text-[var(--text-muted)] opacity-50'
-              }`}
-            >
-               {syncStatus === 'syncing' ? <RefreshCw size={20} className="animate-spin" /> : 
-                syncStatus === 'error' ? <AlertCircle size={20} /> :
-                syncStatus === 'offline' ? <CloudOff size={20} /> : 
-                googleUser ? <img src={googleUser.picture || 'https://img.icons8.com/fluency/48/user-male-circle.png'} className="w-6 h-6 rounded-full border border-emerald-500/50" alt="user" /> : <Cloud size={20} />
-               }
-            </button>
+            {/* GOOGLE AUTH BUTTON */}
+            <div className="glass-btn rounded-2xl overflow-hidden">
+                {!googleUser ? (
+                    <button 
+                        onClick={handleConnectGoogle}
+                        className="w-11 h-11 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)] transition-all"
+                    >
+                        <LogIn size={20} />
+                    </button>
+                ) : (
+                    <button 
+                        onClick={() => setShowSettings(true)}
+                        className="w-11 h-11 flex items-center justify-center"
+                    >
+                         {googleUser.picture ? (
+                             <img src={googleUser.picture} className="w-8 h-8 rounded-full border-2 border-[var(--accent)]" />
+                         ) : (
+                             <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-white font-bold">
+                                 {googleUser.name.charAt(0)}
+                             </div>
+                         )}
+                    </button>
+                )}
+            </div>
 
             <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
             <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"><SettingsIcon size={20} /></button>
@@ -465,8 +431,8 @@ const App = () => {
           hasAiKey={hasAiKey}
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
           googleUser={googleUser}
-          authError={authError}
-          onRetryAuth={() => performBackgroundAuth(true)}
+          authError={null}
+          onRetryAuth={() => {}}
         />
       )}
 

@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType } from '../types';
 import Settings from './Settings';
 import * as googleService from '../services/googleService';
 import { 
   X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, HelpCircle,
-  Cloud, CheckCircle, AlertCircle, LogOut, User, Calendar, CheckSquare, FileText, Server, AlertTriangle, Terminal
+  CheckCircle, AlertTriangle, User, LogOut
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -37,9 +36,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [activeTab, setActiveTab] = useState<'settings' | 'google' | 'system' | 'faq'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [diagResult, setDiagResult] = useState<any>(null);
-
+  
   const runDiagnostics = useCallback(async () => {
     setLastCheck(new Date().toLocaleTimeString());
     
@@ -61,24 +58,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   useEffect(() => {
     runDiagnostics();
   }, [runDiagnostics]);
-
-  const handleManualSync = async () => {
-      setIsSyncing(true);
-      try {
-          await googleService.syncToDrive(appState);
-          alert('Синхронизация успешно завершена!');
-      } catch(e) {
-          alert('Ошибка синхронизации. Проверьте интернет.');
-      } finally {
-          setIsSyncing(false);
-      }
-  };
-
-  const handleTestConnection = async () => {
-      setDiagResult('Connecting to /api/auth...');
-      const res = await googleService.testConnection();
-      setDiagResult(res);
-  };
 
   const handleForceUpdate = () => {
     if (confirm('Это обновит приложение до последней версии с сервера. Продолжить?')) {
@@ -109,7 +88,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <div className="flex items-center gap-2">
                        <div className={`w-1.5 h-1.5 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
                        <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">
-                           {googleUser ? 'Server Online' : 'Offline Mode'}
+                           {googleUser ? 'Verified Identity' : 'Local User'}
                        </p>
                     </div>
                 </div>
@@ -132,13 +111,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     onClick={() => setActiveTab('google')} 
                     className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'google' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 >
-                    <Cloud size={14} /> Server
+                    <Activity size={14} /> Google ID
                 </button>
                 <button 
                     onClick={() => setActiveTab('system')} 
                     className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'system' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                 >
-                    <Activity size={14} /> Система
+                    <HardDrive size={14} /> Система
                 </button>
                 <button 
                     onClick={() => setActiveTab('faq')} 
@@ -166,20 +145,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             )}
 
-            {/* --- GOOGLE INTEGRATION TAB --- */}
+            {/* --- GOOGLE ACCOUNT TAB --- */}
             {activeTab === 'google' && (
                 <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 space-y-6">
                     <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
                         <div className={`absolute top-0 left-0 w-full h-1 ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
-                                <Server size={32} className="text-black" />
+                                <ShieldCheck size={32} className="text-black" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-lg text-[var(--text-main)]">Cloud Server</h3>
-                                <p className="text-xs text-[var(--text-muted)]">
-                                    {googleUser ? 'Vercel Function: OK' : 'Vercel Function: Error'}
-                                </p>
+                                <h3 className="font-bold text-lg text-[var(--text-main)]">Google Identity</h3>
+                                <p className="text-xs text-[var(--text-muted)]">OAuth 2.0 Secure Session</p>
                             </div>
                         </div>
 
@@ -188,22 +165,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
                                      <CheckCircle size={24} className="text-emerald-500" />
                                      <div>
-                                         <p className="text-sm font-bold text-emerald-500">Система подключена</p>
-                                         <p className="text-[10px] text-[var(--text-muted)]">Авторизация через Vercel Backend успешна.</p>
+                                         <p className="text-sm font-bold text-emerald-500">Авторизация активна</p>
+                                         <p className="text-[10px] text-[var(--text-muted)]">Подключено как {googleUser.email}</p>
                                      </div>
                                  </div>
                                  
                                  <div className="flex gap-3 mt-6">
-                                     <button 
-                                         onClick={handleManualSync} 
-                                         disabled={isSyncing}
-                                         className="flex-1 py-3 bg-[var(--accent)] text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-                                     >
-                                         <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-                                         {isSyncing ? 'Синхронизация...' : 'Бэкап сейчас'}
-                                     </button>
-                                     <button onClick={googleService.signOut} className="py-3 px-4 bg-rose-500/10 text-rose-500 rounded-xl font-bold text-xs hover:bg-rose-500 hover:text-white transition-colors">
-                                         <LogOut size={16} />
+                                     <button onClick={() => googleService.signOut()} className="w-full py-3 px-4 bg-rose-500/10 text-rose-500 rounded-xl font-bold text-xs hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center gap-2">
+                                         <LogOut size={16} /> Выйти
                                      </button>
                                  </div>
                              </div>
@@ -212,30 +181,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                  <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
                                      <div className="flex items-center gap-2 mb-2 text-rose-500">
                                          <AlertTriangle size={18} />
-                                         <span className="font-bold text-xs uppercase">Статус подключения</span>
+                                         <span className="font-bold text-xs uppercase">Вы не вошли в систему</span>
                                      </div>
                                      <p className="text-[10px] text-[var(--text-muted)] font-mono break-all whitespace-pre-wrap">
-                                         {authError ? `Ошибка: ${authError}` : 'Необходимо подключение к серверу.'}
+                                         Для синхронизации данных требуется Google Аккаунт.
                                      </p>
                                  </div>
-
                                  <button 
-                                     onClick={onRetryAuth}
-                                     className="w-full py-4 bg-[var(--bg-item)] border border-[var(--border-color)] text-[var(--text-main)] rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[var(--bg-main)] transition-colors"
+                                    onClick={onRetryAuth} 
+                                    className="w-full py-4 bg-[var(--text-main)] text-[var(--bg-main)] rounded-2xl font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all"
                                  >
-                                     <RefreshCw size={16} /> Повторить попытку
+                                     Войти через Google
                                  </button>
-
-                                 <div className="border-t border-[var(--border-color)] pt-4 mt-4">
-                                     <div className="flex justify-between items-center mb-2">
-                                         <h4 className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Диагностика API</h4>
-                                         <button onClick={handleTestConnection} className="text-[10px] text-[var(--accent)] hover:underline">Запустить тест</button>
-                                     </div>
-                                     <div className="bg-black p-3 rounded-xl border border-white/10 font-mono text-[9px] h-32 overflow-y-auto whitespace-pre-wrap break-all text-green-400">
-                                         <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-1 text-white/50"><Terminal size={10}/> /api/auth response</div>
-                                         {diagResult ? JSON.stringify(diagResult, null, 2) : 'Нажмите "Запустить тест" для проверки ответа сервера...'}
-                                     </div>
-                                 </div>
                              </div>
                         )}
                     </div>
@@ -244,7 +201,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             
             {activeTab === 'system' && (
               <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32">
-                {/* ... existing system tab content ... */}
                 <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group">
                     <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
                         <HardDrive size={200} />
@@ -273,16 +229,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
                          <div className={`w-2 h-2 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_currentColor] animate-pulse`}></div>
                          <span className="text-sm font-black text-[var(--text-main)]">Server</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">{googleUser ? 'Online' : 'Offline'}</span>
+                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">{googleUser ? 'Online' : 'Local'}</span>
                     </div>
                     <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
                          <ShieldCheck size={18} className="text-indigo-400" />
                          <span className="text-sm font-black text-[var(--text-main)]">Приватность</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Локально</span>
+                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Secure</span>
                     </div>
                 </div>
 
-                {/* UPDATE APP BUTTON */}
                 <button 
                   onClick={handleForceUpdate}
                   className="w-full mt-4 glass-panel py-4 rounded-2xl flex items-center justify-center gap-2 text-rose-500 hover:bg-rose-500/10 transition-all border-dashed border border-[var(--border-color)]"
@@ -300,11 +255,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {/* FAQ TAB */}
             {activeTab === 'faq' && (
               <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 space-y-6">
-                 {/* ... existing faq ... */}
                  <div className="space-y-4">
                     {[
-                      { q: "Где хранятся мои данные?", a: "Все данные (задачи, дневник, настройки) хранятся ТОЛЬКО в браузере вашего устройства (IndexedDB). Мы не имеем доступа к вашим записям." },
-                      { q: "Почему не работает синхронизация?", a: "Проверьте 'Server' вкладку. Если там 'Offline', нажмите 'Повторить попытку'. Убедитесь, что серверные функции Vercel настроены." },
+                      { q: "Где хранятся мои данные?", a: "Все данные (задачи, дневник, настройки) хранятся ТОЛЬКО в браузере вашего устройства (IndexedDB)." },
+                      { q: "Как включить синхронизацию?", a: "Перейдите во вкладку Google ID и войдите в свой аккаунт. Это активирует облачное хранилище." },
                       { q: "Что делать, если приложение тормозит?", a: "Попробуйте нажать кнопку 'Hard Reset' во вкладке Система." }
                     ].map((item, idx) => (
                       <div key={idx} className="glass-panel p-5 rounded-2xl border border-[var(--border-color)]">
