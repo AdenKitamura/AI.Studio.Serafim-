@@ -51,6 +51,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -74,6 +76,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
       recognitionRef.current = rec;
     }
   }, []);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeSession?.messages, isThinking]);
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
@@ -99,7 +106,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!hasAiKey) { onConnectAI(); return; }
 
     const userQuery = input.trim();
-    const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+    
+    // 1. Create User Message
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
@@ -108,7 +116,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
       timestamp: Date.now() 
     };
 
-    const newHistory = [...activeSession.messages, userMsg];
+    // 2. Optimistic Update (Immediate UI feedback)
+    // We use a local variable to ensure we don't depend on stale state during the async operation
+    const currentHistory = activeSession ? activeSession.messages : [];
+    const newHistory = [...currentHistory, userMsg];
+    
     onUpdateMessages(newHistory);
     setInput('');
     setAttachedImage(null);
@@ -119,13 +131,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
         chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
       }
 
-      // --- CRITICAL TIME SYNC FIX ---
-      // We inject the exact device time into the prompt so the AI calculates relative times correctly.
-      // This prevents "random time" bugs caused by server UTC offsets.
       const now = new Date();
-      // Format: "2023-10-25T20:00:00+03:00" - strictly keeping the offset
       const deviceTimeISO = format(now, "yyyy-MM-dd'T'HH:mm:ssXXX"); 
-      const timeContext = `\n[SYSTEM_CONTEXT: Current Device Time is strictly ${deviceTimeISO}. If user says "today at 20:00", create a task for ${format(now, 'yyyy-MM-dd')}T20:00:00${format(now, 'XXX')}. Do not convert to UTC. Use this offset.]`;
+      const timeContext = `\n[SYSTEM_CONTEXT: Current Device Time is strictly ${deviceTimeISO}.]`;
       
       let contents: any = userQuery + timeContext;
       
@@ -140,6 +148,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       const response = await chatSessionRef.current.sendMessage({ message: contents });
 
+      // Handle Tool Calls
       if (response.functionCalls) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
@@ -148,10 +157,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           switch (fc.name) {
             case 'manage_task':
               if (args.action === 'create') {
-                // Determine due date. If AI sends a string, trust it (it should be ISO from instruction).
-                // If it's missing, default to null.
                 const taskDueDate = args.dueDate ? args.dueDate : null;
-                
                 onAddTask({ 
                     id: Date.now().toString(), 
                     title: args.title, 
@@ -161,11 +167,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
                     projectId: args.projectId, 
                     createdAt: new Date().toISOString() 
                 });
-                
-                // Format for log
                 const timeLog = taskDueDate ? format(new Date(taskDueDate), 'HH:mm') : '';
                 addLog(`Задача создана ${timeLog ? `(${timeLog})` : ''}`, 'success');
-                
               } else if (args.action === 'complete') {
                 const task = tasks.find(t => t.title.toLowerCase().includes(args.title.toLowerCase()));
                 if (task) onUpdateTask(task.id, { isCompleted: true });
@@ -181,7 +184,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                   tags: args.tags || [],
                   createdAt: new Date().toISOString()
               });
-              addLog('Идея сохранена в архив', 'success');
+              addLog('Идея сохранена', 'success');
               break;
             case 'add_to_project_board':
               const project = projects.find(p => p.title.toLowerCase().includes(args.projectName.toLowerCase()));
@@ -198,7 +201,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                   });
                   addLog(`Добавлено на доску: ${project.title}`, 'success');
               } else {
-                  addLog(`Проект "${args.projectName}" не найден`, 'info');
+                  addLog(`Проект не найден`, 'info');
               }
               break;
             case 'manage_project':
@@ -217,20 +220,29 @@ const Mentorship: React.FC<MentorshipProps> = ({
         }
       }
 
+      // 3. Create Model Message
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
         content: response.text || "Инструкции выполнены.", 
         timestamp: Date.now() 
       };
+      
+      // Use the LOCAL history variable to append, ensuring no lost messages
       onUpdateMessages([...newHistory, modelMsg]);
 
     } catch (e) {
       console.error(e);
-      addLog('Ошибка ядра Gemini 3 Pro', 'tool');
+      addLog('Ошибка сети или API', 'tool');
+      const errorMsg: ChatMessage = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'model', 
+        content: "Произошла ошибка при соединении с сервером. Попробуйте еще раз.", 
+        timestamp: Date.now() 
+      };
+      onUpdateMessages([...newHistory, errorMsg]);
     } finally {
       setIsThinking(false);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
   };
 
@@ -251,24 +263,26 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
       </div>
 
-      {/* Chat Info (Simplified, transparent) */}
+      {/* Chat Info */}
       <div className="flex-none px-6 py-2 flex items-center justify-center pointer-events-none">
         <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--bg-item)]/30 backdrop-blur-md border border-[var(--border-color)]">
-           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-           <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest">Serafim Core Active</span>
+           <div className={`w-1.5 h-1.5 rounded-full ${isThinking ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></div>
+           <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest">
+             {isThinking ? 'Processing...' : 'Serafim Core Active'}
+           </span>
         </div>
       </div>
 
-      {/* Messages Scroll Area with Gradient Fade Mask */}
+      {/* Messages Scroll Area */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Fade Mask Layer */}
+        {/* Fade Mask */}
         <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-10" 
              style={{ 
                background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` 
              }} />
         
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
-          {sessions.find(s => s.id === activeSessionId)?.messages.map((msg) => (
+          {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
@@ -278,19 +292,22 @@ const Mentorship: React.FC<MentorshipProps> = ({
               </div>
             </div>
           ))}
+          
+          {/* Typing Indicator Animation */}
           {isThinking && (
-            <div className="flex items-center gap-4 p-4">
-              <div className="w-8 h-8 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center">
-                  <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
-              </div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] animate-pulse">Серафим анализирует...</span>
+            <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
+               <div className="glass-panel px-4 py-3 rounded-t-3xl rounded-br-3xl border border-[var(--border-color)] flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce"></div>
+               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>
 
-      {/* Input Area (Transparent + Glass) */}
+      {/* Input Area */}
       <div className="flex-none p-6 pb-24 relative z-20">
         <div className="max-w-2xl mx-auto space-y-4">
           
@@ -301,7 +318,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             </div>
           )}
 
-          <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)]`}>
+          <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)] ${isThinking ? 'opacity-70 pointer-events-none' : ''}`}>
             
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
@@ -313,7 +330,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
               value={input} 
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
-              placeholder="Сообщение..." 
+              placeholder={isThinking ? "Серафим пишет..." : "Сообщение..."}
+              disabled={isThinking}
               className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" 
             />
 
@@ -327,8 +345,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
             <button 
               onClick={handleSend}
-              disabled={isThinking}
-              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!input.trim() && !attachedImage ? 'opacity-20 bg-[var(--bg-main)]' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90'}`}
+              disabled={isThinking || (!input.trim() && !attachedImage)}
+              className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!input.trim() && !attachedImage && !isThinking ? 'opacity-20 bg-[var(--bg-main)]' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90'}`}
             >
               {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
             </button>
