@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight } from './types';
 import Mentorship from './components/Mentorship';
@@ -22,7 +23,7 @@ import {
   Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle, CheckCircle, LogIn, User
 } from 'lucide-react';
 
-// Extend window definition to store PWA prompt
+// Extend window definition to store PWA prompt and AI Studio
 declare global {
   interface Window {
     deferredPrompt: any;
