@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Thought, NodeLink, LinkType, Attachment } from '../types';
 import { 
@@ -36,8 +35,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
 
   // UI State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -193,6 +191,42 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       resizingImageIdRef.current = null;
   };
 
+  // --- MOUSE HANDLERS (Desktop Fallback) ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-node-id]') || target.closest('.floating-ui')) return;
+    isDraggingRef.current = true; // Use same ref logic roughly
+    lastTouchRef.current = { x: e.clientX, y: e.clientY, dist: 0 };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDraggingRef.current && !draggedNodeId) {
+        // Panning
+        const dx = e.clientX - lastTouchRef.current.x;
+        const dy = e.clientY - lastTouchRef.current.y;
+        setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+        lastTouchRef.current = { x: e.clientX, y: e.clientY, dist: 0 };
+    } else if (draggedNodeId) {
+        // Dragging node (mouse logic if mixed)
+        const node = thoughts.find(n => n.id === draggedNodeId);
+        if (node) {
+            const dx = (e.clientX - lastTouchRef.current.x) / transform.scale;
+            const dy = (e.clientY - lastTouchRef.current.y) / transform.scale;
+            onUpdate({ 
+                ...node, 
+                x: (node.x || 0) + dx, 
+                y: (node.y || 0) + dy 
+            });
+            lastTouchRef.current = { x: e.clientX, y: e.clientY, dist: 0 };
+        }
+    }
+  };
+
+  const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      setDraggedNodeId(null);
+  };
+
   // --- ACTIONS ---
   const createNode = (type: Thought['type'], content: string = '', metadata: any = {}) => {
       const pos = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
@@ -237,6 +271,35 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       }
   };
 
+  const autoLayout = () => {
+    if (thoughts.length === 0) return;
+    const itemsPerRow = Math.ceil(Math.sqrt(thoughts.length));
+    thoughts.forEach((node, idx) => {
+      onUpdate({
+        ...node,
+        x: (idx % itemsPerRow) * 300 - (itemsPerRow * 150),
+        y: Math.floor(idx / itemsPerRow) * 250 - (itemsPerRow * 125)
+      });
+    });
+  };
+
+  const focusContent = () => {
+    if (thoughts.length === 0) {
+      centerBoard();
+      return;
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    thoughts.forEach(n => {
+      minX = Math.min(minX, n.x || 0); maxX = Math.max(maxX, n.x || 0);
+      minY = Math.min(minY, n.y || 0); maxY = Math.max(maxY, n.y || 0);
+    });
+    setTransform({ 
+        x: window.innerWidth / 2 - ((minX + maxX) / 2) * transform.scale, 
+        y: window.innerHeight / 2 - ((minY + maxY) / 2) * transform.scale,
+        scale: transform.scale 
+    });
+  };
+
   // --- RENDER ---
   return (
     <div className="fixed inset-0 z-0"> {/* Wrapper to contain fixed UI independently */}
@@ -248,6 +311,15 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onWheel={(e) => {
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = Math.min(Math.max(delta * transform.scale, 0.2), 3);
+                // Simple zoom to mouse/center logic simplified for React state
+                setTransform(prev => ({ ...prev, scale: newScale }));
+            }}
         >
             <div 
                 className="absolute inset-0 pointer-events-none opacity-[0.05]"
@@ -282,9 +354,9 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                         key={node.id}
                         data-node-id={node.id}
                         data-type={node.type}
+                        onMouseDown={(e) => { e.stopPropagation(); setDraggedNodeId(node.id); lastTouchRef.current = { x: e.clientX, y: e.clientY, dist: 0 }; }}
                         onClick={() => {
                             if(connectingSourceId && connectingSourceId !== node.id) initiateLink(node.id, {} as any);
-                            // Single click on annotation does nothing (allows editing), logic handled inside textarea focus usually
                         }}
                         className={`absolute flex flex-col items-center justify-center transition-all duration-200
                             ${node.type === 'annotation' ? 'opacity-70 hover:opacity-100' : 'rounded-2xl border shadow-xl backdrop-blur-md'}
@@ -312,25 +384,26 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                         {node.type === 'image' ? (
                             <div className="relative group/img w-full h-full">
                                 <img src={node.metadata?.imageSrc} className="w-full h-full rounded-lg shadow-lg pointer-events-none select-none" />
-                                <button onTouchEnd={() => onDelete(node.id)} className="no-drag absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-auto"><X size={12}/></button>
+                                <button onTouchEnd={() => onDelete(node.id)} onMouseDown={(e) => { e.stopPropagation(); onDelete(node.id); }} className="no-drag absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-auto"><X size={12}/></button>
                             </div>
                         ) : node.type === 'annotation' ? (
                             <textarea
                                 value={node.content}
                                 onChange={(e) => onUpdate({ ...node, content: e.target.value })}
+                                onMouseDown={(e) => e.stopPropagation()} 
                                 className="bg-transparent text-white font-black text-2xl outline-none text-center resize-none w-80 overflow-hidden"
                                 style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}
-                                // Removing no-drag to allow long press detection on wrapper
                             />
                         ) : (
                             <div className="w-full p-4">
                                 <div className="flex justify-between items-center mb-2 opacity-50 text-[10px] font-black uppercase tracking-widest">
                                     <span>{node.type === 'task_node' ? 'Цель' : 'Заметка'}</span>
-                                    <button onTouchEnd={() => onDelete(node.id)} className="hover:text-red-500 no-drag"><X size={12}/></button>
+                                    <button onTouchEnd={() => onDelete(node.id)} onMouseDown={(e) => { e.stopPropagation(); onDelete(node.id); }} className="hover:text-red-500 no-drag"><X size={12}/></button>
                                 </div>
                                 <textarea
                                     value={node.content}
                                     onChange={(e) => onUpdate({ ...node, content: e.target.value })}
+                                    onMouseDown={(e) => e.stopPropagation()} 
                                     className="w-full bg-transparent text-white text-sm outline-none resize-none font-medium pointer-events-auto no-drag"
                                     rows={3}
                                 />
@@ -347,6 +420,12 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
             <button onClick={centerBoard} className="absolute bottom-8 right-8 pointer-events-auto p-4 bg-[#18181b] border border-white/10 rounded-full text-white/50 hover:text-white shadow-lg">
                 <Crosshair size={24} />
             </button>
+            
+            {/* Additional Tools */}
+            <div className="absolute top-20 right-6 flex flex-col gap-2 pointer-events-auto">
+                <button onClick={autoLayout} className="p-3 bg-[#18181b]/80 backdrop-blur rounded-xl border border-white/10 text-white/60 hover:text-white transition-all"><LayoutGrid size={20} /></button>
+                <button onClick={focusContent} className="p-3 bg-[#18181b]/80 backdrop-blur rounded-xl border border-white/10 text-white/60 hover:text-white transition-all"><Focus size={20} /></button>
+            </div>
 
             {connectingSourceId && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest animate-pulse shadow-lg pointer-events-auto" onClick={() => setConnectingSourceId(null)}>

@@ -28,7 +28,7 @@ declare global {
     deferredPrompt: any;
     google: any;
     gapi: any;
-    // aistudio declaration removed to avoid conflict with existing global type
+    // aistudio handled via cast to any to prevent conflicts
   }
 }
 
