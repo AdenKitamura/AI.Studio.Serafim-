@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
@@ -62,7 +61,8 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
       // FIX: continuous = false helps prevent the "infinite repeating text" bug on some Androids
       rec.continuous = false; 
       rec.interimResults = true;
-      rec.lang = 'ru-RU';
+      rec.maxAlternatives = 1;
+      rec.lang = 'ru-RU'; // Strictly enforce Russian
 
       rec.onresult = (event: any) => {
         let interim = '';
@@ -97,8 +97,14 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
 
   const toggleRecording = () => {
     if (!recognitionRef.current || isPolishing) return;
-    if (isRecording) recognitionRef.current.stop();
-    else { setInterimText(''); recognitionRef.current.start(); }
+    if (isRecording) {
+        recognitionRef.current.stop();
+    } else { 
+        setInterimText(''); 
+        // Force language again before start
+        recognitionRef.current.lang = 'ru-RU';
+        recognitionRef.current.start(); 
+    }
   };
 
   const handleAutoPolish = async () => {

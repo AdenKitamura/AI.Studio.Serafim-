@@ -56,9 +56,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = false;
+      rec.continuous = false; // Keep false to avoid duplication bugs on Android
       rec.interimResults = true;
-      rec.lang = 'ru-RU';
+      rec.maxAlternatives = 1;
+      rec.lang = 'ru-RU'; // Strictly enforce Russian
       
       rec.onresult = (event: any) => {
         let finalStr = '';
@@ -70,8 +71,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
         if (finalStr) setInput(prev => (prev + ' ' + finalStr).trim());
         setInterimText(interimStr);
       };
+      
       rec.onstart = () => setIsRecording(true);
       rec.onend = () => { setIsRecording(false); setInterimText(''); };
+      rec.onerror = (e: any) => { console.error('Speech error:', e); setIsRecording(false); };
+      
       recognitionRef.current = rec;
     }
   }, []);
@@ -83,7 +87,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
-    isRecording ? recognitionRef.current.stop() : recognitionRef.current.start();
+    if (isRecording) {
+      recognitionRef.current.stop();
+    } else {
+      // Re-enforce language right before starting
+      recognitionRef.current.lang = 'ru-RU';
+      recognitionRef.current.start();
+    }
   };
 
   const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
