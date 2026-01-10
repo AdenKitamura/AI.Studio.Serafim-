@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType } from '../types';
 import Settings from './Settings';
 import * as googleService from '../services/googleService';
+import { logger, SystemLog } from '../services/logger';
 import { 
   X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, HelpCircle,
-  CheckCircle, AlertTriangle, User, LogOut
+  CheckCircle, AlertTriangle, User, LogOut, Terminal, Trash2
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -36,7 +37,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [activeTab, setActiveTab] = useState<'settings' | 'google' | 'system' | 'faq'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
   const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
+  const [logs, setLogs] = useState<SystemLog[]>([]);
   
+  // Update logs in real-time
+  useEffect(() => {
+      const unsub = logger.subscribe(setLogs);
+      return unsub;
+  }, []);
+
   const runDiagnostics = useCallback(async () => {
     setLastCheck(new Date().toLocaleTimeString());
     
@@ -145,10 +153,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             )}
 
-            {/* --- GOOGLE ACCOUNT TAB --- */}
+            {/* --- GOOGLE ACCOUNT TAB (WITH TERMINAL) --- */}
             {activeTab === 'google' && (
-                <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 space-y-6">
-                    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
+                <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 flex flex-col gap-6">
+                    {/* Status Card */}
+                    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden flex-none">
                         <div className={`absolute top-0 left-0 w-full h-1 ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
@@ -195,6 +204,34 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                  </button>
                              </div>
                         )}
+                    </div>
+
+                    {/* TERMINAL VIEW */}
+                    <div className="flex-1 min-h-[300px] flex flex-col glass-panel rounded-3xl overflow-hidden border border-[var(--border-color)] bg-[#0c0c0c]">
+                        <div className="p-3 bg-[#1a1a1a] border-b border-[#333] flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <Terminal size={14} className="text-emerald-500" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-[#888]">System Terminal</span>
+                            </div>
+                            <button onClick={() => logger.clear()} className="text-[10px] font-bold text-[#555] hover:text-white flex items-center gap-1 transition-colors">
+                                <Trash2 size={12} /> Clear
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-1 font-mono text-[10px]">
+                            {logs.length === 0 && <span className="text-[#333] italic">No active logs...</span>}
+                            {logs.map((log) => (
+                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-2">
+                                    <span className="text-[#444] whitespace-nowrap">[{log.timestamp}]</span>
+                                    <span className={`${
+                                        log.type === 'error' ? 'text-rose-500 font-bold' : 
+                                        log.type === 'warning' ? 'text-amber-500' : 
+                                        log.type === 'success' ? 'text-emerald-400' : 'text-[#aaa]'
+                                    }`}>
+                                        {log.message}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}

@@ -18,8 +18,9 @@ import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { requestNotificationPermission } from './services/notificationService';
 import * as googleService from './services/googleService';
+import { logger } from './services/logger';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, Cloud, CloudOff, RefreshCw, AlertCircle, CheckCircle, LogIn, User
+  Zap, Loader2, Settings as SettingsIcon, CheckCircle
 } from 'lucide-react';
 
 // Extend window definition to store PWA prompt and AI Studio
@@ -73,36 +74,25 @@ const App = () => {
     const checkAuth = async () => {
       // Small delay to ensure scripts might be ready, though service handles it
       setTimeout(async () => {
+         logger.log('Auth', 'Checking Google Profile...');
          const profile = await googleService.getUserProfile();
          if (profile) {
              setGoogleUser(profile);
              setSyncStatus('synced');
              setShowSuccessToast(true);
+             logger.log('Auth', 'User authenticated', 'success', profile.email);
              setTimeout(() => setShowSuccessToast(false), 3000);
+         } else {
+             logger.log('Auth', 'No active session found', 'warning');
          }
       }, 1000);
     };
     checkAuth();
   }, []);
 
-  const handleConnectGoogle = async () => {
-    try {
-        const profile = await googleService.initAndAuth();
-        if (profile) {
-            setGoogleUser(profile);
-            setSyncStatus('synced');
-        }
-    } catch (e) {
-        console.error("Auth failed", e);
-        setSyncStatus('error');
-    }
-  };
-
   // --- AUTO SYNC LOGIC ---
   const triggerAutoSync = useCallback(() => {
     if (!googleUser) return;
-    
-    // Future: Sync implementation
     setSyncStatus('synced');
   }, [googleUser]);
 
@@ -180,7 +170,11 @@ const App = () => {
           setSessions([initS]); setActiveSessionId(initS.id);
         }
         setIsDataReady(true);
-      } catch (e) { setIsDataReady(true); }
+        logger.log('DB', 'Data loaded from IndexedDB', 'success');
+      } catch (e) { 
+        logger.log('DB', 'Error loading data', 'error', e);
+        setIsDataReady(true); 
+      }
     };
     loadData();
   }, []);
@@ -288,33 +282,22 @@ const App = () => {
           </button>
 
           <div className="flex items-center gap-3">
-            {/* GOOGLE AUTH BUTTON */}
-            <div className="glass-btn rounded-2xl overflow-hidden">
-                {!googleUser ? (
-                    <button 
-                        onClick={handleConnectGoogle}
-                        className="w-11 h-11 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)] transition-all"
-                    >
-                        <LogIn size={20} />
-                    </button>
-                ) : (
-                    <button 
-                        onClick={() => setShowSettings(true)}
-                        className="w-11 h-11 flex items-center justify-center"
-                    >
-                         {googleUser.picture ? (
-                             <img src={googleUser.picture} className="w-8 h-8 rounded-full border-2 border-[var(--accent)]" />
-                         ) : (
-                             <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-white font-bold">
-                                 {googleUser.name.charAt(0)}
-                             </div>
-                         )}
-                    </button>
-                )}
-            </div>
-
+            {/* GOOGLE BUTTON REMOVED as per request. Authentication is now strictly via Settings -> Google ID */}
+            
             <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
-            <button onClick={() => setShowSettings(true)} className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"><SettingsIcon size={20} /></button>
+            
+            <button 
+              onClick={() => setShowSettings(true)} 
+              className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"
+            >
+              {googleUser ? (
+                 <div className="w-6 h-6 rounded-full border border-[var(--accent)] overflow-hidden">
+                    {googleUser.picture ? <img src={googleUser.picture} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-[var(--accent)]" />}
+                 </div>
+              ) : (
+                 <SettingsIcon size={20} />
+              )}
+            </button>
           </div>
         </header>
 
@@ -433,7 +416,10 @@ const App = () => {
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
           googleUser={googleUser}
           authError={null}
-          onRetryAuth={() => {}}
+          onRetryAuth={async () => {
+             const profile = await googleService.initAndAuth();
+             if(profile) setGoogleUser(profile);
+          }}
         />
       )}
 

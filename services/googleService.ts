@@ -1,3 +1,4 @@
+import { logger } from './logger';
 
 // Serafim Google Services - Server-Side Refresh Token Strategy
 // No user interaction required. Auth is fully automated.
@@ -35,7 +36,7 @@ const waitForGapi = (): Promise<void> => {
       }
       if (count > 200) { 
         clearInterval(interval);
-        console.warn("GAPI script load timed out");
+        logger.log('Google', 'GAPI script load timed out', 'warning');
         resolve(); 
       }
     }, 50);
@@ -45,7 +46,7 @@ const waitForGapi = (): Promise<void> => {
 // --- CORE AUTH LOGIC ---
 
 export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
-    console.log('[GoogleService] Starting Server-Side Auth Flow...');
+    logger.log('Google', 'Starting Auth Flow...');
     
     try {
         // 1. Initialize GAPI client structure (loads scripts)
@@ -66,12 +67,13 @@ export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
         });
 
         // 2. Fetch Access Token from our Serverless Function
+        logger.log('Google', 'Fetching token from /api/auth');
         const response = await fetch('/api/auth');
         const data = await response.json();
 
         // 3. Check for Logic Errors (handled 200 OK with error payload)
         if (data.error) {
-            console.error('[GoogleService] OAuth Error:', data);
+            logger.log('Google', `OAuth Error: ${data.error}`, 'error', data);
             throw new Error(`Google Error: ${data.error} - ${data.error_description || ''}`);
         }
         
@@ -81,7 +83,7 @@ export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
                 access_token: data.access_token,
                 expires_in: data.expires_in
             });
-            console.log('[GoogleService] Auth Successful. Token injected.');
+            logger.log('Google', 'Token injected successfully', 'success');
             
             // 5. Get User Profile to confirm identity
             const profile = await getUserProfile();
@@ -94,12 +96,12 @@ export const initAndAuth = async (): Promise<GoogleUserProfile | null> => {
                 picture: ''
             };
         } else {
-            console.error('[GoogleService] No access token in response:', data);
+            logger.log('Google', 'No access_token returned', 'error');
             throw new Error('No access_token returned');
         }
 
-    } catch (e) {
-        console.error('[GoogleService] Auth Flow Critical Error:', e);
+    } catch (e: any) {
+        logger.log('Google', 'Auth Critical Error', 'error', e.message);
         throw e; // Propagate error to UI
     }
 };
@@ -123,6 +125,7 @@ export const signOut = () => {
     if ((window as any).gapi?.client) {
         (window as any).gapi.client.setToken(null);
     }
+    logger.log('Google', 'User signed out', 'info');
     window.location.reload();
 };
 
@@ -200,10 +203,10 @@ export const syncToDrive = async (data: any) => {
         body: constructMultipartBody(metadata, file)
       });
     }
-    console.log('Sync successful');
+    logger.log('Sync', 'Backup synced to Drive', 'success');
     return true;
-  } catch (e) {
-    console.error('Drive Sync Error', e);
+  } catch (e: any) {
+    logger.log('Sync', 'Drive Sync Error', 'error', e.message);
     throw e;
   }
 };
@@ -229,9 +232,10 @@ export const restoreFromDrive = async (): Promise<any | null> => {
       alt: 'media'
     });
 
+    logger.log('Sync', 'Data restored from Drive', 'success');
     return result.result; 
-  } catch (e) {
-    console.error('Drive Restore Error', e);
+  } catch (e: any) {
+    logger.log('Sync', 'Drive Restore Error', 'error', e.message);
     return null;
   }
 };
@@ -258,8 +262,9 @@ export const createGoogleTask = async (title: string, notes: string = '', dueDat
       tasklist: '@default',
       resource: taskResource
     });
-  } catch (e) {
-    console.error('Google Tasks API Error', e);
+    logger.log('Task', 'Synced to Google Tasks', 'success');
+  } catch (e: any) {
+    logger.log('Task', 'Google Task Sync Failed', 'error', e.message);
   }
 };
 
@@ -284,7 +289,8 @@ export const createCalendarEvent = async (title: string, startTime: string, endT
       calendarId: 'primary',
       resource: event
     });
-  } catch (e) {
-    console.error('Calendar API Error', e);
+    logger.log('Calendar', 'Event synced to Google Calendar', 'success');
+  } catch (e: any) {
+    logger.log('Calendar', 'Calendar Sync Failed', 'error', e.message);
   }
 };

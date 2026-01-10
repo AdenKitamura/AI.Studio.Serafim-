@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey } from '../types';
 import { createMentorChat, polishTranscript } from '../services/geminiService';
+import { logger } from '../services/logger';
 import { 
   Loader2, ArrowUp, Plus, CheckCircle, Mic, MicOff, 
   Sparkles, XCircle, AlertCircle, Image as ImageIcon,
@@ -107,16 +108,27 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const addLog = (msg: string, type: 'tool' | 'info' | 'success') => {
     setAgentLogs(prev => [...prev.slice(-2), { msg, type }]);
+    logger.log('Agent', msg, type as any);
     setTimeout(() => setAgentLogs(prev => prev.filter(l => l.msg !== msg)), 4000);
   };
 
   const handleSend = async () => {
     // Basic validation
-    if (isThinking) return;
+    if (isThinking) {
+        logger.log('Chat', 'Blocked send: Agent is thinking', 'warning');
+        return;
+    }
     const cleanInput = input.trim();
-    if (!cleanInput && !attachedImage) return;
+    if (!cleanInput && !attachedImage) {
+        logger.log('Chat', 'Blocked send: Empty input', 'warning');
+        return;
+    }
 
-    if (!hasAiKey) { onConnectAI(); return; }
+    if (!hasAiKey) { 
+        logger.log('Chat', 'No API Key found, requesting connection', 'error');
+        onConnectAI(); 
+        return; 
+    }
     
     // 1. Create User Message
     const userMsg: ChatMessage = { 
@@ -126,6 +138,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
       image: attachedImage || undefined,
       timestamp: Date.now() 
     };
+
+    logger.log('Chat', `Sending message: ${cleanInput.substring(0, 20)}...`);
 
     // 2. Optimistic Update (Immediate UI feedback)
     const currentHistory = activeSession ? activeSession.messages : [];
@@ -138,6 +152,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
       if (!chatSessionRef.current) {
+        logger.log('Chat', 'Initializing new chat session', 'info');
         chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
       }
 
@@ -240,9 +255,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
       
       onUpdateMessages([...newHistory, modelMsg]);
 
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       addLog('Ошибка сети или API', 'tool');
+      logger.log('Gemini', 'Chat Error', 'error', e.message);
       const errorMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
@@ -356,6 +372,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             </button>
 
             <button 
+              type="button"
               onClick={handleSend}
               disabled={!canSend}
               className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!canSend ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}
