@@ -23,13 +23,11 @@ import {
   Zap, Loader2, Settings as SettingsIcon, CheckCircle
 } from 'lucide-react';
 
-// Extend window definition to store PWA prompt and AI Studio
 declare global {
   interface Window {
     deferredPrompt: any;
     google: any;
     gapi: any;
-    // aistudio handled via cast to any to prevent conflicts
   }
 }
 
@@ -72,7 +70,7 @@ const App = () => {
   // --- GOOGLE AUTH CHECK ---
   useEffect(() => {
     const checkAuth = async () => {
-      // Small delay to ensure scripts might be ready, though service handles it
+      // Small delay to ensure scripts might be ready
       setTimeout(async () => {
          logger.log('Auth', 'Checking Google Profile...');
          const profile = await googleService.getUserProfile();
@@ -282,8 +280,6 @@ const App = () => {
           </button>
 
           <div className="flex items-center gap-3">
-            {/* GOOGLE BUTTON REMOVED as per request. Authentication is now strictly via Settings -> Google ID */}
-            
             <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
             
             <button 

@@ -1,12 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Thought, NodeLink, LinkType, Attachment } from '../types';
+import { Thought, NodeLink, LinkType } from '../types';
 import { 
   Plus, Maximize2, X, Link as LinkIcon, 
-  Zap, Target, Share2, CheckSquare, 
-  Wrench, LayoutGrid, Focus, Trash2,
-  Sparkles, PlusCircle, ArrowRight, Circle,
-  Paperclip, Image as ImageIcon, FileText, GitBranch,
-  Type as TypeIcon, Palette, Link2, Crosshair
+  Target, LayoutGrid, Focus,
+  PlusCircle, Link2, Crosshair, Image as ImageIcon, Type as TypeIcon
 } from 'lucide-react';
 
 interface WhiteboardViewProps {
@@ -77,7 +74,6 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
           isPinchingRef.current = true;
           
           // Check if WE ARE PINCHING AN IMAGE
-          // We check if ANY of the touches started on an image node
           const target1 = e.touches[0].target as HTMLElement;
           const target2 = e.touches[1].target as HTMLElement;
           const imgNode = target1.closest('[data-type="image"]') || target2.closest('[data-type="image"]');
@@ -99,22 +95,20 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
           const target = e.target as HTMLElement;
           const nodeEl = target.closest('[data-node-id]');
           
-          // Check for 'no-drag' class, but annotations don't have it anymore
           if (nodeEl && !target.closest('.no-drag')) {
               const nodeId = nodeEl.getAttribute('data-node-id');
               // Long press logic for moving
               longPressTimerRef.current = setTimeout(() => {
                   setDraggedNodeId(nodeId);
                   isDraggingRef.current = true;
-                  // Visual feedback
                   if (navigator.vibrate) navigator.vibrate(50);
-              }, 500); // 500ms long press to start dragging
+              }, 500); 
           }
       }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-      e.preventDefault(); // Prevent browser native pan/zoom
+      e.preventDefault(); 
 
       if (e.touches.length === 2 && isPinchingRef.current) {
           const newDist = getDistance(e.touches[0], e.touches[1]);
@@ -127,23 +121,17 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                   const currentWidth = node.width || 200;
                   const newWidth = Math.max(100, Math.min(1000, currentWidth * scaleFactor));
                   onUpdate({ ...node, width: newWidth });
-                  
-                  // Update distance reference to keep scaling smooth relative to movement
                   lastTouchRef.current.dist = newDist;
               }
           } else {
               // --- BOARD ZOOM MODE ---
               const newMid = getMidpoint(e.touches[0], e.touches[1]);
               const newScale = Math.min(Math.max(0.1, transform.scale * scaleFactor), 5);
-
-              // Pan correction to keep midpoint stationary relative to fingers
               const dx = newMid.x - lastTouchRef.current.x;
               const dy = newMid.y - lastTouchRef.current.y;
 
               setTransform(prev => ({
                   scale: newScale,
-                  // Simple pan + scale centered on screen for stability, or detailed pivot:
-                  // For simplicity and stability, we just pan slightly with the pinch center movement
                   x: prev.x + dx, 
                   y: prev.y + dy
               }));
@@ -156,7 +144,6 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
           const dx = t.clientX - lastTouchRef.current.x;
           const dy = t.clientY - lastTouchRef.current.y;
 
-          // If moving significantly, cancel long press (it's a scroll/pan, not a hold)
           if (longPressTimerRef.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
               clearTimeout(longPressTimerRef.current);
               longPressTimerRef.current = null;
@@ -191,11 +178,11 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
       resizingImageIdRef.current = null;
   };
 
-  // --- MOUSE HANDLERS (Desktop Fallback) ---
+  // --- MOUSE HANDLERS ---
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('[data-node-id]') || target.closest('.floating-ui')) return;
-    isDraggingRef.current = true; // Use same ref logic roughly
+    isDraggingRef.current = true; 
     lastTouchRef.current = { x: e.clientX, y: e.clientY, dist: 0 };
   };
 
@@ -207,7 +194,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
         setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
         lastTouchRef.current = { x: e.clientX, y: e.clientY, dist: 0 };
     } else if (draggedNodeId) {
-        // Dragging node (mouse logic if mixed)
+        // Dragging
         const node = thoughts.find(n => n.id === draggedNodeId);
         if (node) {
             const dx = (e.clientX - lastTouchRef.current.x) / transform.scale;
@@ -300,10 +287,8 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
     });
   };
 
-  // --- RENDER ---
   return (
-    <div className="fixed inset-0 z-0"> {/* Wrapper to contain fixed UI independently */}
-        
+    <div className="fixed inset-0 z-0">
         {/* CANVAS */}
         <div 
             ref={containerRef}
@@ -317,7 +302,6 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
             onWheel={(e) => {
                 const delta = e.deltaY > 0 ? 0.9 : 1.1;
                 const newScale = Math.min(Math.max(delta * transform.scale, 0.2), 3);
-                // Simple zoom to mouse/center logic simplified for React state
                 setTransform(prev => ({ ...prev, scale: newScale }));
             }}
         >
@@ -414,14 +398,12 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
             </div>
         </div>
 
-        {/* UI LAYER (FIXED POSITION) */}
+        {/* UI LAYER */}
         <div className="absolute inset-0 pointer-events-none z-50">
-            {/* Center Button */}
             <button onClick={centerBoard} className="absolute bottom-8 right-8 pointer-events-auto p-4 bg-[#18181b] border border-white/10 rounded-full text-white/50 hover:text-white shadow-lg">
                 <Crosshair size={24} />
             </button>
             
-            {/* Additional Tools */}
             <div className="absolute top-20 right-6 flex flex-col gap-2 pointer-events-auto">
                 <button onClick={autoLayout} className="p-3 bg-[#18181b]/80 backdrop-blur rounded-xl border border-white/10 text-white/60 hover:text-white transition-all"><LayoutGrid size={20} /></button>
                 <button onClick={focusContent} className="p-3 bg-[#18181b]/80 backdrop-blur rounded-xl border border-white/10 text-white/60 hover:text-white transition-all"><Focus size={20} /></button>
@@ -433,7 +415,6 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                 </div>
             )}
 
-            {/* Tools Menu (Fixed Bottom Left) */}
             <div className="absolute bottom-8 left-8 flex flex-col items-start gap-4 pointer-events-auto">
                 <div className={`flex flex-col gap-2 bg-[#18181b]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl transition-all origin-bottom-left ${isMenuOpen ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none translate-y-10'}`}>
                     <button onClick={() => createNode('task_node')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
