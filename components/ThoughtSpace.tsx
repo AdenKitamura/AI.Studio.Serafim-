@@ -1,10 +1,8 @@
-
 import React from 'react';
 import { Thought } from '../types';
 import { Trash2 } from './Icons';
 import { format } from 'date-fns';
-// Fix: Import locale directly from the specific path
-import { ru } from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 
 interface ThoughtSpaceProps {
   thoughts: Thought[];
@@ -25,7 +23,6 @@ const ThoughtSpace: React.FC<ThoughtSpaceProps> = ({ thoughts, deleteThought }) 
                 {thought.content}
               </p>
               <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                {/* Fix: Replace parseISO with native Date constructor */}
                 <span>{format(new Date(thought.createdAt), 'd MMM yyyy', { locale: ru })}</span>
                 {thought.tags.length > 0 && (
                     <div className="flex gap-1">

@@ -13,7 +13,6 @@ class LoggerService {
   private listeners: ((logs: SystemLog[]) => void)[] = [];
 
   constructor() {
-    // Load logs from sessionStorage to persist across reloads in same session
     if (typeof sessionStorage !== 'undefined') {
       const saved = sessionStorage.getItem('serafim_logs');
       if (saved) {
@@ -31,39 +30,28 @@ class LoggerService {
       type,
       details
     };
-
-    this.logs = [newLog, ...this.logs].slice(0, 100); // Keep last 100 logs
-    
+    this.logs = [newLog, ...this.logs].slice(0, 100);
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.setItem('serafim_logs', JSON.stringify(this.logs));
     }
-
     this.notify();
   }
 
-  getLogs() {
-    return this.logs;
-  }
+  getLogs() { return this.logs; }
 
   clear() {
     this.logs = [];
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem('serafim_logs');
-    }
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('serafim_logs');
     this.notify();
   }
 
   subscribe(listener: (logs: SystemLog[]) => void) {
     this.listeners.push(listener);
     listener(this.logs);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
+    return () => { this.listeners = this.listeners.filter(l => l !== listener); };
   }
 
-  private notify() {
-    this.listeners.forEach(l => l(this.logs));
-  }
+  private notify() { this.listeners.forEach(l => l(this.logs)); }
 }
 
 export const logger = new LoggerService();

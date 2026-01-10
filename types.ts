@@ -17,7 +17,7 @@ export interface ProjectColumn {
   id: string;
   title: string;
   order: number;
-  color?: string; // Column color indicator
+  color?: string;
 }
 
 export interface ProjectBoard {
@@ -32,13 +32,13 @@ export interface Project {
   color: string;
   createdAt: string;
   columns?: ProjectColumn[];
-  boards?: ProjectBoard[]; // Multiple boards per project
+  boards?: ProjectBoard[];
 }
 
 export interface Task {
   id: string;
   title: string;
-  description?: string; // Notes/Description
+  description?: string;
   dueDate: string | null;
   reminderTime?: string;
   isCompleted: boolean;
@@ -54,23 +54,23 @@ export type LinkType = 'related' | 'cause' | 'effect' | 'hypothesis' | 'blocker'
 export interface NodeLink {
   targetId: string;
   type: LinkType;
-  color?: string; // Custom link color
+  color?: string;
 }
 
 export interface Thought {
   id: string;
-  content: string; // Title or short content
-  notes?: string; // Long form content / diary for the idea
+  content: string;
+  notes?: string;
   type: 'thought' | 'idea' | 'insight' | 'quote' | 'link' | 'file' | 'task_node' | 'image' | 'annotation';
   tags: string[];
   author?: string;
   projectId?: string;
-  boardId?: string; // To allow multiple boards
+  boardId?: string;
   createdAt: string;
   x?: number;
   y?: number;
-  width?: number; // Custom width for images/annotations
-  linkedIds?: string[];
+  width?: number;
+  linkedIds?: string[]; // Deprecated in favor of links, kept for compat
   links?: NodeLink[];
   attachments?: Attachment[];
   isArchived?: boolean; 
@@ -81,7 +81,7 @@ export interface Thought {
     fileData?: string;
     isTaskSynced?: boolean;
     taskStatus?: boolean;
-    imageSrc?: string; // For image nodes
+    imageSrc?: string;
   };
 }
 
