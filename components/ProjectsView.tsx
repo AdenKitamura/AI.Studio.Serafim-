@@ -25,7 +25,7 @@ const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6'
 
 const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({ 
   projects, tasks, thoughts, onAddProject, onUpdateProject, onDeleteProject, 
-  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought
+  onAddTask, onUpdateTask, onToggleTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -145,9 +145,61 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
         {previewAttachment && (<div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-in zoom-in-95" onClick={() => setPreviewAttachment(null)}><div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>{previewAttachment.type === 'image' ? <img src={previewAttachment.content} className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain" /> : <div className="w-80 h-80 bg-white/10 rounded-2xl flex flex-col items-center justify-center gap-4 text-white"><FileText size={64} /><p className="text-xl font-bold">{previewAttachment.name}</p><a href={previewAttachment.content} download className="px-6 py-2 bg-[var(--accent)] rounded-lg font-bold">Скачать</a></div>}<button onClick={() => setPreviewAttachment(null)} className="absolute -top-12 right-0 text-white/50 hover:text-white p-2"><X size={32} /></button></div></div>)}
       </div>
     );
-  };
+  }
 
-  return (<div className="flex flex-col h-full bg-[var(--bg-main)] pb-24"><div className="p-5 border-b border-[var(--bg-card)] flex justify-between items-center sticky top-0 bg-[var(--bg-main)]/80 backdrop-blur z-10"><div><h2 className="text-2xl font-bold text-[var(--text-main)]">Проекты</h2><p className="text-sm text-[var(--text-muted)]">Стратегическое управление</p></div><button onClick={() => setIsCreatingProject(true)} className="p-3 bg-[var(--text-main)] text-[var(--bg-main)] rounded-full hover:scale-110 transition-transform shadow-lg"><Plus size={20} /></button></div><div className="flex-1 overflow-y-auto p-5"><div className="grid grid-cols-2 gap-4 pb-10">{projects.map(project => { const pTasks = tasks.filter(t => t.projectId === project.id); const completed = pTasks.filter(t => t.isCompleted).length; const progress = pTasks.length > 0 ? (completed / pTasks.length) * 100 : 0; return (<div key={project.id} onClick={() => setSelectedProjectId(project.id)} className="glass-panel group p-5 rounded-2xl relative overflow-hidden cursor-pointer hover:border-[var(--text-muted)] transition-all active:scale-[0.98] flex flex-col justify-between min-h-[160px]"><div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: project.color }}></div><div><div className="flex justify-between items-start mb-3"><div className="p-2 rounded-lg bg-[var(--bg-main)]"><Folder size={24} color={project.color} /></div><div className="text-xs font-bold text-[var(--text-muted)] px-2 py-1 rounded-md bg-[var(--bg-main)]">{pTasks.length}</div></div><h3 className="text-sm font-bold text-[var(--text-main)] mb-1 line-clamp-2">{project.title}</h3></div><div><div className="w-full h-1.5 bg-[var(--bg-card)] rounded-full overflow-hidden mt-4"><div className="h-full transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: project.color }}></div></div></div></div>) })}</div></div>{isCreatingProject && (<div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"><div className="glass-card w-full max-w-md rounded-3xl border border-[var(--border-color)] p-6 shadow-2xl animate-in zoom-in-95"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-[var(--text-main)]">Новый проект</h3><button onClick={() => setIsCreatingProject(false)} className="p-2 hover:bg-[var(--bg-item)] rounded-full text-[var(--text-muted)]"><X size={20} /></button></div><div className="space-y-4"><div><label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-2">Название</label><input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full bg-[var(--bg-item)] border border-[var(--border-color)] rounded-xl p-3 text-[var(--text-main)] focus:border-[var(--accent)] outline-none" placeholder="Например: Здоровье" /></div><div><label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-2">Описание</label><textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} className="w-full bg-[var(--bg-item)] border border-[var(--border-color)] rounded-xl p-3 text-[var(--text-main)] focus:border-[var(--accent)] outline-none resize-none h-24" placeholder="Краткое описание целей..." /></div><div><label className="block text-xs font-bold text-[var(--text-muted)] uppercase mb-2">Цвет</label><div className="flex gap-3 flex-wrap">{COLORS.map(c => (<button key={c} onClick={() => setNewColor(c)} className={`w-8 h-8 rounded-full transition-transform ${newColor === c ? 'scale-125 ring-2 ring-[var(--text-main)] ring-offset-2 ring-offset-[var(--bg-main)]' : 'hover:scale-110'}`} style={{ backgroundColor: c }} />))}</div></div><button onClick={handleCreateProject} disabled={!newTitle.trim()} className="w-full py-4 mt-4 bg-[var(--text-main)] text-[var(--bg-main)] rounded-xl font-bold text-lg hover:opacity-90 disabled:opacity-50 transition-opacity">Создать проект</button></div></div></div>)}</div>);
+  return (
+    <div className="flex flex-col h-full bg-[var(--bg-main)] items-center justify-center text-center p-6 animate-in fade-in duration-300">
+        <div className="max-w-md w-full glass-panel p-8 rounded-[3rem] border border-[var(--border-color)] shadow-2xl">
+            <div className="w-20 h-20 bg-[var(--accent)]/10 rounded-full flex items-center justify-center mx-auto mb-6 text-[var(--accent)]">
+                <Folder size={40} />
+            </div>
+            <h2 className="text-2xl font-black text-[var(--text-main)] mb-2">Проекты</h2>
+            <p className="text-[var(--text-muted)] mb-8">Управляйте сложными задачами и идеями в одном месте.</p>
+            
+            {projects.length > 0 && (
+                <div className="grid grid-cols-1 gap-3 mb-8 max-h-[40vh] overflow-y-auto no-scrollbar">
+                    {projects.map(p => (
+                        <button key={p.id} onClick={() => setSelectedProjectId(p.id)} className="flex items-center gap-4 p-4 bg-[var(--bg-item)] rounded-2xl hover:bg-[var(--bg-main)] border border-[var(--border-color)] transition-all group hover:scale-[1.02] text-left">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shadow-lg" style={{ backgroundColor: p.color }}>{p.title.charAt(0)}</div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-[var(--text-main)] truncate">{p.title}</h3>
+                                <p className="text-[10px] text-[var(--text-muted)] truncate opacity-70">{p.description || 'Нет описания'}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            <button onClick={() => setIsCreatingProject(true)} className="w-full py-4 bg-[var(--accent)] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent-glow)] hover:scale-[1.02] active:scale-95 transition-all">Новый проект</button>
+        </div>
+
+        {isCreatingProject && (
+            <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in-95">
+                <div className="w-full max-w-sm glass-card rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
+                    <div className="flex justify-between items-center mb-8">
+                        <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Создание проекта</span>
+                        <button onClick={() => setIsCreatingProject(false)}><X size={24} className="text-[var(--text-muted)] hover:text-white" /></button>
+                    </div>
+                    
+                    <div className="space-y-6">
+                        <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Название проекта" className="w-full bg-transparent text-2xl font-bold text-white outline-none border-b border-white/10 pb-2 placeholder:text-white/20" />
+                        <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Краткое описание..." className="w-full bg-[var(--bg-item)] rounded-xl p-4 text-sm text-white outline-none border border-white/10 resize-none h-24" />
+                        <div>
+                            <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-3 block">Цвет обложки</label>
+                            <div className="flex flex-wrap gap-2">
+                                {COLORS.map(c => (
+                                    <button key={c} onClick={() => setNewColor(c)} className={`w-8 h-8 rounded-full transition-all ${newColor === c ? 'scale-125 ring-2 ring-white' : 'opacity-40 hover:opacity-100'}`} style={{ backgroundColor: c }} />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onClick={handleCreateProject} disabled={!newTitle.trim()} className="w-full mt-8 py-4 bg-white text-black rounded-2xl font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50">Создать</button>
+                </div>
+            </div>
+        )}
+    </div>
+  );
 };
 
 export default ProjectsView;

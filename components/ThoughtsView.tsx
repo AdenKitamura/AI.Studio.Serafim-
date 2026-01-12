@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Thought, Attachment } from '../types';
 import { 
@@ -7,7 +6,7 @@ import {
   Image as ImageIcon, FileText
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 
 interface ThoughtsViewProps {
   thoughts: Thought[];

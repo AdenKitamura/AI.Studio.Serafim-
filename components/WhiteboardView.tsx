@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Thought, NodeLink, LinkType } from '../types';
+import type { Thought } from '../types';
 import { 
   Plus, Maximize2, X, Link as LinkIcon, 
   Target, LayoutGrid, Focus,
@@ -244,6 +244,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
 
   return (
     <div className="fixed inset-0 z-0">
+        {/* CANVAS */}
         <div 
             ref={containerRef}
             className="absolute inset-0 bg-[#0a0a0a] touch-none select-none overflow-hidden"
@@ -273,6 +274,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                 className="absolute top-0 left-0 w-full h-full origin-top-left will-change-transform"
                 style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}
             >
+                {/* LINKS */}
                 <svg className="absolute top-[-50000px] left-[-50000px] w-[100000px] h-[100000px] pointer-events-none overflow-visible">
                     {thoughts.map(node => (node.links || []).map((link, i) => {
                         const target = thoughts.find(n => n.id === link.targetId);
@@ -285,6 +287,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                     }))}
                 </svg>
 
+                {/* NODES */}
                 {thoughts.map(node => (
                     <div
                         key={node.id}
@@ -306,6 +309,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                             width: node.type === 'image' ? (node.width || 200) : undefined
                         }}
                     >
+                        {/* Link Button */}
                         <button 
                             onClick={(e) => initiateLink(node.id, e)}
                             className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center border no-drag transition-all z-20 ${connectingSourceId === node.id ? 'bg-yellow-500 text-black border-yellow-500 rotate-12 scale-110' : 'bg-[#18181b] text-white/50 border-white/10 hover:text-white hover:border-[var(--accent)]'}`}
@@ -313,6 +317,7 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
                             <Link2 size={14} />
                         </button>
 
+                        {/* Content */}
                         {node.type === 'image' ? (
                             <div className="relative group/img w-full h-full">
                                 <img src={node.metadata?.imageSrc} className="w-full h-full rounded-lg shadow-lg pointer-events-none select-none" />
@@ -346,29 +351,47 @@ const WhiteboardView: React.FC<WhiteboardViewProps> = ({ thoughts, activeBoardId
             </div>
         </div>
 
+        {/* UI LAYER */}
         <div className="absolute inset-0 pointer-events-none z-50">
             <button onClick={centerBoard} className="absolute bottom-8 right-8 pointer-events-auto p-4 bg-[#18181b] border border-white/10 rounded-full text-white/50 hover:text-white shadow-lg">
                 <Crosshair size={24} />
             </button>
+            
             <div className="absolute top-20 right-6 flex flex-col gap-2 pointer-events-auto">
                 <button onClick={autoLayout} className="p-3 bg-[#18181b]/80 backdrop-blur rounded-xl border border-white/10 text-white/60 hover:text-white transition-all"><LayoutGrid size={20} /></button>
                 <button onClick={focusContent} className="p-3 bg-[#18181b]/80 backdrop-blur rounded-xl border border-white/10 text-white/60 hover:text-white transition-all"><Focus size={20} /></button>
             </div>
+
             {connectingSourceId && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest animate-pulse shadow-lg pointer-events-auto" onClick={() => setConnectingSourceId(null)}>
                     Выберите объект для связи...
                 </div>
             )}
+
             <div className="absolute bottom-8 left-8 flex flex-col items-start gap-4 pointer-events-auto">
                 <div className={`flex flex-col gap-2 bg-[#18181b]/90 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl transition-all origin-bottom-left ${isMenuOpen ? 'scale-100 opacity-100' : 'scale-75 opacity-0 pointer-events-none translate-y-10'}`}>
-                    <button onClick={() => createNode('task_node')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32"><Target size={18} className="text-emerald-400"/> <span className="text-[10px] font-bold text-white">Цель</span></button>
-                    <button onClick={() => createNode('thought')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32"><PlusCircle size={18} className="text-blue-400"/> <span className="text-[10px] font-bold text-white">Заметка</span></button>
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32"><ImageIcon size={18} className="text-purple-400"/> <span className="text-[10px] font-bold text-white">Фото</span></button>
-                    <button onClick={() => createNode('annotation')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32"><TypeIcon size={18} className="text-yellow-400"/> <span className="text-[10px] font-bold text-white">Текст</span></button>
+                    <button onClick={() => createNode('task_node')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <Target size={18} className="text-emerald-400"/> <span className="text-[10px] font-bold text-white">Цель</span>
+                    </button>
+                    <button onClick={() => createNode('thought')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <PlusCircle size={18} className="text-blue-400"/> <span className="text-[10px] font-bold text-white">Заметка</span>
+                    </button>
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <ImageIcon size={18} className="text-purple-400"/> <span className="text-[10px] font-bold text-white">Фото</span>
+                    </button>
+                    <button onClick={() => createNode('annotation')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/10 rounded-xl w-32">
+                        <TypeIcon size={18} className="text-yellow-400"/> <span className="text-[10px] font-bold text-white">Текст</span>
+                    </button>
                 </div>
-                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="h-14 w-14 bg-[var(--accent)] rounded-full flex items-center justify-center text-white shadow-[0_0_30px_var(--accent-glow)] hover:scale-110 transition-transform active:scale-90"><Plus size={28} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-45' : ''}`} /></button>
+                <button 
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="h-14 w-14 bg-[var(--accent)] rounded-full flex items-center justify-center text-white shadow-[0_0_30px_var(--accent-glow)] hover:scale-110 transition-transform active:scale-90"
+                >
+                    <Plus size={28} className={`transition-transform duration-300 ${isMenuOpen ? 'rotate-45' : ''}`} />
+                </button>
             </div>
         </div>
+
         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
     </div>
   );
