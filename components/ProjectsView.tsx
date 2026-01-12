@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, Task, Thought, Priority, Attachment } from '../types';
-import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, List, Layout, X, Eye, FileText } from 'lucide-react';
-import WhiteboardView from './WhiteboardView'; 
+import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, List, X, Eye, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -24,13 +23,11 @@ interface ExtendedProjectsViewProps {
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#808080'];
 
 const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({ 
-  projects, tasks, thoughts, onAddProject, onUpdateProject, onDeleteProject, 
-  onAddTask, onUpdateTask, onToggleTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought
+  projects, tasks, onAddProject, onUpdateProject, onDeleteProject, 
+  onAddTask, onUpdateTask, onDeleteTask
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('board');
-  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null); 
   const [isTaskCreateOpen, setIsTaskCreateOpen] = useState(false); 
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
@@ -48,19 +45,12 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                 columns: [{ id: 'c1', title: 'Нужно сделать', order: 0, color: COLORS[8] }, { id: 'c2', title: 'В работе', order: 1, color: COLORS[2] }, { id: 'c3', title: 'Готово', order: 2, color: COLORS[3] }]
             });
         }
-        if (!selectedProject.boards || selectedProject.boards.length === 0) {
-             const mainBoardId = `b-${Date.now()}`;
-             onUpdateProject(selectedProject.id, { boards: [{ id: mainBoardId, title: 'Главная доска' }] });
-             setActiveBoardId(mainBoardId);
-        } else if (!activeBoardId) {
-            setActiveBoardId(selectedProject.boards[0].id);
-        }
     }
   }, [selectedProject]);
 
   const handleCreateProject = () => {
     if (!newTitle.trim()) return;
-    onAddProject({ id: Date.now().toString(), title: newTitle, description: newDesc, color: newColor, createdAt: new Date().toISOString(), columns: [{ id: 'c1', title: 'Нужно сделать', order: 0, color: COLORS[8] }, { id: 'c2', title: 'В работе', order: 1, color: COLORS[2] }, { id: 'c3', title: 'Готово', order: 2, color: COLORS[3] }], boards: [{ id: `b-${Date.now()}`, title: 'Главная доска' }] });
+    onAddProject({ id: Date.now().toString(), title: newTitle, description: newDesc, color: newColor, createdAt: new Date().toISOString(), columns: [{ id: 'c1', title: 'Нужно сделать', order: 0, color: COLORS[8] }, { id: 'c2', title: 'В работе', order: 1, color: COLORS[2] }, { id: 'c3', title: 'Готово', order: 2, color: COLORS[3] }], boards: [] });
     setNewTitle(''); setNewDesc(''); setIsCreatingProject(false);
   };
 
@@ -91,28 +81,11 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   };
 
   const handleDeleteAttachment = (e: React.MouseEvent, attId: string) => { e.stopPropagation(); const newAttachments = taskForm.attachments.filter(a => a.id !== attId); setTaskForm(prev => ({ ...prev, attachments: newAttachments })); if (viewingTask) { onUpdateTask(viewingTask.id, { attachments: newAttachments }); } };
-  const handleAddBoard = () => { const title = prompt("Название доски:"); if(title && selectedProject) { const newBoard = { id: `b-${Date.now()}`, title }; onUpdateProject(selectedProject.id, { boards: [...(selectedProject.boards || []), newBoard] }); setActiveBoardId(newBoard.id); } };
   const handleChangeColumnColor = (colId: string) => { const col = selectedProject?.columns?.find(c => c.id === colId); if(!col || !selectedProject) return; const nextColor = COLORS[(COLORS.indexOf(col.color || COLORS[0]) + 1) % COLORS.length]; const updated = selectedProject.columns!.map(c => c.id === colId ? {...c, color: nextColor} : c); onUpdateProject(selectedProject.id, { columns: updated }); };
 
   if (selectedProject) {
     const projectTasks = tasks.filter(t => t.projectId === selectedProject.id);
     const columns = selectedProject.columns || [];
-    const projectNodes = thoughts.filter(t => t.projectId === selectedProject.id && t.boardId === activeBoardId);
-
-    if (activeTab === 'canvas') {
-        return (
-            <div className="fixed inset-0 z-[100] bg-[#0a0a0a] flex flex-col">
-                <div className="absolute top-4 left-4 z-50 flex items-center gap-2 pointer-events-none">
-                    <button onClick={() => setActiveTab('board')} className="pointer-events-auto p-3 bg-white/10 backdrop-blur rounded-full text-white hover:bg-white/20 transition-all shadow-lg"><ArrowLeft size={20} /></button>
-                    <div className="pointer-events-auto flex items-center gap-1 bg-black/50 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10">
-                        {selectedProject.boards?.map(board => (<button key={board.id} onClick={() => setActiveBoardId(board.id)} className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${activeBoardId === board.id ? 'bg-[var(--accent)] text-white' : 'text-white/50 hover:text-white'}`}>{board.title}</button>))}
-                        <button onClick={handleAddBoard} className="p-2 text-white/50 hover:text-white"><Plus size={14}/></button>
-                    </div>
-                </div>
-                <WhiteboardView thoughts={projectNodes} activeBoardId={activeBoardId || 'default'} onAdd={(t) => onAddThought({ ...t, projectId: selectedProject.id, boardId: activeBoardId || 'default' })} onUpdate={onUpdateThought} onDelete={onDeleteThought} />
-            </div>
-        );
-    }
 
     return (
       <div className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300">
@@ -121,7 +94,11 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
             <div className="flex items-center gap-3"><button onClick={() => setSelectedProjectId(null)} className="p-2 -ml-2 hover:bg-[var(--bg-item)] rounded-full transition-colors"><ArrowLeft size={24} className="text-[var(--text-muted)]" /></button><div><h2 className="text-xl font-black text-[var(--text-main)] leading-none flex items-center gap-2">{selectedProject.title}<div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedProject.color }} /></h2></div></div>
             <button onClick={() => { if(confirm('Удалить проект?')) { onDeleteProject(selectedProject.id); setSelectedProjectId(null); } }} className="text-[var(--text-muted)] hover:text-red-500"><Trash2 size={20} /></button>
           </div>
-          <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--border-color)]"><button onClick={() => setActiveTab('board')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'board' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}><List size={14} /> ЗАДАЧИ</button><button onClick={() => setActiveTab('canvas')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'canvas' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)]'}`}><Layout size={14} /> ДОСКА</button></div>
+          <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--border-color)]">
+              <div className="flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest bg-[var(--bg-main)] text-[var(--text-main)] shadow-sm">
+                  <List size={14} /> ЗАДАЧИ
+              </div>
+          </div>
         </div>
         <div className="flex-1 overflow-hidden relative">
             <div className="h-full overflow-x-auto overflow-y-hidden p-4 pb-20">

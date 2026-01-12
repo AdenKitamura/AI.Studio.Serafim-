@@ -2,10 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { Task, Priority, Project, Habit, Thought } from '../types';
 import CalendarView from './CalendarView';
 import HabitTracker from './HabitTracker';
-import WhiteboardView from './WhiteboardView';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Network, List } from 'lucide-react';
+import { Plus, Check, Zap, Target, Clock, X, ChevronDown } from 'lucide-react';
 
 interface PlannerViewProps {
   tasks: Task[];
@@ -25,13 +24,11 @@ interface PlannerViewProps {
 const PlannerView: React.FC<PlannerViewProps> = ({ 
     tasks, projects, habits = [], thoughts,
     onAddTask, onToggleTask, 
-    onAddHabit, onToggleHabit, onDeleteHabit,
-    onAddThought, onUpdateThought, onDeleteThought
+    onAddHabit, onToggleHabit, onDeleteHabit
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isAdding, setIsAdding] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskTime, setNewTaskTime] = useState('');
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -45,22 +42,12 @@ const PlannerView: React.FC<PlannerViewProps> = ({
     setNewTaskTitle(''); setNewTaskTime(''); setIsAdding(false);
   };
 
-  if (viewMode === 'map') {
-      return (
-          <div className="h-full relative flex flex-col">
-              <div className="absolute top-6 right-6 z-50"><div className="glass-panel p-1 rounded-xl flex gap-1"><button onClick={() => setViewMode('list')} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-item)] transition-all"><List size={20} /></button><button onClick={() => setViewMode('map')} className="p-2 bg-[var(--accent)] text-white rounded-lg shadow-sm"><Network size={20} /></button></div></div>
-              <WhiteboardView thoughts={thoughts} onAdd={onAddThought} onUpdate={onUpdateThought} onDelete={onDeleteThought} onConvertToTask={(title) => { onAddTask({ id: Date.now().toString(), title, isCompleted: false, priority: Priority.MEDIUM, dueDate: new Date().toISOString(), createdAt: new Date().toISOString() }); }} />
-          </div>
-      );
-  }
-
   return (
     <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col">
       <div className="px-6 py-6 sticky top-0 z-20 bg-[var(--bg-main)]/80 backdrop-blur-md border-b border-[var(--border-color)] flex justify-between items-start">
         <div className="cursor-pointer group flex items-center gap-3" onClick={() => setShowCalendar(!showCalendar)}>
           <div><div className="flex items-center gap-2"><h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter uppercase">{format(selectedDate, 'LLLL', { locale: ru })}</h2><ChevronDown size={20} className={`text-[var(--accent)] transition-transform duration-300 ${showCalendar ? 'rotate-180' : ''}`} /></div><p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">{format(selectedDate, 'eeee, d MMMM yyyy', { locale: ru })}</p></div>
         </div>
-        <div className="glass-panel p-1 rounded-xl flex gap-1"><button onClick={() => setViewMode('list')} className="p-2 bg-[var(--accent)] text-white rounded-lg shadow-sm"><List size={18} /></button><button onClick={() => setViewMode('map')} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-item)] transition-all"><Network size={18} /></button></div>
       </div>
       {showCalendar && <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)] border-b border-[var(--border-color)]"><CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} /></div>}
       <div className="px-6 py-6 pb-48 flex-1">
