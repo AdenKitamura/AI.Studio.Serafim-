@@ -80,12 +80,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
     }
   }, []);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom
   useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages, isThinking]);
 
-  // Reset chat session ref if active session changes to prevent context bleeding
   useEffect(() => {
       chatSessionRef.current = null;
   }, [activeSessionId]);
@@ -111,24 +110,21 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const addLog = (msg: string, type: 'tool' | 'info' | 'success') => {
     setAgentLogs(prev => [...prev.slice(-2), { msg, type }]);
-    logger.log('Agent', msg, type as any);
     setTimeout(() => setAgentLogs(prev => prev.filter(l => l.msg !== msg)), 4000);
   };
 
   const handleSend = async () => {
-    // 1. Validate Input
     if (isThinking) return;
     const cleanInput = input.trim();
     if (!cleanInput && !attachedImage) return;
 
-    // 2. Validate Key
-    if (!hasAiKey) { 
+    // Check Key Dynamic
+    if (!hasAiKey && !localStorage.getItem('google_api_key')) { 
         addLog('Нет API ключа. Подключение...', 'tool');
         onConnectAI(); 
         return; 
     }
     
-    // 3. Optimistic Update
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
@@ -146,15 +142,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
     setIsThinking(true);
 
     try {
-      // 4. Initialize Chat Session if needed
       if (!chatSessionRef.current) {
-        addLog('Инициализация сессии...', 'info');
         chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
       }
 
       const now = new Date();
       const deviceTimeISO = format(now, "yyyy-MM-dd'T'HH:mm:ssXXX"); 
-      const timeContext = `\n[SYSTEM_CONTEXT: Current Device Time is strictly ${deviceTimeISO}.]`;
+      const timeContext = `\n[SYSTEM_CONTEXT: Device Time ${deviceTimeISO}]`;
       
       let contents: any = cleanInput + timeContext;
       
@@ -167,10 +161,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
       }
 
-      // 5. Send Message to Gemini
       const response = await chatSessionRef.current.sendMessage({ message: contents });
 
-      // 6. Handle Tools
       if (response.functionCalls) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
@@ -207,22 +199,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
               });
               addLog('Идея сохранена', 'success');
               break;
-            case 'add_to_project_board':
-              const project = projects.find(p => p.title.toLowerCase().includes(args.projectName.toLowerCase()));
-              if (project) {
-                  onAddThought({
-                      id: Date.now().toString(),
-                      content: args.content,
-                      type: args.contentType || 'thought',
-                      tags: [],
-                      createdAt: new Date().toISOString(),
-                      projectId: project.id,
-                      boardId: project.boards?.[0]?.id || 'default',
-                      x: 0, y: 0
-                  });
-                  addLog(`Добавлено в проект`, 'success');
-              }
-              break;
             case 'manage_project':
               onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
               addLog('Проект создан', 'success');
@@ -235,7 +211,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         }
       }
 
-      // 7. Update UI with Model Response
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
@@ -248,18 +223,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } catch (e: any) {
       console.error(e);
       addLog('Ошибка AI', 'tool');
-      logger.log('Gemini', 'Chat Error', 'error', e.message);
       
       const errorMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: "Извини, произошла ошибка соединения. Проверь API ключ или интернет.", 
+        content: "Извини, ошибка соединения. Проверь API ключ.", 
         timestamp: Date.now() 
       };
-      // Don't save error messages to history if possible, or mark them? For now just show.
       onUpdateMessages([...newHistory, errorMsg]);
-      
-      // Reset chat context on error
       chatSessionRef.current = null;
     } finally {
       setIsThinking(false);
@@ -271,7 +242,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   return (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
-      {/* Agent Logs Overlay */}
       <div className="absolute top-20 right-6 z-[60] flex flex-col gap-2 items-end pointer-events-none">
         {agentLogs.map((log, i) => (
           <div key={i} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border animate-in slide-in-from-right fade-in backdrop-blur-md ${
@@ -285,7 +255,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
       </div>
 
-      {/* Chat Status */}
       <div className="flex-none px-6 py-2 flex items-center justify-center pointer-events-none z-20">
         <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--bg-item)]/50 backdrop-blur-md border border-[var(--border-color)]">
            <div className={`w-1.5 h-1.5 rounded-full ${isThinking ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></div>
@@ -295,7 +264,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* Messages Scroll Area */}
       <div className="flex-1 relative overflow-hidden z-10">
         <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-20" 
              style={{ background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` }} />
@@ -325,7 +293,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* Input Area */}
       <div className="flex-none p-6 pb-24 relative z-50">
         <div className="max-w-2xl mx-auto space-y-4">
           

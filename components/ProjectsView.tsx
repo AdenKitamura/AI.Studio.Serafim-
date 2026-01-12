@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, Task, Thought, Priority, Attachment } from '../types';
-import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, List, X, Eye, FileText, LayoutGrid, Kanban, MoreVertical } from 'lucide-react';
+import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, X, Eye, FileText } from 'lucide-react';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
 
 interface ExtendedProjectsViewProps {
   projects: Project[];
@@ -115,7 +114,6 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
             </button>
           </div>
           
-          {/* Progress Bar */}
           <div className="w-full h-1 bg-[var(--bg-item)] rounded-full overflow-hidden mb-2">
               <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, backgroundColor: selectedProject.color }}></div>
           </div>
@@ -129,7 +127,6 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                        const colTasks = projectTasks.filter(t => (t.columnId === col.id) || (!t.columnId && col.id === columns[0].id));
                        return (
                            <div key={col.id} className="flex-none w-80 flex flex-col h-full bg-[var(--bg-item)]/40 rounded-[2rem] border border-[var(--border-color)] backdrop-blur-sm">
-                               {/* Column Header */}
                                <div className="p-4 flex justify-between items-center border-b border-[var(--border-color)]">
                                    <div className="flex items-center gap-3">
                                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: col.color || COLORS[0] }}></div>
@@ -142,7 +139,6 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                                    </div>
                                </div>
                                
-                               {/* Tasks List */}
                                <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar">
                                    {colTasks.map(task => (
                                        <div key={task.id} onClick={() => openDetailModal(task)} className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-color)] shadow-sm hover:border-[var(--accent)] transition-all cursor-pointer group hover:scale-[1.02] active:scale-95">

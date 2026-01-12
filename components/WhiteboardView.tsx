@@ -1,7 +1,8 @@
 import React from 'react';
 
-// Stub component to prevent build errors since the user removed the functionality.
-const WhiteboardView: React.FC<any> = () => {
+// Заглушка, чтобы сборка не падала.
+// Функционал вырезан по требованию.
+const WhiteboardView = () => {
   return null;
 };
 

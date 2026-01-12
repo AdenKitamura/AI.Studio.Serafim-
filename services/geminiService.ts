@@ -1,20 +1,20 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
-import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from "../types";
+import { Task, Thought, JournalEntry, Project, Habit } from "../types";
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale';
 
-// Dynamic retrieval to handle runtime injection
 const getApiKey = () => {
-  if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) {
+  // Проверка всех возможных вариантов переменных окружения
+  if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {
     return process.env.REACT_APP_GOOGLE_API_KEY;
   }
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_API_KEY) {
     // @ts-ignore
     return import.meta.env.VITE_GOOGLE_API_KEY;
   }
-  // Fallback to local storage if user entered it manually in a settings modal (hypothetical)
-  return localStorage.getItem('google_api_key') || '';
+  // Ключ из локального хранилища (если вводился вручную)
+  return typeof localStorage !== 'undefined' ? localStorage.getItem('google_api_key') : '';
 };
 
 const APP_MANUAL = `
@@ -30,7 +30,7 @@ const APP_MANUAL = `
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает, обновляет, планирует или завершает задачи.",
+    description: "Создает, обновляет или завершает задачи.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -58,12 +58,11 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "add_to_project_board",
-    description: "Добавляет заметку на ДОСКУ проекта.",
+    description: "Добавляет заметку в проект.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         projectName: { type: Type.STRING },
-        contentType: { type: Type.STRING, enum: ["task_node", "thought"] },
         content: { type: Type.STRING }
       },
       required: ["projectName", "content"]
@@ -94,31 +93,18 @@ const tools: FunctionDeclaration[] = [
       },
       required: ["command"]
     }
-  },
-  {
-    name: "search_memory",
-    description: "Ищет в дневнике и мыслях.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        query: { type: Type.STRING },
-        scope: { type: Type.STRING, enum: ["journal", "thoughts", "all"] }
-      },
-      required: ["query"]
-    }
   }
 ];
 
 export const polishTranscript = async (text: string): Promise<string> => {
-  if (!text || text.trim().length < 3) return text;
   const apiKey = getApiKey();
-  if (!apiKey) return text; 
+  if (!text || text.trim().length < 3 || !apiKey) return text;
 
   try {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `SYSTEM: Fix grammar and remove stuttering. Keep conciseness. Output strictly Russian text. INPUT: "${text}"`,
+      contents: `SYSTEM: Fix grammar. Output strictly Russian text. INPUT: "${text}"`,
     });
     return response.text?.trim() || text;
   } catch (e) {
@@ -134,7 +120,7 @@ export const createMentorChat = (context: any): Chat => {
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
   const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). ${APP_MANUAL} 
   Текущая дата: ${today}.
-  Твоя цель: Помогать пользователю достигать ясности и продуктивности. Будь краток, точен и харизматичен.`;
+  Твоя цель: Помогать пользователю достигать ясности. Будь краток и точен.`;
 
   return ai.chats.create({
     model: 'gemini-3-pro-preview',
@@ -151,17 +137,21 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
   if (!apiKey) return {};
 
   const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Проанализируй состояние. JSON { status, insight, focusArea }`,
-    config: { 
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: { status: { type: Type.STRING }, insight: { type: Type.STRING }, focusArea: { type: Type.STRING } },
-        required: ["status", "insight", "focusArea"]
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Проанализируй состояние на основе задач (${tasks.length}), привычек и дневника. Верни JSON: { "status": "строка", "insight": "строка", "focusArea": "строка" }`,
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: { status: { type: Type.STRING }, insight: { type: Type.STRING }, focusArea: { type: Type.STRING } },
+          required: ["status", "insight", "focusArea"]
+        }
       }
-    }
-  });
-  try { return JSON.parse(response.text || "{}"); } catch (e) { return {}; }
+    });
+    return JSON.parse(response.text || "{}");
+  } catch (e) { 
+    return {}; 
+  }
 };
