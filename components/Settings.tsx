@@ -1,11 +1,10 @@
-
 import React, { useRef } from 'react';
 import { themes } from '../themes';
 import { ThemeKey, IconWeight } from '../types';
 import { 
   CheckCircle, Palette, Database, Download, Upload, 
   AlertTriangle, Image as ImageIcon, Trash2, PenTool, 
-  Box
+  Zap
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -20,9 +19,11 @@ interface SettingsProps {
     customBg?: string;
     setCustomBg?: (bg: string) => void;
   };
+  aiKey: string;
+  setAiKey: (key: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, exportData, onImport, customization }) => {
+const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, exportData, onImport, customization, aiKey, setAiKey }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,6 +88,29 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
       
       <div className="max-w-xl mx-auto space-y-8 pb-24">
         
+        {/* --- API KEY --- */}
+        <section>
+          <div className="flex items-center gap-3 mb-4 px-2">
+            <Zap size={16} className="text-amber-500" />
+            <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">AI & API</h3>
+          </div>
+          <div className="glass-panel p-5 rounded-3xl space-y-4">
+             <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Gemini API Key</label>
+             <div className="flex gap-2">
+                <input 
+                   type="password" 
+                   value={aiKey} 
+                   onChange={(e) => setAiKey(e.target.value)} 
+                   placeholder="Вставьте AIzaSy..." 
+                   className="flex-1 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl p-3 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)] font-mono"
+                />
+             </div>
+             <p className="text-[9px] text-[var(--text-muted)] opacity-60">
+                 Если ключ не задан в переменных среды Vercel (VITE_GOOGLE_API_KEY), введите его здесь вручную.
+             </p>
+          </div>
+        </section>
+
         {/* --- APPEARANCE --- */}
         <section>
           <div className="flex items-center gap-3 mb-4 px-2">

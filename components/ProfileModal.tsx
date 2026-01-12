@@ -16,6 +16,8 @@ interface ProfileModalProps {
   onClose: () => void;
   onImport: (data: any) => void;
   hasAiKey: boolean;
+  aiKey: string;
+  setAiKey: (key: string) => void;
   customization: {
     font: FontFamily;
     setFont: (f: FontFamily) => void;
@@ -32,7 +34,7 @@ interface ProfileModalProps {
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
-    appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey, customization, googleUser, authError, onRetryAuth
+    appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey, aiKey, setAiKey, customization, googleUser, authError, onRetryAuth
 }) => {
   const [activeTab, setActiveTab] = useState<'settings' | 'google' | 'system' | 'faq'>('settings');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
@@ -148,6 +150,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     exportData={{ ...appState, user: userName }} 
                     onImport={onImport}
                     customization={customization}
+                    aiKey={aiKey}
+                    setAiKey={setAiKey}
                   />
                 </div>
               </div>

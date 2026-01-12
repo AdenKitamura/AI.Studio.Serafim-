@@ -50,6 +50,9 @@ const App = () => {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
+  // Manual API Key State
+  const [manualAiKey, setManualAiKey] = useState(() => localStorage.getItem('google_api_key') || '');
+
   // AUTH STATE (Google)
   const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline'); 
@@ -241,8 +244,14 @@ const App = () => {
      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
      // @ts-ignore
      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return true;
-     return false;
-  }, []);
+     return !!manualAiKey;
+  }, [manualAiKey]);
+
+  const updateAiKey = (key: string) => {
+      setManualAiKey(key);
+      if(key) localStorage.setItem('google_api_key', key);
+      else localStorage.removeItem('google_api_key');
+  };
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
@@ -316,7 +325,7 @@ const App = () => {
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
-              onConnectAI={() => (window as any).aistudio?.openSelectKey()}
+              onConnectAI={() => setShowSettings(true)}
               voiceTrigger={voiceTrigger}
             />
           )}
@@ -409,6 +418,8 @@ const App = () => {
           onClose={() => setShowSettings(false)} 
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} 
           hasAiKey={hasAiKey}
+          aiKey={manualAiKey}
+          setAiKey={updateAiKey}
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
           googleUser={googleUser}
           authError={null}
