@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Mic, MicOff, Sparkles, Loader2, ChevronDown, Tag, Hash, Wand2, Target, Heart, ShieldAlert, Rocket } from 'lucide-react';
+import { Mic, MicOff, Sparkles, Loader2, ChevronDown, Wand2, Target, Heart, ShieldAlert, Rocket } from 'lucide-react';
 import { polishTranscript } from '../services/geminiService';
 import CalendarView from './CalendarView';
 
@@ -18,7 +18,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
   const [isPolishing, setIsPolishing] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [showTags, setShowTags] = useState(false);
   const [interimText, setInterimText] = useState('');
   
   const recognitionRef = useRef<any>(null);
@@ -30,22 +29,20 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
 
   const [content, setContent] = useState(entry?.content || '');
   const [mood, setMood] = useState(entry?.mood || '');
-  const [tags, setTags] = useState<string[]>(entry?.tags || []);
   const [reflection, setReflection] = useState<DailyReflection>(entry?.reflection || { mainFocus: '', gratitude: '', blockers: '', tomorrowGoal: '' });
 
   useEffect(() => {
     const e = journal.find(j => j.date === format(selectedDate, 'yyyy-MM-dd'));
     setContent(e?.content || '');
     setMood(e?.mood || '');
-    setTags(e?.tags || []);
     setReflection(e?.reflection || { mainFocus: '', gratitude: '', blockers: '', tomorrowGoal: '' });
   }, [selectedDate, journal]);
 
   useEffect(() => {
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
-    autoSaveTimeoutRef.current = setTimeout(() => { onSave(dateStr, content, '', mood, reflection, tags); }, 1500); 
+    autoSaveTimeoutRef.current = setTimeout(() => { onSave(dateStr, content, '', mood, reflection, []); }, 1500); 
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
-  }, [content, mood, tags, reflection, dateStr, onSave]);
+  }, [content, mood, reflection, dateStr, onSave]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -110,21 +107,13 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
                   </div>
               </div>
           )}
-          {showTags && (
-             <div className="animate-in slide-in-from-bottom-5 fade-in pt-4"><div className="flex items-center gap-2 flex-wrap"><Hash size={16} className="text-[var(--text-muted)]" />{tags.map(t => (<span key={t} className="px-3 py-1 bg-[var(--bg-item)] rounded-lg text-xs font-bold text-[var(--text-main)] border border-[var(--border-color)]">#{t}</span>))}<input placeholder="Добавить тег..." className="bg-transparent text-xs text-[var(--text-main)] outline-none min-w-[100px]" onKeyDown={(e) => { if(e.key === 'Enter') { const val = e.currentTarget.value.trim(); if(val) { setTags([...tags, val]); e.currentTarget.value = ''; } } }} /></div></div>
-          )}
         </div>
       </div>
       <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent z-40 pointer-events-none">
          <div className="max-w-md mx-auto flex items-center justify-between pointer-events-auto">
-             <div className="flex gap-2">
-                 <button onClick={toggleReflection} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all ${showReflection ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-lg' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)]'}`}><Sparkles size={18} /></button>
-                 <button onClick={() => setShowTags(!showTags)} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all ${showTags ? 'bg-[var(--text-main)] text-[var(--bg-main)] border-[var(--text-main)]' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)]'}`}><Tag size={18} /></button>
-             </div>
+             <button onClick={toggleReflection} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all ${showReflection ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-lg' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)]'}`}><Sparkles size={18} /></button>
              <button onClick={toggleRecording} disabled={isPolishing} className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110 shadow-[0_0_20px_rgba(244,63,94,0.4)]' : 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--border-color)] hover:bg-[var(--bg-card)]'}`}>{isRecording ? <MicOff size={28} /> : <Mic size={28} />}</button>
-             <div className="flex gap-2">
-                <button onClick={handleAutoPolish} disabled={isPolishing || !content} className="w-12 h-12 rounded-full bg-[var(--bg-item)] flex items-center justify-center text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--accent)] active:scale-95">{isPolishing ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}</button>
-             </div>
+             <button onClick={handleAutoPolish} disabled={isPolishing || !content} className="w-12 h-12 rounded-full bg-[var(--bg-item)] flex items-center justify-center text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--accent)] active:scale-95">{isPolishing ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18} />}</button>
          </div>
       </div>
     </div>

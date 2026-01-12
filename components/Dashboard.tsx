@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types';
-import { Sparkles, Clock, Target, CheckCircle2, Folder } from 'lucide-react';
+import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap } from 'lucide-react';
 import { format, isToday, isFuture, differenceInMinutes } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import HabitTracker from './HabitTracker';
 
 interface DashboardProps {
   tasks: Task[];
@@ -15,11 +15,15 @@ interface DashboardProps {
   onAddThought: (thought: Thought) => void;
   onNavigate: (view: any) => void;
   onToggleTask: (id: string) => void;
+  onAddHabit: (habit: Habit) => void;
+  onToggleHabit: (id: string, date: string) => void;
+  onDeleteHabit: (id: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     tasks, thoughts, journal, projects, habits = [],
-    onAddTask, onAddProject, onAddThought, onNavigate, onToggleTask
+    onAddTask, onAddProject, onAddThought, onNavigate, onToggleTask,
+    onAddHabit, onToggleHabit, onDeleteHabit
 }) => {
   const upcomingReminders = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(new Date(t.dueDate))).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 2), [tasks]);
   const todayTasks = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isToday(new Date(t.dueDate))).sort((a, b) => (a.priority === Priority.HIGH ? 0 : 1) - (b.priority === Priority.HIGH ? 0 : 1)).slice(0, 3), [tasks]);
@@ -28,12 +32,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-transparent overflow-y-auto no-scrollbar pb-40">
-      <div className="px-8 pt-12 pb-6">
-        <div className="flex items-center gap-3 mb-2"><div className="px-2.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-md text-[9px] font-black uppercase tracking-[0.2em] border border-[var(--accent)]/10">Система Активна</div></div>
-        <h2 className="text-4xl font-black text-[var(--text-main)] tracking-tighter leading-none mb-3">Пользователь.</h2>
-        <p className="text-[var(--text-muted)] text-sm font-bold opacity-60">Твой интеллект в порядке.</p>
-      </div>
+      
+      {/* Spacer instead of Header text */}
+      <div className="pt-8"></div>
+
       <div className="px-6 space-y-6">
+        
+        {/* Urgent Section */}
         {upcomingReminders.length > 0 && (
           <section className="grid grid-cols-1 gap-3">
             {upcomingReminders.map(task => (
@@ -47,6 +52,23 @@ const Dashboard: React.FC<DashboardProps> = ({
             ))}
           </section>
         )}
+
+        {/* Habit Tracker Widget */}
+        <section className="glass-panel rounded-[2.5rem] p-6">
+            <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500"><Zap size={16} /></div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Привычки</h4>
+            </div>
+            <HabitTracker 
+                habits={habits} 
+                selectedDate={new Date()} 
+                onAdd={onAddHabit} 
+                onToggle={onToggleHabit} 
+                onDelete={onDeleteHabit} 
+            />
+        </section>
+
+        {/* Focus & Thoughts Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <section>
             <div className="glass-panel rounded-[2.5rem] p-6 shadow-sm flex flex-col hover:shadow-lg transition-all h-full">
@@ -70,6 +92,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </section>
         </div>
+
+        {/* Projects */}
         <section>
           <div className="flex items-center justify-between mb-4 px-1"><h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Проекты</h3><button onClick={() => onNavigate('projects')} className="text-[9px] font-black text-[var(--accent)] uppercase tracking-widest">Все</button></div>
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x">

@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, X, Maximize2, Minimize2, Plus, Trash2, Clock, Minus, Zap } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, Maximize2, Minimize2, Plus, Trash2, Smartphone } from 'lucide-react';
 
 interface FocusTimerProps {
   onClose: () => void;
@@ -20,11 +19,11 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
   ]);
   const [activeTimerId, setActiveTimerId] = useState<string>('1');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
   const activeTimer = timers.find(t => t.id === activeTimerId) || timers[0];
 
-  // Audio Engine
   const playSound = (type: 'tick' | 'complete') => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -109,7 +108,7 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
   if (isFullscreen) {
       const progress = ((activeTimer.duration * 60 - activeTimer.remaining) / (activeTimer.duration * 60)) * 100;
       return (
-          <div className="fixed inset-0 z-[200] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-center animate-in fade-in duration-500">
+          <div className={`fixed inset-0 z-[200] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-center animate-in fade-in duration-500 transition-transform ${isLandscape ? 'rotate-90' : ''}`}>
               {/* Header Controls */}
               <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-50">
                   <div className="flex gap-4">
@@ -123,9 +122,14 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => setIsFullscreen(false)} className="p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all">
-                      <Minimize2 size={24} />
-                  </button>
+                  <div className="flex gap-4">
+                      <button onClick={() => setIsLandscape(!isLandscape)} className="p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all">
+                          <Smartphone size={24} className={isLandscape ? 'rotate-90' : ''} />
+                      </button>
+                      <button onClick={() => setIsFullscreen(false)} className="p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all">
+                          <Minimize2 size={24} />
+                      </button>
+                  </div>
               </div>
 
               {/* Main Timer Display */}
@@ -160,7 +164,7 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
       <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
           <div className="flex items-center gap-2">
               <div className="p-2 bg-orange-500/10 rounded-lg text-orange-500">
-                 <Zap size={20} />
+                 <Smartphone size={20} />
               </div>
               <div>
                  <h2 className="text-lg font-bold text-[var(--text-main)]">Фокус-Таймеры</h2>

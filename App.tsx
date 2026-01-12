@@ -68,25 +68,25 @@ const App = () => {
 
   const userName = googleUser?.name || 'Aden';
 
-  // --- GOOGLE AUTH CHECK ---
+  // --- GOOGLE AUTH AUTO-CONNECT ---
   useEffect(() => {
-    const checkAuth = async () => {
-      // Small delay to ensure scripts might be ready
-      setTimeout(async () => {
-         logger.log('Auth', 'Checking Google Profile...');
-         const profile = await googleService.getUserProfile();
-         if (profile) {
+    const initAuth = async () => {
+       // Try to connect automatically on boot
+       try {
+          logger.log('Auth', 'Auto-connecting services...');
+          const profile = await googleService.initAndAuth();
+          if (profile) {
              setGoogleUser(profile);
              setSyncStatus('synced');
              setShowSuccessToast(true);
-             logger.log('Auth', 'User authenticated', 'success', profile.email);
              setTimeout(() => setShowSuccessToast(false), 3000);
-         } else {
-             logger.log('Auth', 'No active session found', 'warning');
-         }
-      }, 1000);
+          }
+       } catch (e) {
+          logger.log('Auth', 'Auto-connect failed (silent)', 'warning');
+       }
     };
-    checkAuth();
+    // Delay slightly to let UI render
+    setTimeout(initAuth, 500);
   }, []);
 
   // --- AUTO SYNC LOGIC ---
@@ -289,21 +289,31 @@ const App = () => {
               onClick={() => setShowSettings(true)} 
               className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"
             >
-              {googleUser ? (
-                 <div className="w-6 h-6 rounded-full border border-[var(--accent)] overflow-hidden">
-                    {googleUser.picture ? <img src={googleUser.picture} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-[var(--accent)]" />}
-                 </div>
-              ) : (
-                 <SettingsIcon size={20} />
-              )}
+              <SettingsIcon size={20} />
             </button>
           </div>
         </header>
 
-        <Ticker thoughts={thoughts} onClick={() => setShowQuotes(true)} />
+        <Ticker onClick={() => setShowQuotes(true)} />
 
         <main className="flex-1 relative overflow-hidden z-10 page-enter">
-          {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={handleAddTask} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
+          {view === 'dashboard' && (
+              <Dashboard 
+                  tasks={tasks} 
+                  thoughts={thoughts} 
+                  journal={journal} 
+                  projects={projects} 
+                  habits={habits} 
+                  onAddTask={handleAddTask} 
+                  onAddProject={p => setProjects([p, ...projects])} 
+                  onAddThought={t => setThoughts([t, ...thoughts])} 
+                  onNavigate={navigateTo} 
+                  onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
+                  onAddHabit={handleAddHabit}
+                  onToggleHabit={handleToggleHabit}
+                  onDeleteHabit={handleDeleteHabit}
+              />
+          )}
           {view === 'chat' && (
             <Mentorship 
               tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} memories={memories}

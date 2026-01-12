@@ -255,22 +255,26 @@ export const createGoogleTask = async (title: string, notes: string = '', dueDat
   try {
     let effectiveTitle = title;
     
-    // FIX: Google Tasks API ignores time in 'due' field.
-    // We prepend [HH:mm] to the title if a time is specified in the ISO string.
+    // Check if time is provided in the ISO string
+    let hasTime = false;
     if (dueDate) {
         const date = new Date(dueDate);
         const hours = date.getHours();
         const minutes = date.getMinutes();
         
-        // If it's not midnight (default for date-only), add time to title
+        // If it's not midnight (default for date-only), add time to title visibility
         if (!(hours === 23 && minutes === 59) && !(hours === 0 && minutes === 0)) {
+            hasTime = true;
             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
             effectiveTitle = `[${timeStr}] ${title}`;
         }
     }
 
     const taskResource: any = { title: effectiveTitle, notes };
+    
     if (dueDate) {
+        // Crucial: Pass the full RFC3339 timestamp.
+        // Google Tasks API will handle notifications based on this if the client supports it.
         taskResource.due = dueDate;
     }
 
