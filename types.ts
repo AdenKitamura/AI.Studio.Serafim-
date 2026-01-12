@@ -135,6 +135,12 @@ export interface ChatSession {
   createdAt: string;
 }
 
+export interface Memory {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface AppState {
   tasks: Task[];
   thoughts: Thought[];

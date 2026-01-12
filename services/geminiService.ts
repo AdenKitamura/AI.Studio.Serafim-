@@ -1,5 +1,5 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
-import { Task, Thought, JournalEntry, Project, Habit } from "../types";
+import { Task, Thought, JournalEntry, Project, Habit, Memory } from "../types";
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale';
 
@@ -27,6 +27,8 @@ const APP_MANUAL = `
 3. СТРУКТУРА:
    - 'manage_project' для больших целей.
    - 'create_idea' для заметок в Архив.
+4. ОБУЧЕНИЕ:
+   - Если пользователь говорит "Запомни...", используй 'remember_fact'.
 `;
 
 const tools: FunctionDeclaration[] = [
@@ -70,6 +72,17 @@ const tools: FunctionDeclaration[] = [
         tags: { type: Type.ARRAY, items: { type: Type.STRING } }
       },
       required: ["title"]
+    }
+  },
+  {
+    name: "remember_fact",
+    description: "Сохраняет важный факт о пользователе или инструкцию в долгосрочную память.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        fact: { type: Type.STRING, description: "То, что нужно запомнить." }
+      },
+      required: ["fact"]
     }
   },
   {
@@ -135,13 +148,20 @@ export const createMentorChat = (context: any): Chat => {
   const ai = new GoogleGenAI({ apiKey });
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
   
+  // Format memories for context
+  const memoryContext = context.memories && context.memories.length > 0 
+    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+    : 'Память пуста.';
+
   const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). 
   ${APP_MANUAL} 
   
   Контекст пользователя:
-  - Имя: ${context.userName || 'Пользователь'}
+  - Имя: ${context.userName || 'Aden'}
   - Текущая дата: ${today}.
   - Google Auth: ${context.isGoogleAuth ? 'ПОДКЛЮЧЕН' : 'ОТКЛЮЧЕН (Только локально)'}
+  
+  ${memoryContext}
   
   Твоя цель: Быть вторым мозгом. Помогать с фокусом, планированием и идеями. Будь краток, точен и харизматичен.`;
 

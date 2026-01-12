@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight } from './types';
+import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
 import JournalView from './components/JournalView';
@@ -62,6 +62,7 @@ const App = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
@@ -96,7 +97,7 @@ const App = () => {
 
   useEffect(() => {
     if (isDataReady && googleUser) triggerAutoSync();
-  }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady, triggerAutoSync, googleUser]);
+  }, [tasks, thoughts, journal, projects, habits, sessions, memories, isDataReady, triggerAutoSync, googleUser]);
 
   // --- PWA PROMPT CAPTURE ---
   useEffect(() => {
@@ -149,15 +150,16 @@ const App = () => {
     const loadData = async () => {
       try {
         await dbService.migrateFromLocalStorage();
-        const [t, th, j, p, h, s] = await Promise.all([
+        const [t, th, j, p, h, s, m] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
           dbService.getAll<JournalEntry>('journal'),
           dbService.getAll<Project>('projects'),
           dbService.getAll<Habit>('habits'),
-          dbService.getAll<ChatSession>('chat_sessions')
+          dbService.getAll<ChatSession>('chat_sessions'),
+          dbService.getAll<Memory>('memories')
         ]);
-        setTasks(t); setThoughts(th); setJournal(j); setHabits(h);
+        setTasks(t); setThoughts(th); setJournal(j); setHabits(h); setMemories(m);
         setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#10b981', createdAt: new Date().toISOString() }]); 
         
         if (s.length > 0) {
@@ -185,8 +187,9 @@ const App = () => {
       dbService.saveAll('projects', projects); 
       dbService.saveAll('habits', habits); 
       dbService.saveAll('chat_sessions', sessions); 
+      dbService.saveAll('memories', memories); 
     } 
-  }, [tasks, thoughts, journal, projects, habits, sessions, isDataReady]);
+  }, [tasks, thoughts, journal, projects, habits, sessions, memories, isDataReady]);
 
   // --- HANDLERS ---
 
@@ -303,7 +306,7 @@ const App = () => {
           {view === 'dashboard' && <Dashboard tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} onAddTask={handleAddTask} onAddProject={p => setProjects([p, ...projects])} onAddThought={t => setThoughts([t, ...thoughts])} onNavigate={navigateTo} onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} />}
           {view === 'chat' && (
             <Mentorship 
-              tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits}
+              tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} memories={memories}
               sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
               onUpdateMessages={(msgs) => setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, lastInteraction: Date.now() } : s))}
               onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); }}
@@ -313,11 +316,13 @@ const App = () => {
               onAddThought={t => setThoughts(prev => [t, ...prev])}
               onAddProject={p => setProjects(prev => [p, ...prev])}
               onAddHabit={handleAddHabit}
+              onAddMemory={m => setMemories(prev => [m, ...prev])}
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
               onConnectAI={() => setShowSettings(true)}
               voiceTrigger={voiceTrigger}
+              userName={userName}
             />
           )}
           {view === 'journal' && (

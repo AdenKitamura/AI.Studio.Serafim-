@@ -1,8 +1,8 @@
 
-import { Task, Thought, JournalEntry, Project, Habit, ChatMessage, ChatSession } from '../types';
+import { Task, Thought, JournalEntry, Project, Habit, ChatMessage, ChatSession, Memory } from '../types';
 
 const DB_NAME = 'SerafimOS_DB';
-const DB_VERSION = 3; 
+const DB_VERSION = 4; // Incremented version for memories
 
 export interface SerafimData {
   tasks: Task[];
@@ -11,6 +11,7 @@ export interface SerafimData {
   projects: Project[];
   habits: Habit[];
   sessions: ChatSession[];
+  memories: Memory[];
 }
 
 class DBService {
@@ -30,6 +31,7 @@ class DBService {
         if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('habits')) db.createObjectStore('habits', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('chat_sessions')) db.createObjectStore('chat_sessions', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('memories')) db.createObjectStore('memories', { keyPath: 'id' });
       };
 
       request.onsuccess = () => {

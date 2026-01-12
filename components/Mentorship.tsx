@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey } from '../types';
+import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
 import { createMentorChat } from '../services/geminiService';
 import * as googleService from '../services/googleService'; // Import Google Services
 import { logger } from '../services/logger';
@@ -15,6 +15,7 @@ interface MentorshipProps {
   journal: JournalEntry[];
   projects: Project[];
   habits: Habit[];
+  memories: Memory[];
   sessions: ChatSession[];
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
@@ -26,18 +27,20 @@ interface MentorshipProps {
   onAddThought: (thought: Thought) => void;
   onAddProject: (project: Project) => void;
   onAddHabit: (habit: Habit) => void;
+  onAddMemory: (memory: Memory) => void;
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
   hasAiKey: boolean;
   onConnectAI: () => void;
+  userName: string;
   voiceTrigger?: number;
 }
 
 const Mentorship: React.FC<MentorshipProps> = ({ 
-    tasks, thoughts, journal, projects, habits, 
+    tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
-    onAddTask, onUpdateTask, onAddThought, onAddProject, onSetTheme, onStartFocus,
-    hasAiKey, onConnectAI
+    onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onSetTheme, onStartFocus,
+    hasAiKey, onConnectAI, userName
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -145,8 +148,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         // Pass Auth State Context to AI
         const isGoogleAuth = googleService.checkSignInStatus();
         chatSessionRef.current = createMentorChat({ 
-            tasks, thoughts, journal, projects, habits, 
-            isGoogleAuth 
+            tasks, thoughts, journal, projects, habits, memories, 
+            isGoogleAuth, userName 
         });
       }
 
@@ -218,6 +221,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
               });
               addLog('Идея сохранена', 'success');
               break;
+            
+            case 'remember_fact':
+              if (args.fact) {
+                  onAddMemory({
+                      id: Date.now().toString(),
+                      content: args.fact,
+                      createdAt: new Date().toISOString()
+                  });
+                  addLog('Запомнил', 'success');
+              }
+              break;
+
             case 'manage_project':
               onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
               addLog('Проект создан', 'success');
