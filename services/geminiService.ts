@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { ru } from 'date-fns/locale';
 
 const getApiKey = () => {
-  // Проверка всех возможных вариантов переменных окружения
   if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {
     return process.env.REACT_APP_GOOGLE_API_KEY;
   }
@@ -13,39 +12,56 @@ const getApiKey = () => {
     // @ts-ignore
     return import.meta.env.VITE_GOOGLE_API_KEY;
   }
-  // Ключ из локального хранилища (если вводился вручную)
-  return typeof localStorage !== 'undefined' ? localStorage.getItem('google_api_key') : '';
+  return '';
 };
 
 const APP_MANUAL = `
-РУКОВОДСТВО ПО ИНТЕРФЕЙСУ SERAFIM OS:
-1. СИСТЕМНЫЕ УВЕДОМЛЕНИЯ (PWA):
-   - Используй 'manage_task' с параметром 'dueDate' для напоминаний.
-2. ВРЕМЯ:
-   - ВСЕГДА используй ISO формат.
-3. ПРОЕКТЫ:
-   - Создавай проекты через 'manage_project'.
+РУКОВОДСТВО SERAFIM OS (v4 PRO):
+1. ИНТЕГРАЦИЯ С GOOGLE:
+   - Ты ПОЛНОСТЬЮ интегрирован с экосистемой Google пользователя.
+   - Используй 'manage_task' -> задача попадает в локальный план и (при наличии сети) синхронизируется с Google Tasks.
+   - Используй 'manage_calendar' -> создает реальные события в Google Calendar.
+2. ВРЕМЯ И ПЛАНИРОВАНИЕ:
+   - Всегда используй ISO формат даты.
+   - Предлагай пользователю блокировать время в календаре для важных задач.
+3. СТРУКТУРА:
+   - 'manage_project' для больших целей.
+   - 'create_idea' для заметок в Архив.
 `;
 
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает, обновляет или завершает задачи.",
+    description: "Создает задачу. Синхронизируется с Google Tasks, если пользователь авторизован.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: { type: Type.STRING, enum: ["create", "complete", "delete"] },
         title: { type: Type.STRING },
         priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
-        dueDate: { type: Type.STRING },
+        dueDate: { type: Type.STRING, description: "ISO Date String" },
         projectId: { type: Type.STRING }
       },
       required: ["action", "title"]
     }
   },
   {
+    name: "manage_calendar",
+    description: "Создает событие в Google Calendar.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        startTime: { type: Type.STRING, description: "ISO Date String. Start time." },
+        endTime: { type: Type.STRING, description: "ISO Date String. End time." },
+        description: { type: Type.STRING }
+      },
+      required: ["title", "startTime", "endTime"]
+    }
+  },
+  {
     name: "create_idea",
-    description: "Создает новую ИДЕЮ в Архиве.",
+    description: "Создает новую ИДЕЮ/ЗАМЕТКУ в Архиве.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -58,7 +74,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "add_to_project_board",
-    description: "Добавляет заметку в проект.",
+    description: "Добавляет заметку на доску проекта.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -83,7 +99,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "ui_control",
-    description: "Управляет интерфейсом.",
+    description: "Управляет интерфейсом приложения.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -118,9 +134,16 @@ export const createMentorChat = (context: any): Chat => {
   
   const ai = new GoogleGenAI({ apiKey });
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
-  const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). ${APP_MANUAL} 
-  Текущая дата: ${today}.
-  Твоя цель: Помогать пользователю достигать ясности. Будь краток и точен.`;
+  
+  const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). 
+  ${APP_MANUAL} 
+  
+  Контекст пользователя:
+  - Имя: ${context.userName || 'Пользователь'}
+  - Текущая дата: ${today}.
+  - Google Auth: ${context.isGoogleAuth ? 'ПОДКЛЮЧЕН' : 'ОТКЛЮЧЕН (Только локально)'}
+  
+  Твоя цель: Быть вторым мозгом. Помогать с фокусом, планированием и идеями. Будь краток, точен и харизматичен.`;
 
   return ai.chats.create({
     model: 'gemini-3-pro-preview',

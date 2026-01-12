@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey } from '../types';
 import { createMentorChat } from '../services/geminiService';
+import * as googleService from '../services/googleService'; // Import Google Services
 import { logger } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
@@ -118,10 +119,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
     const cleanInput = input.trim();
     if (!cleanInput && !attachedImage) return;
 
-    // Check Key Dynamic
-    if (!hasAiKey && !localStorage.getItem('google_api_key')) { 
-        addLog('Нет API ключа. Подключение...', 'tool');
-        onConnectAI(); 
+    if (!hasAiKey) { 
+        addLog('Нет API ключа. См. настройки.', 'tool');
         return; 
     }
     
@@ -143,7 +142,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
       if (!chatSessionRef.current) {
-        chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
+        // Pass Auth State Context to AI
+        const isGoogleAuth = googleService.checkSignInStatus();
+        chatSessionRef.current = createMentorChat({ 
+            tasks, thoughts, journal, projects, habits, 
+            isGoogleAuth 
+        });
       }
 
       const now = new Date();
@@ -172,6 +176,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             case 'manage_task':
               if (args.action === 'create') {
                 const taskDueDate = args.dueDate ? args.dueDate : null;
+                // 1. Create Local Task
                 onAddTask({ 
                     id: Date.now().toString(), 
                     title: args.title, 
@@ -181,13 +186,27 @@ const Mentorship: React.FC<MentorshipProps> = ({
                     projectId: args.projectId, 
                     createdAt: new Date().toISOString() 
                 });
-                addLog('Задача создана', 'success');
-              } else if (args.action === 'complete') {
-                const task = tasks.find(t => t.title.toLowerCase().includes(args.title.toLowerCase()));
-                if (task) onUpdateTask(task.id, { isCompleted: true });
-                addLog('Задача завершена', 'success');
+                // 2. Sync to Google Tasks if auth present
+                if (googleService.checkSignInStatus()) {
+                    googleService.createGoogleTask(args.title, '', taskDueDate);
+                    addLog('Google Task создан', 'success');
+                } else {
+                    addLog('Локальная задача', 'success');
+                }
               }
               break;
+            
+            case 'manage_calendar':
+              if (args.title && args.startTime && args.endTime) {
+                  if (googleService.checkSignInStatus()) {
+                      await googleService.createCalendarEvent(args.title, args.startTime, args.endTime, args.description);
+                      addLog('Google Calendar', 'success');
+                  } else {
+                      addLog('Требуется Google вход', 'tool');
+                  }
+              }
+              break;
+
             case 'create_idea':
               onAddThought({
                   id: Date.now().toString(),
