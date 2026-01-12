@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { getAllQuotes } from '../services/quotesService';
-import { RefreshCw } from 'lucide-react';
 
 interface TickerProps {
   onClick?: () => void;
@@ -42,13 +41,6 @@ const Ticker: React.FC<TickerProps> = ({ onClick }) => {
           ))}
         </div>
       </div>
-      
-      <button 
-        onClick={(e) => { e.stopPropagation(); shuffleQuotes(); }}
-        className="flex-none w-10 h-10 flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)] transition-colors border-l border-[var(--border-color)]"
-      >
-        <RefreshCw size={14} />
-      </button>
 
       <style>{`
         @keyframes ticker {

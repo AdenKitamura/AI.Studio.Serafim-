@@ -19,29 +19,25 @@ const APP_MANUAL = `
 РУКОВОДСТВО SERAFIM OS (v4 PRO):
 1. ИНТЕГРАЦИЯ С GOOGLE:
    - Ты ПОЛНОСТЬЮ интегрирован с экосистемой Google пользователя.
-   - Используй 'manage_task' -> задача попадает в локальный план и (при наличии сети) синхронизируется с Google Tasks.
-   - Используй 'manage_calendar' -> создает реальные события в Google Calendar.
-2. ВРЕМЯ И ПЛАНИРОВАНИЕ:
-   - Всегда используй ISO формат даты.
-   - Предлагай пользователю блокировать время в календаре для важных задач.
-3. СТРУКТУРА:
-   - 'manage_project' для больших целей.
-   - 'create_idea' для заметок в Архив.
-4. ОБУЧЕНИЕ:
-   - Если пользователь говорит "Запомни...", используй 'remember_fact'.
+   - Используй 'manage_task' -> задача попадает в локальный план и синхронизируется с Google Tasks.
+   - ВАЖНО: При создании задачи с временем (напр. "в 14:00"), ты ОБЯЗАН передать параметр 'dueDate' в формате ISO 8601 с указанием времени (YYYY-MM-DDTHH:mm:ss).
+   - Если пользователь не указал дату, используй сегодняшнюю.
+2. СТРУКТУРА:
+   - 'create_idea' для заметок.
+   - 'remember_fact' для запоминания контекста.
 `;
 
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает задачу. Синхронизируется с Google Tasks, если пользователь авторизован.",
+    description: "Создает задачу. ВАЖНО: dueDate должен быть в формате ISO 8601 (YYYY-MM-DDTHH:mm:ss), чтобы установилось уведомление.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: { type: Type.STRING, enum: ["create", "complete", "delete"] },
         title: { type: Type.STRING },
         priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
-        dueDate: { type: Type.STRING, description: "ISO Date String" },
+        dueDate: { type: Type.STRING, description: "Full ISO 8601 String with Time (e.g., 2024-05-20T14:30:00)" },
         projectId: { type: Type.STRING }
       },
       required: ["action", "title"]
@@ -83,18 +79,6 @@ const tools: FunctionDeclaration[] = [
         fact: { type: Type.STRING, description: "То, что нужно запомнить." }
       },
       required: ["fact"]
-    }
-  },
-  {
-    name: "add_to_project_board",
-    description: "Добавляет заметку на доску проекта.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        projectName: { type: Type.STRING },
-        content: { type: Type.STRING }
-      },
-      required: ["projectName", "content"]
     }
   },
   {
@@ -147,6 +131,7 @@ export const createMentorChat = (context: any): Chat => {
   
   const ai = new GoogleGenAI({ apiKey });
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
+  const isoNow = new Date().toISOString();
   
   // Format memories for context
   const memoryContext = context.memories && context.memories.length > 0 
@@ -158,7 +143,8 @@ export const createMentorChat = (context: any): Chat => {
   
   Контекст пользователя:
   - Имя: ${context.userName || 'Aden'}
-  - Текущая дата: ${today}.
+  - Текущее время (ISO): ${isoNow}
+  - Форматированная дата: ${today}.
   - Google Auth: ${context.isGoogleAuth ? 'ПОДКЛЮЧЕН' : 'ОТКЛЮЧЕН (Только локально)'}
   
   ${memoryContext}

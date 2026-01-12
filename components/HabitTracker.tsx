@@ -22,6 +22,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
 
   return (
     <>
+      {/* Scrollable container ONLY for buttons */}
       <div className="flex gap-3 overflow-x-auto no-scrollbar py-1">
         {habits.map(habit => {
           const isDone = habit.completedDates.includes(dateStr);
@@ -56,6 +57,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
         </button>
       </div>
 
+      {/* Modal is OUTSIDE the scroll container */}
       {isAdding && (
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-200">
           <div className="w-full max-w-xs glass-card rounded-[2.5rem] p-8 shadow-2xl relative border border-white/10">

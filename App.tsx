@@ -197,7 +197,12 @@ const App = () => {
     setTasks(prev => [task, ...prev]);
   };
 
-  const handleUpdateTask = (id: string, updates: Partial<Task>) => {
+  const handleUpdateTask = (id: string, updates: Partial<Task> & { _delete?: boolean }) => {
+    if (updates._delete) {
+        setTasks(prev => prev.filter(t => t.id !== id));
+        dbService.deleteItem('tasks', id);
+        return;
+    }
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   };
 
@@ -308,7 +313,7 @@ const App = () => {
                   onAddProject={p => setProjects([p, ...projects])} 
                   onAddThought={t => setThoughts([t, ...thoughts])} 
                   onNavigate={navigateTo} 
-                  onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
+                  onToggleTask={(id, updates) => handleUpdateTask(id, updates || { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
                   onAddHabit={handleAddHabit}
                   onToggleHabit={handleToggleHabit}
                   onDeleteHabit={handleDeleteHabit}
