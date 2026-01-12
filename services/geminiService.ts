@@ -17,27 +17,27 @@ const getApiKey = () => {
 
 const APP_MANUAL = `
 РУКОВОДСТВО SERAFIM OS (v4 PRO):
-1. ИНТЕГРАЦИЯ С GOOGLE:
-   - Ты ПОЛНОСТЬЮ интегрирован с экосистемой Google пользователя.
-   - Используй 'manage_task' -> задача попадает в локальный план и синхронизируется с Google Tasks.
-   - ВАЖНО: При создании задачи с временем (напр. "в 14:00"), ты ОБЯЗАН передать параметр 'dueDate' в формате ISO 8601 с указанием времени (YYYY-MM-DDTHH:mm:ss).
-   - Если пользователь не указал дату, используй сегодняшнюю.
-2. СТРУКТУРА:
-   - 'create_idea' для заметок.
-   - 'remember_fact' для запоминания контекста.
+1. ИНТЕГРАЦИЯ С GOOGLE (КРИТИЧНО ВАЖНО):
+   - Публичный API Google Tasks НЕ ПОДДЕРЖИВАЕТ точное время, только даты.
+   - ЕСЛИ пользователь указывает ТОЧНОЕ ВРЕМЯ (напр. "в 14:00", "через час"), ты ОБЯЗАН использовать инструмент 'manage_calendar'. Это единственный способ создать уведомление.
+   - ЕСЛИ пользователь указывает только ДАТУ (напр. "завтра", "в среду"), используй 'manage_task'.
+   
+2. ЛОГИКА:
+   - 'manage_calendar' создает событие в календаре Google (для уведомлений) + локальную задачу.
+   - 'manage_task' создает задачу в Google Tasks (без времени) + локальную задачу.
 `;
 
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает задачу. ВАЖНО: dueDate должен быть в формате ISO 8601 (YYYY-MM-DDTHH:mm:ss), чтобы установилось уведомление.",
+    description: "Создает задачу БЕЗ точного времени (только дата). Для точного времени используй manage_calendar.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: { type: Type.STRING, enum: ["create", "complete", "delete"] },
         title: { type: Type.STRING },
         priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
-        dueDate: { type: Type.STRING, description: "Full ISO 8601 String with Time (e.g., 2024-05-20T14:30:00)" },
+        dueDate: { type: Type.STRING, description: "ISO 8601 Date (YYYY-MM-DD)" },
         projectId: { type: Type.STRING }
       },
       required: ["action", "title"]
@@ -45,13 +45,13 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "manage_calendar",
-    description: "Создает событие в Google Calendar.",
+    description: "Создает задачу С ТОЧНЫМ ВРЕМЕНЕМ через Google Calendar (чтобы сработало уведомление).",
     parameters: {
       type: Type.OBJECT,
       properties: {
         title: { type: Type.STRING },
-        startTime: { type: Type.STRING, description: "ISO Date String. Start time." },
-        endTime: { type: Type.STRING, description: "ISO Date String. End time." },
+        startTime: { type: Type.STRING, description: "ISO Date String (YYYY-MM-DDTHH:mm:ss)" },
+        endTime: { type: Type.STRING, description: "ISO Date String (обычно +30 мин от start)" },
         description: { type: Type.STRING }
       },
       required: ["title", "startTime", "endTime"]

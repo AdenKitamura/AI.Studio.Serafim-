@@ -189,7 +189,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                     projectId: args.projectId, 
                     createdAt: new Date().toISOString() 
                 });
-                // 2. Sync to Google Tasks if auth present
+                // 2. Sync to Google Tasks (Date only)
                 if (googleService.checkSignInStatus()) {
                     googleService.createGoogleTask(args.title, '', taskDueDate);
                     addLog('Google Task создан', 'success');
@@ -201,11 +201,22 @@ const Mentorship: React.FC<MentorshipProps> = ({
             
             case 'manage_calendar':
               if (args.title && args.startTime && args.endTime) {
+                  // 1. Create Local Task so it appears in Dashboard
+                  onAddTask({ 
+                      id: Date.now().toString(), 
+                      title: args.title + " (Cal)", 
+                      priority: Priority.HIGH, 
+                      dueDate: args.startTime, 
+                      isCompleted: false, 
+                      createdAt: new Date().toISOString() 
+                  });
+
+                  // 2. Create Google Calendar Event (For proper notification)
                   if (googleService.checkSignInStatus()) {
                       await googleService.createCalendarEvent(args.title, args.startTime, args.endTime, args.description);
-                      addLog('Google Calendar', 'success');
+                      addLog('Календарь (Уведомление)', 'success');
                   } else {
-                      addLog('Требуется Google вход', 'tool');
+                      addLog('Нужен вход Google', 'tool');
                   }
               }
               break;

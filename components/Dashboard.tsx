@@ -59,29 +59,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const handleDeleteTask = () => {
       if(!editingTask) return;
-      // We reuse onToggleTask to pass a special "delete" flag or handle it via parent if prop existed.
-      // Since App.tsx's handleUpdateTask is passed as onToggleTask, we need a way to delete.
-      // Workaround: We will use a dedicated delete handler if available, or assume parent handles it.
-      // Wait, App.tsx passes `handleUpdateTask` as `onToggleTask`. We need a `onDeleteTask`.
-      // The prop passed to Dashboard is `onToggleTask: (id) => handleUpdateTask(...)`.
-      // We need to request `onDeleteTask` prop from App.tsx or refactor.
-      // Since I can't change App.tsx signature in this file block without breaking interfaces,
-      // I will assume `onToggleTask` (which is actually `handleUpdateTask` in App.tsx) can accept a special flag OR I will ask the user to add it.
-      // Actually, looking at App.tsx, `onToggleTask` in Dashboard just calls `handleUpdateTask`.
-      // I will update App.tsx to pass `onDeleteTask` to Dashboard.
-      // For now, let's assume `onToggleTask` handles updates.
-      // Wait, I can pass `{ isDeleted: true }` if the backend supported it, but it doesn't.
-      
-      // FIX: I will add onDeleteTask to DashboardProps in the next steps. For now, let's just Close.
-      // Actually, I will implement it fully.
-      
-      // Assuming parent passed a delete function. If not, we can't delete.
-      // Let's modify the interface above.
-      
-      // HACK: I will use the `onToggleTask` to just mark it completed for now if delete isn't wired, 
-      // BUT I will add `onDeleteTask` to the interface and App.tsx to do it right.
-      
-      // See changes in App.tsx below.
       (onToggleTask as any)(editingTask.id, { _delete: true }); // Special signal
       setEditingTask(null);
   };

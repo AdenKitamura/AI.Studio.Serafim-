@@ -253,28 +253,8 @@ export const createGoogleTask = async (title: string, notes: string = '', dueDat
   if (!checkSignInStatus()) return;
 
   try {
-    let effectiveTitle = title;
-    
-    // Check if time is provided in the ISO string
-    let hasTime = false;
+    const taskResource: any = { title: title, notes };
     if (dueDate) {
-        const date = new Date(dueDate);
-        const hours = date.getHours();
-        const minutes = date.getMinutes();
-        
-        // If it's not midnight (default for date-only), add time to title visibility
-        if (!(hours === 23 && minutes === 59) && !(hours === 0 && minutes === 0)) {
-            hasTime = true;
-            const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-            effectiveTitle = `[${timeStr}] ${title}`;
-        }
-    }
-
-    const taskResource: any = { title: effectiveTitle, notes };
-    
-    if (dueDate) {
-        // Crucial: Pass the full RFC3339 timestamp.
-        // Google Tasks API will handle notifications based on this if the client supports it.
         taskResource.due = dueDate;
     }
 
@@ -302,7 +282,14 @@ export const createCalendarEvent = async (title: string, startTime: string, endT
       end: {
         dateTime: endTime,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }
+      },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 10 },
+          { method: 'popup', minutes: 0 },
+        ],
+      },
     };
 
     await (window as any).gapi.client.calendar.events.insert({
