@@ -3,6 +3,7 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority, ThemeKey } from 
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale';
 
+// Dynamic retrieval to handle runtime injection
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) {
     return process.env.REACT_APP_GOOGLE_API_KEY;
@@ -12,10 +13,9 @@ const getApiKey = () => {
     // @ts-ignore
     return import.meta.env.VITE_GOOGLE_API_KEY;
   }
-  return '';
+  // Fallback to local storage if user entered it manually in a settings modal (hypothetical)
+  return localStorage.getItem('google_api_key') || '';
 };
-
-const API_KEY = getApiKey();
 
 const APP_MANUAL = `
 РУКОВОДСТВО ПО ИНТЕРФЕЙСУ SERAFIM OS:
@@ -23,8 +23,8 @@ const APP_MANUAL = `
    - Используй 'manage_task' с параметром 'dueDate' для напоминаний.
 2. ВРЕМЯ:
    - ВСЕГДА используй ISO формат.
-3. БЕСКОНЕЧНАЯ ДОСКА:
-   - Pinch-to-zoom для масштаба.
+3. ПРОЕКТЫ:
+   - Создавай проекты через 'manage_project'.
 `;
 
 const tools: FunctionDeclaration[] = [
@@ -111,9 +111,11 @@ const tools: FunctionDeclaration[] = [
 
 export const polishTranscript = async (text: string): Promise<string> => {
   if (!text || text.trim().length < 3) return text;
-  if (!API_KEY) return text; 
+  const apiKey = getApiKey();
+  if (!apiKey) return text; 
+
   try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `SYSTEM: Fix grammar and remove stuttering. Keep conciseness. Output strictly Russian text. INPUT: "${text}"`,
@@ -125,10 +127,15 @@ export const polishTranscript = async (text: string): Promise<string> => {
 };
 
 export const createMentorChat = (context: any): Chat => {
-  if (!API_KEY) throw new Error("API Key not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API Key missing");
+  
+  const ai = new GoogleGenAI({ apiKey });
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
-  const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro. ${APP_MANUAL} Дата: ${today}.`;
+  const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). ${APP_MANUAL} 
+  Текущая дата: ${today}.
+  Твоя цель: Помогать пользователю достигать ясности и продуктивности. Будь краток, точен и харизматичен.`;
+
   return ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
@@ -140,13 +147,10 @@ export const createMentorChat = (context: any): Chat => {
 };
 
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
-  if (!API_KEY) return {};
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const data = {
-    tasks: tasks.map(t => ({ title: t.title, completed: t.isCompleted })),
-    habits: habits.map(h => ({ title: h.title, completions: h.completedDates.length })),
-    moods: journal.map(j => j.mood).filter(Boolean)
-  };
+  const apiKey = getApiKey();
+  if (!apiKey) return {};
+
+  const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Проанализируй состояние. JSON { status, insight, focusArea }`,

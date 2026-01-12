@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey } from '../types';
-import { createMentorChat, polishTranscript } from '../services/geminiService';
+import { createMentorChat } from '../services/geminiService';
 import { logger } from '../services/logger';
 import { 
-  Loader2, ArrowUp, Plus, CheckCircle, Mic, MicOff, 
-  Sparkles, XCircle, AlertCircle, Image as ImageIcon,
-  Zap, Database, Target, Palette, Clock, Terminal
+  Loader2, ArrowUp, Mic, MicOff, 
+  XCircle, Terminal, Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -35,9 +34,9 @@ interface MentorshipProps {
 
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits, 
-    sessions, activeSessionId, onSelectSession, onUpdateMessages, onNewSession, onDeleteSession,
-    onAddTask, onUpdateTask, onAddThought, onAddProject, onAddHabit, onSetTheme, onStartFocus,
-    hasAiKey, onConnectAI, voiceTrigger = 0
+    sessions, activeSessionId, onUpdateMessages, 
+    onAddTask, onUpdateTask, onAddThought, onAddProject, onSetTheme, onStartFocus,
+    hasAiKey, onConnectAI
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -57,10 +56,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = false; // Keep false to avoid duplication bugs on Android
+      rec.continuous = false;
       rec.interimResults = true;
       rec.maxAlternatives = 1;
-      rec.lang = 'ru-RU'; // Strictly enforce Russian
+      rec.lang = 'ru-RU';
       
       rec.onresult = (event: any) => {
         let finalStr = '';
@@ -86,12 +85,16 @@ const Mentorship: React.FC<MentorshipProps> = ({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages, isThinking]);
 
+  // Reset chat session ref if active session changes to prevent context bleeding
+  useEffect(() => {
+      chatSessionRef.current = null;
+  }, [activeSessionId]);
+
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
     if (isRecording) {
       recognitionRef.current.stop();
     } else {
-      // Re-enforce language right before starting
       recognitionRef.current.lang = 'ru-RU';
       recognitionRef.current.start();
     }
@@ -113,24 +116,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const handleSend = async () => {
-    // Basic validation
-    if (isThinking) {
-        logger.log('Chat', 'Blocked send: Agent is thinking', 'warning');
-        return;
-    }
+    // 1. Validate Input
+    if (isThinking) return;
     const cleanInput = input.trim();
-    if (!cleanInput && !attachedImage) {
-        logger.log('Chat', 'Blocked send: Empty input', 'warning');
-        return;
-    }
+    if (!cleanInput && !attachedImage) return;
 
+    // 2. Validate Key
     if (!hasAiKey) { 
-        logger.log('Chat', 'No API Key found, requesting connection', 'error');
+        addLog('Нет API ключа. Подключение...', 'tool');
         onConnectAI(); 
         return; 
     }
     
-    // 1. Create User Message
+    // 3. Optimistic Update
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
@@ -139,9 +137,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
       timestamp: Date.now() 
     };
 
-    logger.log('Chat', `Sending message: ${cleanInput.substring(0, 20)}...`);
-
-    // 2. Optimistic Update (Immediate UI feedback)
     const currentHistory = activeSession ? activeSession.messages : [];
     const newHistory = [...currentHistory, userMsg];
     
@@ -151,8 +146,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
     setIsThinking(true);
 
     try {
+      // 4. Initialize Chat Session if needed
       if (!chatSessionRef.current) {
-        logger.log('Chat', 'Initializing new chat session', 'info');
+        addLog('Инициализация сессии...', 'info');
         chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits });
       }
 
@@ -171,13 +167,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
       }
 
+      // 5. Send Message to Gemini
       const response = await chatSessionRef.current.sendMessage({ message: contents });
 
-      // Handle Tool Calls
+      // 6. Handle Tools
       if (response.functionCalls) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
-          addLog(`Вызов: ${fc.name}`, 'tool');
+          addLog(`Инструмент: ${fc.name}`, 'tool');
 
           switch (fc.name) {
             case 'manage_task':
@@ -192,12 +189,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
                     projectId: args.projectId, 
                     createdAt: new Date().toISOString() 
                 });
-                const timeLog = taskDueDate ? format(new Date(taskDueDate), 'HH:mm') : '';
-                addLog(`Задача создана ${timeLog ? `(${timeLog})` : ''}`, 'success');
+                addLog('Задача создана', 'success');
               } else if (args.action === 'complete') {
                 const task = tasks.find(t => t.title.toLowerCase().includes(args.title.toLowerCase()));
                 if (task) onUpdateTask(task.id, { isCompleted: true });
-                addLog('Задача обновлена', 'success');
+                addLog('Задача завершена', 'success');
               }
               break;
             case 'create_idea':
@@ -224,32 +220,26 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       boardId: project.boards?.[0]?.id || 'default',
                       x: 0, y: 0
                   });
-                  addLog(`Добавлено на доску: ${project.title}`, 'success');
-              } else {
-                  addLog(`Проект не найден`, 'info');
+                  addLog(`Добавлено в проект`, 'success');
               }
               break;
             case 'manage_project':
               onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
-              addLog('Проект добавлен', 'success');
+              addLog('Проект создан', 'success');
               break;
             case 'ui_control':
               if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
               if (args.command === 'start_focus') onStartFocus(args.duration || 25);
               break;
-            case 'search_memory':
-              const results = thoughts.filter(t => t.content.toLowerCase().includes(args.query.toLowerCase()));
-              addLog(`Найдено записей: ${results.length}`, 'info');
-              break;
           }
         }
       }
 
-      // 3. Create Model Message
+      // 7. Update UI with Model Response
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: response.text || "Инструкции выполнены.", 
+        content: response.text || "Готово.", 
         timestamp: Date.now() 
       };
       
@@ -257,21 +247,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     } catch (e: any) {
       console.error(e);
-      addLog('Ошибка сети или API', 'tool');
+      addLog('Ошибка AI', 'tool');
       logger.log('Gemini', 'Chat Error', 'error', e.message);
+      
       const errorMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: "Произошла ошибка при соединении с сервером. Попробуйте еще раз.", 
+        content: "Извини, произошла ошибка соединения. Проверь API ключ или интернет.", 
         timestamp: Date.now() 
       };
+      // Don't save error messages to history if possible, or mark them? For now just show.
       onUpdateMessages([...newHistory, errorMsg]);
+      
+      // Reset chat context on error
+      chatSessionRef.current = null;
     } finally {
       setIsThinking(false);
     }
   };
 
-  // Determine if send button should be clickable
   const canSend = !isThinking && (input.trim().length > 0 || !!attachedImage);
 
   return (
@@ -291,37 +285,33 @@ const Mentorship: React.FC<MentorshipProps> = ({
         ))}
       </div>
 
-      {/* Chat Info */}
-      <div className="flex-none px-6 py-2 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--bg-item)]/30 backdrop-blur-md border border-[var(--border-color)]">
+      {/* Chat Status */}
+      <div className="flex-none px-6 py-2 flex items-center justify-center pointer-events-none z-20">
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--bg-item)]/50 backdrop-blur-md border border-[var(--border-color)]">
            <div className={`w-1.5 h-1.5 rounded-full ${isThinking ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></div>
            <span className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest">
-             {isThinking ? 'Обработка...' : 'Серафим Активен'}
+             {isThinking ? 'Серафим думает...' : 'Онлайн'}
            </span>
         </div>
       </div>
 
       {/* Messages Scroll Area */}
       <div className="flex-1 relative overflow-hidden z-10">
-        {/* Fade Mask */}
         <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-20" 
-             style={{ 
-               background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` 
-             }} />
+             style={{ background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` }} />
         
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
           {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
-                <div className="text-sm leading-relaxed whitespace-pre-wrap font-semibold">
+                <div className="text-sm leading-relaxed whitespace-pre-wrap font-semibold font-sans">
                   {msg.content}
                 </div>
               </div>
             </div>
           ))}
           
-          {/* Typing Indicator Animation */}
           {isThinking && (
             <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
                <div className="glass-panel px-4 py-3 rounded-t-3xl rounded-br-3xl border border-[var(--border-color)] flex items-center gap-1.5">
@@ -358,12 +348,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
               value={input} 
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
-              placeholder={isThinking ? "Серафим пишет..." : "Сообщение..."}
+              placeholder={isThinking ? "Ожидание ответа..." : "Сообщение..."}
               disabled={isThinking}
               className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" 
             />
 
-            {/* Voice Button */}
             <button 
               onClick={toggleVoice} 
               className={`p-3 transition-colors ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}

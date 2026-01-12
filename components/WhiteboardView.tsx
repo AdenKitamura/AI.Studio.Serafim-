@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Component removed per user request to fix build errors.
+// Stub component to prevent build errors since the user removed the functionality.
 const WhiteboardView: React.FC<any> = () => {
   return null;
 };
