@@ -8,6 +8,7 @@ import {
   XCircle, Terminal, Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAuth } from '@clerk/clerk-react';
 
 interface MentorshipProps {
   tasks: Task[];
@@ -42,6 +43,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onSetTheme, onStartFocus,
     hasAiKey, onConnectAI, userName
 }) => {
+  const { getToken } = useAuth();
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -189,12 +191,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
                     projectId: args.projectId, 
                     createdAt: new Date().toISOString() 
                 });
-                // 2. Sync to Google Tasks (Date only)
-                if (googleService.checkSignInStatus()) {
-                    googleService.createGoogleTask(args.title, '', taskDueDate);
-                    addLog('Google Task создан', 'success');
-                } else {
-                    addLog('Локальная задача', 'success');
+                
+                // 2. Sync to Google Tasks (Using Clerk Token)
+                try {
+                    const token = await getToken({ template: 'supabase' });
+                    if (token) {
+                        await googleService.createGoogleTask(token, args.title, '', taskDueDate);
+                        addLog('Google Task создан', 'success');
+                    } else {
+                        addLog('Синхронизация пропущена (нет токена)', 'info');
+                    }
+                } catch (e) {
+                    console.error("Task Sync Error", e);
+                    addLog('Ошибка Sync', 'tool');
                 }
               }
               break;
@@ -211,12 +220,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       createdAt: new Date().toISOString() 
                   });
 
-                  // 2. Create Google Calendar Event (For proper notification)
-                  if (googleService.checkSignInStatus()) {
-                      await googleService.createCalendarEvent(args.title, args.startTime, args.endTime, args.description);
-                      addLog('Календарь (Уведомление)', 'success');
-                  } else {
-                      addLog('Нужен вход Google', 'tool');
+                  // 2. Create Google Calendar Event
+                  try {
+                      const token = await getToken({ template: 'supabase' });
+                      if (token) {
+                          await googleService.createCalendarEvent(token, args.title, args.startTime, args.endTime, args.description);
+                          addLog('Календарь (Уведомление)', 'success');
+                      } else {
+                          addLog('Календарь недоступен (нет токена)', 'tool');
+                      }
+                  } catch (e) {
+                      console.error("Calendar Sync Error", e);
+                      addLog('Ошибка Calendar', 'tool');
                   }
               }
               break;
