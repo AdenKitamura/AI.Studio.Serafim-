@@ -22,6 +22,7 @@ import { logger } from './services/logger';
 import { 
   Zap, Loader2, Settings as SettingsIcon, CheckCircle
 } from 'lucide-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 
 declare global {
   interface Window {
@@ -31,9 +32,11 @@ declare global {
   }
 }
 
-type SyncStatus = 'offline' | 'synced' | 'syncing' | 'error' | 'auth_needed';
-
 const App = () => {
+  // Clerk Hooks
+  const { isLoaded, userId, getToken } = useAuth();
+  const { user } = useUser();
+
   const [isDataReady, setIsDataReady] = useState(false);
   const [view, setView] = useState<ViewState>('dashboard');
   
@@ -50,11 +53,6 @@ const App = () => {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
-  // AUTH STATE (Google)
-  const [googleUser, setGoogleUser] = useState<googleService.GoogleUserProfile | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('offline'); 
-  const syncTimeoutRef = useRef<any>(null);
-
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
   const [thoughts, setThoughts] = useState<Thought[]>([]);
@@ -66,56 +64,151 @@ const App = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
-  const userName = googleUser?.name || 'Aden';
+  const userName = user?.fullName || user?.firstName || 'Aden';
 
-  // --- GOOGLE AUTH AUTO-CONNECT ---
+  // --- AUTH & SYNC ---
   useEffect(() => {
-    const initAuth = async () => {
-       // Try to connect automatically on boot
-       try {
-          logger.log('Auth', 'Auto-connecting services...');
-          const profile = await googleService.initAndAuth();
-          if (profile) {
-             setGoogleUser(profile);
-             setSyncStatus('synced');
-             setShowSuccessToast(true);
-             setTimeout(() => setShowSuccessToast(false), 3000);
+    const initSync = async () => {
+      if (isLoaded) {
+        if (userId) {
+          try {
+            // 1. Get Supabase Token from Clerk (needs 'supabase' template in Clerk Dashboard)
+            const supabaseToken = await getToken({ template: 'supabase' });
+            
+            // 2. Initialize DB Service with User & Token
+            dbService.setAuth(userId, supabaseToken);
+            
+            // 3. Initialize Google Service with OAuth Access Token (if user signed in with Google)
+            // Note: We need the OAuth Access Token for Calendar API, which is different from Supabase JWT
+            // For now, we rely on the user having authorized the scopes in Clerk.
+            const googleToken = await getToken(); // Gets standard session token, but for GAPI we might need to rely on Clerk's integration
+            
+            setShowSuccessToast(true);
+            setTimeout(() => setShowSuccessToast(false), 3000);
+          } catch (e) {
+            console.error("Auth Sync Failed", e);
           }
-       } catch (e) {
-          logger.log('Auth', 'Auto-connect failed (silent)', 'warning');
-       }
+        } else {
+            // Offline/Anon mode
+            dbService.setAuth(null, null);
+        }
+
+        // Load Data regardless of auth state (will pull from IndexedDB)
+        const [t, th, j, p, h, s, m] = await Promise.all([
+          dbService.getAll<Task>('tasks'),
+          dbService.getAll<Thought>('thoughts'),
+          dbService.getAll<JournalEntry>('journal'),
+          dbService.getAll<Project>('projects'),
+          dbService.getAll<Habit>('habits'),
+          dbService.getAll<ChatSession>('chat_sessions'),
+          dbService.getAll<Memory>('memories')
+        ]);
+        
+        setTasks(t); setThoughts(th); setJournal(j); setHabits(h); setMemories(m);
+        setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#10b981', createdAt: new Date().toISOString() }]); 
+        
+        if (s.length > 0) {
+          const sorted = s.sort((a, b) => b.lastInteraction - a.lastInteraction);
+          setSessions(sorted); setActiveSessionId(sorted[0].id);
+        } else {
+          const initS: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
+          setSessions([initS]); setActiveSessionId(initS.id);
+        }
+        setIsDataReady(true);
+      }
     };
-    // Delay slightly to let UI render
-    setTimeout(initAuth, 500);
+
+    initSync();
+  }, [isLoaded, userId, getToken]);
+
+  // --- HANDLERS ---
+
+  const persist = (store: string, item: any) => {
+      dbService.saveItem(store, item);
+  };
+  
+  const remove = (store: string, id: string) => {
+      dbService.deleteItem(store, id);
+  };
+
+  const handleAddTask = (task: Task) => {
+    setTasks(prev => [task, ...prev]);
+    persist('tasks', task);
+  };
+
+  const handleUpdateTask = (id: string, updates: Partial<Task> & { _delete?: boolean }) => {
+    if (updates._delete) {
+        setTasks(prev => prev.filter(t => t.id !== id));
+        remove('tasks', id);
+        return;
+    }
+    const updatedTask = tasks.find(t => t.id === id);
+    if (updatedTask) {
+        const newTask = { ...updatedTask, ...updates };
+        setTasks(prev => prev.map(t => t.id === id ? newTask : t));
+        persist('tasks', newTask);
+    }
+  };
+
+  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
+    const updatedProject = projects.find(p => p.id === id);
+    if(updatedProject) {
+        const newProj = { ...updatedProject, ...updates };
+        setProjects(prev => prev.map(p => p.id === id ? newProj : p));
+        persist('projects', newProj);
+    }
+  };
+
+  const handleUpdateThought = (id: string, updates: Partial<Thought>) => {
+    const updatedThought = thoughts.find(t => t.id === id);
+    if (updatedThought) {
+        const newThought = { ...updatedThought, ...updates };
+        setThoughts(prev => prev.map(t => t.id === id ? newThought : t));
+        persist('thoughts', newThought);
+    }
+  };
+
+  const handleAddHabit = (habit: Habit) => {
+    setHabits(prev => [habit, ...prev]);
+    persist('habits', habit);
+  };
+
+  const handleToggleHabit = (id: string, date: string) => {
+    const habit = habits.find(h => h.id === id);
+    if (habit) {
+        const exists = habit.completedDates.includes(date);
+        const newHabit = {
+            ...habit,
+            completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date]
+        };
+        setHabits(prev => prev.map(h => h.id === id ? newHabit : h));
+        persist('habits', newHabit);
+    }
+  };
+
+  const handleDeleteHabit = (id: string) => {
+      setHabits(prev => prev.filter(h => h.id !== id));
+      remove('habits', id);
+  };
+
+  const handleStartFocus = (mins: number) => {
+    setShowTimer(true);
+  };
+
+  const navigateTo = (newView: ViewState) => {
+    setView(newView);
+  };
+  
+  const hasAiKey = useMemo(() => {
+     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
+     // @ts-ignore
+     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return true;
+     return false;
   }, []);
 
-  // --- AUTO SYNC LOGIC ---
-  const triggerAutoSync = useCallback(() => {
-    if (!googleUser) return;
-    setSyncStatus('synced');
-  }, [googleUser]);
+  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
-  useEffect(() => {
-    if (isDataReady && googleUser) triggerAutoSync();
-  }, [tasks, thoughts, journal, projects, habits, sessions, memories, isDataReady, triggerAutoSync, googleUser]);
-
-  // --- PWA PROMPT CAPTURE ---
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      window.deferredPrompt = e;
-      setTimeout(() => setShowPWAInstall(true), 3000);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  // --- NOTIFICATION PERMISSION ---
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
-
-  // --- THEME & APPEARANCE ---
+  // Theme Application
   useEffect(() => {
     const validTheme = themes[currentTheme] ? currentTheme : 'emerald';
     const theme = themes[validTheme];
@@ -145,115 +238,6 @@ const App = () => {
 
   }, [currentTheme, iconWeight, customBg]);
 
-  // --- DATA LOADING ---
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        await dbService.migrateFromLocalStorage();
-        const [t, th, j, p, h, s, m] = await Promise.all([
-          dbService.getAll<Task>('tasks'),
-          dbService.getAll<Thought>('thoughts'),
-          dbService.getAll<JournalEntry>('journal'),
-          dbService.getAll<Project>('projects'),
-          dbService.getAll<Habit>('habits'),
-          dbService.getAll<ChatSession>('chat_sessions'),
-          dbService.getAll<Memory>('memories')
-        ]);
-        setTasks(t); setThoughts(th); setJournal(j); setHabits(h); setMemories(m);
-        setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#10b981', createdAt: new Date().toISOString() }]); 
-        
-        if (s.length > 0) {
-          const sorted = s.sort((a, b) => b.lastInteraction - a.lastInteraction);
-          setSessions(sorted); setActiveSessionId(sorted[0].id);
-        } else {
-          const initS: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-          setSessions([initS]); setActiveSessionId(initS.id);
-        }
-        setIsDataReady(true);
-        logger.log('DB', 'Data loaded from IndexedDB', 'success');
-      } catch (e) { 
-        logger.log('DB', 'Error loading data', 'error', e);
-        setIsDataReady(true); 
-      }
-    };
-    loadData();
-  }, []);
-
-  useEffect(() => { 
-    if (isDataReady) { 
-      dbService.saveAll('tasks', tasks); 
-      dbService.saveAll('thoughts', thoughts); 
-      dbService.saveAll('journal', journal); 
-      dbService.saveAll('projects', projects); 
-      dbService.saveAll('habits', habits); 
-      dbService.saveAll('chat_sessions', sessions); 
-      dbService.saveAll('memories', memories); 
-    } 
-  }, [tasks, thoughts, journal, projects, habits, sessions, memories, isDataReady]);
-
-  // --- HANDLERS ---
-
-  const handleAddTask = (task: Task) => {
-    setTasks(prev => [task, ...prev]);
-  };
-
-  const handleUpdateTask = (id: string, updates: Partial<Task> & { _delete?: boolean }) => {
-    if (updates._delete) {
-        setTasks(prev => prev.filter(t => t.id !== id));
-        dbService.deleteItem('tasks', id);
-        return;
-    }
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-  };
-
-  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  };
-
-  const handleUpdateThought = (id: string, updates: Partial<Thought>) => {
-    setThoughts(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-  };
-
-  const handleAddHabit = (habit: Habit) => {
-    setHabits(prev => [habit, ...prev]);
-  };
-
-  const handleToggleHabit = (id: string, date: string) => {
-    setHabits(prev => prev.map(h => {
-        if (h.id === id) {
-            const exists = h.completedDates.includes(date);
-            return {
-                ...h,
-                completedDates: exists 
-                    ? h.completedDates.filter(d => d !== date)
-                    : [...h.completedDates, date]
-            };
-        }
-        return h;
-    }));
-  };
-
-  const handleDeleteHabit = (id: string) => {
-      setHabits(prev => prev.filter(h => h.id !== id));
-  };
-
-  const handleStartFocus = (mins: number) => {
-    setShowTimer(true);
-  };
-
-  const navigateTo = (newView: ViewState) => {
-    setView(newView);
-  };
-  
-  const hasAiKey = useMemo(() => {
-     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
-     // @ts-ignore
-     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return true;
-     return false;
-  }, []);
-
-  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
-
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
@@ -264,7 +248,7 @@ const App = () => {
           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-10 fade-in duration-500">
               <div className="bg-emerald-500/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-emerald-400/30">
                   <CheckCircle size={20} />
-                  <span className="text-xs font-black uppercase tracking-widest">Google ID: Подключено</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Подключено: {user?.primaryEmailAddress?.emailAddress}</span>
               </div>
           </div>
       )}
@@ -292,8 +276,9 @@ const App = () => {
             
             <button 
               onClick={() => setShowSettings(true)} 
-              className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn"
+              className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn relative"
             >
+              {userId && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full"></div>}
               <SettingsIcon size={20} />
             </button>
           </div>
@@ -310,8 +295,8 @@ const App = () => {
                   projects={projects} 
                   habits={habits} 
                   onAddTask={handleAddTask} 
-                  onAddProject={p => setProjects([p, ...projects])} 
-                  onAddThought={t => setThoughts([t, ...thoughts])} 
+                  onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
+                  onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }} 
                   onNavigate={navigateTo} 
                   onToggleTask={(id, updates) => handleUpdateTask(id, updates || { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
                   onAddHabit={handleAddHabit}
@@ -323,15 +308,19 @@ const App = () => {
             <Mentorship 
               tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} memories={memories}
               sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
-              onUpdateMessages={(msgs) => setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, lastInteraction: Date.now() } : s))}
-              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); }}
-              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
+              onUpdateMessages={(msgs) => { 
+                  const updatedSession = { ...sessions.find(s => s.id === activeSessionId)!, messages: msgs, lastInteraction: Date.now() };
+                  setSessions(prev => prev.map(s => s.id === activeSessionId ? updatedSession : s));
+                  persist('chat_sessions', updatedSession);
+              }}
+              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); }}
+              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
-              onAddThought={t => setThoughts(prev => [t, ...prev])}
-              onAddProject={p => setProjects(prev => [p, ...prev])}
+              onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
+              onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
               onAddHabit={handleAddHabit}
-              onAddMemory={m => setMemories(prev => [m, ...prev])}
+              onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
@@ -344,15 +333,32 @@ const App = () => {
               <JournalView 
                   journal={journal} 
                   tasks={tasks} 
-                  onSave={(d, c, n, m, r, t) => { const i = journal.findIndex(j => j.date === d); if (i >= 0) { const next = [...journal]; next[i] = {...next[i], content: c, notes: n, mood: m, reflection: r, tags: t}; setJournal(next); } else { setJournal([...journal, {id: Date.now().toString(), date: d, content: c, notes: n, mood: m, reflection: r, tags: t}]); } }} 
+                  onSave={(d, c, n, m, r, t) => { 
+                      const i = journal.findIndex(j => j.date === d); 
+                      let newEntry;
+                      if (i >= 0) { 
+                          const next = [...journal]; 
+                          next[i] = {...next[i], content: c, notes: n, mood: m, reflection: r, tags: t}; 
+                          setJournal(next); 
+                          newEntry = next[i];
+                      } else { 
+                          newEntry = {id: Date.now().toString(), date: d, content: c, notes: n, mood: m, reflection: r, tags: t};
+                          setJournal([...journal, newEntry]); 
+                      }
+                      persist('journal', newEntry);
+                  }} 
               />
           )}
           {view === 'thoughts' && (
             <ThoughtsView 
               thoughts={thoughts} 
-              onAdd={(c, t, tags, metadata) => setThoughts([{id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata}, ...thoughts])} 
+              onAdd={(c, t, tags, metadata) => { 
+                  const newItem = {id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata};
+                  setThoughts([newItem, ...thoughts]); 
+                  persist('thoughts', newItem);
+              }} 
               onUpdate={handleUpdateThought}
-              onDelete={id => setThoughts(thoughts.filter(t => t.id !== id))} 
+              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
             />
           )}
           {view === 'planner' && (
@@ -363,9 +369,9 @@ const App = () => {
               thoughts={thoughts}
               onAddTask={handleAddTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
-              onAddThought={t => setThoughts([t, ...thoughts])}
-              onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
-              onDeleteThought={id => setThoughts(prev => prev.filter(t => t.id !== id))}
+              onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
+              onUpdateThought={handleUpdateThought}
+              onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}
               onAddHabit={handleAddHabit}
               onToggleHabit={handleToggleHabit}
               onDeleteHabit={handleDeleteHabit}
@@ -376,16 +382,16 @@ const App = () => {
               projects={projects} 
               tasks={tasks} 
               thoughts={thoughts} 
-              onAddProject={p => setProjects([p, ...projects])} 
+              onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
               onUpdateProject={handleUpdateProject}
-              onDeleteProject={id => setProjects(projects.filter(p => p.id !== id))} 
+              onDeleteProject={id => { setProjects(projects.filter(p => p.id !== id)); remove('projects', id); }} 
               onAddTask={handleAddTask} 
               onUpdateTask={handleUpdateTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
-              onDeleteTask={id => setTasks(tasks.filter(t => t.id !== id))} 
-              onAddThought={t => setThoughts([t, ...thoughts])}
-              onUpdateThought={t => setThoughts(prev => prev.map(prevT => prevT.id === t.id ? t : prevT))}
-              onDeleteThought={id => setThoughts(prev => prev.filter(t => t.id !== id))}
+              onDeleteTask={id => { setTasks(tasks.filter(t => t.id !== id)); remove('tasks', id); }} 
+              onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
+              onUpdateThought={handleUpdateThought}
+              onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}
             />
           )}
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
@@ -403,7 +409,7 @@ const App = () => {
       </div>
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
-      {showQuotes && <QuotesLibrary myQuotes={thoughts} onAddQuote={(text, author, cat) => setThoughts([{id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString()}, ...thoughts])} onDeleteQuote={(id) => setThoughts(thoughts.filter(t => t.id !== id))} onClose={() => setShowQuotes(false)} />}
+      {showQuotes && <QuotesLibrary myQuotes={thoughts} onAddQuote={(text, author, cat) => { const q = {id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString()}; setThoughts([q, ...thoughts]); persist('thoughts', q); }} onDeleteQuote={(id) => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} onClose={() => setShowQuotes(false)} />}
       
       {showChatHistory && (
         <ChatHistoryModal 
@@ -413,9 +419,9 @@ const App = () => {
           onSelectSession={(id) => { setActiveSessionId(id); setView('chat'); setShowChatHistory(false); }}
           onNewSession={(title, projectId) => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); setView('chat'); setShowChatHistory(false);
+             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); setView('chat'); setShowChatHistory(false);
           }}
-          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); }}
+          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
           onClose={() => setShowChatHistory(false)}
         />
       )}
@@ -427,15 +433,9 @@ const App = () => {
           currentTheme={currentTheme} 
           setTheme={setCurrentTheme} 
           onClose={() => setShowSettings(false)} 
-          onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []);}} 
+          onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []); persist('tasks', d.tasks || []); persist('thoughts', d.thoughts || []);}} 
           hasAiKey={hasAiKey}
           customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
-          googleUser={googleUser}
-          authError={null}
-          onRetryAuth={async () => {
-             const profile = await googleService.initAndAuth();
-             if(profile) setGoogleUser(profile);
-          }}
         />
       )}
 

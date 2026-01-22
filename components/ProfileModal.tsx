@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType } from '../types';
 import Settings from './Settings';
-import * as googleService from '../services/googleService';
-import { logger, SystemLog } from '../services/logger';
 import { 
-  X, Database, Settings as SettingsIcon, Activity, RefreshCw, HardDrive, ShieldCheck, HelpCircle,
-  CheckCircle, AlertTriangle, User, LogOut, Terminal, Trash2
+  X, Database, Settings as SettingsIcon, HardDrive, 
+  CloudLightning, Cloud, CheckCircle, Shield, LogOut
 } from 'lucide-react';
+import { SignedIn, SignedOut, SignIn, UserButton, useUser, useClerk } from '@clerk/clerk-react';
 
 interface ProfileModalProps {
   appState: AppState;
@@ -26,61 +25,29 @@ interface ProfileModalProps {
     customBg?: string;
     setCustomBg?: (bg: string) => void;
   };
-  googleUser?: googleService.GoogleUserProfile | null;
-  authError?: string | null;
-  onRetryAuth?: () => void;
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
-    appState, userName, currentTheme, setTheme, onClose, onImport, hasAiKey, customization, googleUser, authError, onRetryAuth
+    appState, userName, currentTheme, setTheme, onClose, onImport, customization
 }) => {
-  const [activeTab, setActiveTab] = useState<'settings' | 'google' | 'system' | 'faq'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'account' | 'system'>('account');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
-  const [lastCheck, setLastCheck] = useState<string>(new Date().toLocaleTimeString());
-  const [logs, setLogs] = useState<SystemLog[]>([]);
-  
-  // Update logs in real-time
-  useEffect(() => {
-      const unsub = logger.subscribe(setLogs);
-      return unsub;
-  }, []);
+  const { user } = useUser();
+  const { signOut } = useClerk();
 
-  const runDiagnostics = useCallback(async () => {
-    setLastCheck(new Date().toLocaleTimeString());
-    
+  useEffect(() => {
     if (navigator.storage && navigator.storage.estimate) {
-      const estimate = await navigator.storage.estimate();
-      const usedBytes = estimate.usage || 0;
-      const quotaBytes = estimate.quota || 1;
-      const usedMB = usedBytes / (1024 * 1024);
-      const totalGB = quotaBytes / (1024 * 1024 * 1024);
-      
-      setStorageInfo({
-        used: usedMB.toFixed(2) + ' MB',
-        total: totalGB.toFixed(1) + ' GB',
-        percent: Math.min(100, (usedBytes / quotaBytes) * 100)
-      });
+        navigator.storage.estimate().then(estimate => {
+            const usedBytes = estimate.usage || 0;
+            const quotaBytes = estimate.quota || 1;
+            setStorageInfo({
+                used: (usedBytes / (1024 * 1024)).toFixed(2) + ' MB',
+                total: (quotaBytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB',
+                percent: Math.min(100, (usedBytes / quotaBytes) * 100)
+            });
+        });
     }
   }, []);
-
-  useEffect(() => {
-    runDiagnostics();
-  }, [runDiagnostics]);
-
-  const handleForceUpdate = () => {
-    if (confirm('Это обновит приложение до последней версии с сервера. Продолжить?')) {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-          }
-          window.location.reload();
-        });
-      } else {
-        window.location.reload();
-      }
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
@@ -88,18 +55,36 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
             <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-[var(--accent)] flex items-center justify-center text-white font-black text-sm shadow-lg shadow-[var(--accent-glow)] overflow-hidden">
-                    {googleUser?.picture ? <img src={googleUser.picture} className="w-full h-full object-cover" /> : userName.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                    <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">{googleUser?.name || userName}</h3>
-                    <div className="flex items-center gap-2">
-                       <div className={`w-1.5 h-1.5 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></div>
-                       <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">
-                           {googleUser ? 'Подтвержден' : 'Локальный'}
-                       </p>
+                <SignedIn>
+                     <div className="relative group">
+                        <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <UserButton 
+                          appearance={{ 
+                            elements: { 
+                              userButtonAvatarBox: "w-10 h-10 ring-2 ring-[var(--border-color)]",
+                              userButtonPopoverCard: "bg-[var(--bg-card)] border border-[var(--border-color)]",
+                              userButtonPopoverFooter: "hidden"
+                            } 
+                          }} 
+                        />
+                     </div>
+                     <div>
+                         <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">{user?.fullName || user?.firstName}</h3>
+                         <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">Serafim Cloud Active</p>
+                         </div>
+                     </div>
+                </SignedIn>
+                <SignedOut>
+                    <div className="w-10 h-10 bg-[var(--bg-item)] rounded-full flex items-center justify-center border border-[var(--border-color)]">
+                        <Shield size={20} className="text-[var(--text-muted)]" />
                     </div>
-                </div>
+                    <div>
+                         <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">Гость</h3>
+                         <p className="text-[9px] font-black uppercase text-[var(--text-muted)]">Локальный режим</p>
+                    </div>
+                </SignedOut>
             </div>
             <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] transition-all active:scale-90 shadow-sm glass-btn">
                 <X size={24} />
@@ -109,35 +94,85 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Navigation Tabs */}
         <div className="p-4 pb-0">
             <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--border-color)] gap-1 shadow-inner overflow-x-auto no-scrollbar">
-                <button 
-                    onClick={() => setActiveTab('settings')} 
-                    className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'settings' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
-                >
+                <button onClick={() => setActiveTab('account')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'account' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+                    <Cloud size={14} /> Аккаунт
+                </button>
+                <button onClick={() => setActiveTab('settings')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
                     <SettingsIcon size={14} /> Настройки
                 </button>
-                <button 
-                    onClick={() => setActiveTab('google')} 
-                    className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'google' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
-                >
-                    <Activity size={14} /> Google ID
-                </button>
-                <button 
-                    onClick={() => setActiveTab('system')} 
-                    className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'system' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
-                >
+                <button onClick={() => setActiveTab('system')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
                     <HardDrive size={14} /> Система
-                </button>
-                <button 
-                    onClick={() => setActiveTab('faq')} 
-                    className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'faq' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
-                >
-                    <HelpCircle size={14} /> FAQ
                 </button>
             </div>
         </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden relative">
+            
+            {activeTab === 'account' && (
+                <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 flex flex-col gap-6 items-center justify-center">
+                    <SignedOut>
+                        <div className="glass-panel p-8 rounded-[3rem] w-full max-w-md border border-[var(--border-color)] relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent opacity-50"></div>
+                            <div className="text-center mb-8">
+                                <CloudLightning size={48} className="mx-auto text-[var(--accent)] mb-4" />
+                                <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">Вход в Систему</h2>
+                                <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
+                                    Синхронизация с Supabase, Google Calendar и Tasks. Единое пространство на всех устройствах.
+                                </p>
+                            </div>
+                            <SignIn 
+                                routing="virtual" 
+                                appearance={{
+                                    elements: {
+                                        card: "bg-transparent shadow-none w-full p-0",
+                                        headerTitle: "hidden",
+                                        headerSubtitle: "hidden",
+                                        socialButtonsBlockButton: "bg-[var(--bg-item)] border border-[var(--border-color)] text-[var(--text-main)] hover:bg-[var(--bg-card)] rounded-xl py-3 text-xs font-bold uppercase tracking-widest",
+                                        formButtonPrimary: "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl py-3 text-xs font-bold uppercase tracking-widest shadow-lg",
+                                        formFieldInput: "bg-[var(--bg-item)] border-[var(--border-color)] text-[var(--text-main)] rounded-xl",
+                                        formFieldLabel: "text-[var(--text-muted)] text-xs font-bold uppercase",
+                                        footerAction: "hidden",
+                                        dividerLine: "bg-[var(--border-color)]",
+                                        dividerText: "text-[var(--text-muted)] text-[10px] uppercase font-bold"
+                                    }
+                                }}
+                            />
+                        </div>
+                    </SignedOut>
+                    <SignedIn>
+                        <div className="w-full max-w-sm space-y-4">
+                            <div className="glass-panel p-6 rounded-[2rem] text-center border border-[var(--border-color)]">
+                                <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in">
+                                    <CheckCircle size={40} className="text-emerald-500" />
+                                </div>
+                                <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Cloud</h2>
+                                <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-widest mt-1 mb-4">Подключено • Защищено</p>
+                                
+                                <div className="space-y-3 text-left">
+                                    <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
+                                        <span className="text-xs font-bold text-[var(--text-muted)]">Email</span>
+                                        <span className="text-xs font-bold text-[var(--text-main)]">{user?.primaryEmailAddress?.emailAddress}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
+                                        <span className="text-xs font-bold text-[var(--text-muted)]">База Данных</span>
+                                        <span className="text-[10px] font-black uppercase text-emerald-500">Supabase RLS</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
+                                        <span className="text-xs font-bold text-[var(--text-muted)]">Google API</span>
+                                        <span className="text-[10px] font-black uppercase text-[var(--text-muted)]">Через Clerk</span>
+                                    </div>
+                                </div>
+
+                                <button onClick={() => signOut()} className="w-full mt-6 py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                                    <LogOut size={16} /> Выйти из системы
+                                </button>
+                            </div>
+                        </div>
+                    </SignedIn>
+                </div>
+            )}
+
             {activeTab === 'settings' && (
               <div className="h-full overflow-y-auto no-scrollbar pb-24">
                 <div className="p-6">
@@ -152,93 +187,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               </div>
             )}
-
-            {/* --- GOOGLE ACCOUNT TAB (WITH TERMINAL) --- */}
-            {activeTab === 'google' && (
-                <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 flex flex-col gap-6">
-                    {/* Status Card */}
-                    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden flex-none">
-                        <div className={`absolute top-0 left-0 w-full h-1 ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg">
-                                <ShieldCheck size={32} className="text-black" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-lg text-[var(--text-main)]">Google Identity</h3>
-                                <p className="text-xs text-[var(--text-muted)]">Безопасная сессия</p>
-                            </div>
-                        </div>
-
-                        {googleUser ? (
-                             <div className="space-y-4">
-                                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
-                                     <CheckCircle size={24} className="text-emerald-500" />
-                                     <div>
-                                         <p className="text-sm font-bold text-emerald-500">Авторизация активна</p>
-                                         <p className="text-[10px] text-[var(--text-muted)]">Подключено как {googleUser.email}</p>
-                                     </div>
-                                 </div>
-                                 
-                                 <div className="flex gap-3 mt-6">
-                                     <button onClick={() => googleService.signOut()} className="w-full py-3 px-4 bg-rose-500/10 text-rose-500 rounded-xl font-bold text-xs hover:bg-rose-500 hover:text-white transition-colors flex items-center justify-center gap-2">
-                                         <LogOut size={16} /> Выйти
-                                     </button>
-                                 </div>
-                             </div>
-                        ) : (
-                             <div className="space-y-4">
-                                 <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
-                                     <div className="flex items-center gap-2 mb-2 text-rose-500">
-                                         <AlertTriangle size={18} />
-                                         <span className="font-bold text-xs uppercase">Вы не вошли в систему</span>
-                                     </div>
-                                     <p className="text-[10px] text-[var(--text-muted)] font-mono break-all whitespace-pre-wrap">
-                                         Для синхронизации данных требуется Google Аккаунт.
-                                     </p>
-                                 </div>
-                                 <button 
-                                    onClick={onRetryAuth} 
-                                    className="w-full py-4 bg-[var(--text-main)] text-[var(--bg-main)] rounded-2xl font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all"
-                                 >
-                                     Войти через Google
-                                 </button>
-                             </div>
-                        )}
-                    </div>
-
-                    {/* TERMINAL VIEW */}
-                    <div className="flex-1 min-h-[300px] flex flex-col glass-panel rounded-3xl overflow-hidden border border-[var(--border-color)] bg-[#0c0c0c]">
-                        <div className="p-3 bg-[#1a1a1a] border-b border-[#333] flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <Terminal size={14} className="text-emerald-500" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-[#888]">System Terminal</span>
-                            </div>
-                            <button onClick={() => logger.clear()} className="text-[10px] font-bold text-[#555] hover:text-white flex items-center gap-1 transition-colors">
-                                <Trash2 size={12} /> Clear
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-1 font-mono text-[10px]">
-                            {logs.length === 0 && <span className="text-[#333] italic">No active logs...</span>}
-                            {logs.map((log) => (
-                                <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-left-2">
-                                    <span className="text-[#444] whitespace-nowrap">[{log.timestamp}]</span>
-                                    <span className={`${
-                                        log.type === 'error' ? 'text-rose-500 font-bold' : 
-                                        log.type === 'warning' ? 'text-amber-500' : 
-                                        log.type === 'success' ? 'text-emerald-400' : 'text-[#aaa]'
-                                    }`}>
-                                        {log.message}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
             
             {activeTab === 'system' && (
               <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32">
-                <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group">
+                <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group border border-[var(--border-color)]">
                     <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
                         <HardDrive size={200} />
                     </div>
@@ -248,7 +200,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                 <div className="p-4 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl"><Database size={28} /></div>
                                 <div>
                                     <p className="text-lg font-bold text-[var(--text-main)]">IndexedDB Core</p>
-                                    <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide">Локальная БД</p>
+                                    <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide">Локальный кэш</p>
                                 </div>
                             </div>
                             <div className="text-right">
@@ -261,53 +213,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         </div>
                     </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
-                         <div className={`w-2 h-2 rounded-full ${googleUser ? 'bg-emerald-500' : 'bg-rose-500'} shadow-[0_0_8px_currentColor] animate-pulse`}></div>
-                         <span className="text-sm font-black text-[var(--text-main)]">Сервер</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">{googleUser ? 'Онлайн' : 'Локально'}</span>
-                    </div>
-                    <div className="glass-panel rounded-[1.5rem] p-6 flex flex-col items-center text-center gap-2">
-                         <ShieldCheck size={18} className="text-indigo-400" />
-                         <span className="text-sm font-black text-[var(--text-main)]">Приватность</span>
-                         <span className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Защищено</span>
-                    </div>
-                </div>
-
-                <button 
-                  onClick={handleForceUpdate}
-                  className="w-full mt-4 glass-panel py-4 rounded-2xl flex items-center justify-center gap-2 text-rose-500 hover:bg-rose-500/10 transition-all border-dashed border border-[var(--border-color)]"
-                >
-                  <RefreshCw size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Hard Reset (Перезагрузка)</span>
-                </button>
-
-                <div className="pt-8 text-center border-t border-[var(--border-color)] mt-4">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-30">Время сканирования: {lastCheck}</p>
-                </div>
-              </div>
-            )}
-
-            {/* FAQ TAB */}
-            {activeTab === 'faq' && (
-              <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 space-y-6">
-                 <div className="space-y-4">
-                    {[
-                      { q: "Где хранятся мои данные?", a: "Все данные (задачи, дневник, настройки) хранятся ТОЛЬКО в браузере вашего устройства (IndexedDB)." },
-                      { q: "Как включить синхронизацию?", a: "Перейдите во вкладку Google ID и войдите в свой аккаунт. Это активирует облачное хранилище." },
-                      { q: "Что делать, если приложение тормозит?", a: "Попробуйте нажать кнопку 'Hard Reset' во вкладке Система." }
-                    ].map((item, idx) => (
-                      <div key={idx} className="glass-panel p-5 rounded-2xl border border-[var(--border-color)]">
-                         <h5 className="font-bold text-[var(--text-main)] text-sm mb-2 flex items-start gap-2">
-                           <span className="text-[var(--accent)]">Q.</span> {item.q}
-                         </h5>
-                         <p className="text-xs text-[var(--text-muted)] leading-relaxed pl-5 border-l-2 border-[var(--border-color)]">
-                           {item.a}
-                         </p>
-                      </div>
-                    ))}
-                 </div>
               </div>
             )}
         </div>

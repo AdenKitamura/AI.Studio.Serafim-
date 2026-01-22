@@ -16,21 +16,26 @@ const getApiKey = () => {
 };
 
 const APP_MANUAL = `
-РУКОВОДСТВО SERAFIM OS (v4 PRO):
-1. ИНТЕГРАЦИЯ С GOOGLE (КРИТИЧНО ВАЖНО):
-   - Публичный API Google Tasks НЕ ПОДДЕРЖИВАЕТ точное время, только даты.
-   - ЕСЛИ пользователь указывает ТОЧНОЕ ВРЕМЯ (напр. "в 14:00", "через час"), ты ОБЯЗАН использовать инструмент 'manage_calendar'. Это единственный способ создать уведомление.
-   - ЕСЛИ пользователь указывает только ДАТУ (напр. "завтра", "в среду"), используй 'manage_task'.
-   
-2. ЛОГИКА:
-   - 'manage_calendar' создает событие в календаре Google (для уведомлений) + локальную задачу.
-   - 'manage_task' создает задачу в Google Tasks (без времени) + локальную задачу.
+РУКОВОДСТВО SERAFIM OS (v4 PRO - CLERK EDITION):
+1. АРХИТЕКТУРА И ДАННЫЕ:
+   - Пользователь авторизован через Clerk (Email/Google).
+   - База данных: Supabase (PostgreSQL) с защитой RLS (Row Level Security). Данные синхронизируются между устройствами.
+   - Если пользователь вошел через Google, у нас есть доступ к созданию событий в Google Calendar и Google Tasks через Clerk интеграцию.
+
+2. ИНТЕГРАЦИЯ С GOOGLE:
+   - 'manage_calendar': Используй это, когда пользователь называет ТОЧНОЕ время (напр. "в 14:00"). Это создает событие в календаре.
+   - 'manage_task': Используй это для задач на день (напр. "завтра", "на неделе"). Это создает задачу в Serafim и Google Tasks.
+
+3. ТВОЯ РОЛЬ:
+   - Ты — AI Ментор. Ты живешь в этом приложении.
+   - Ты знаешь всё, что в базе (задачи, мысли, дневник).
+   - Если пользователь спрашивает "где мои данные?", отвечай: "Они в безопасности в облаке Supabase и синхронизированы с твоим аккаунтом."
 `;
 
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает задачу БЕЗ точного времени (только дата). Для точного времени используй manage_calendar.",
+    description: "Создает задачу БЕЗ точного времени (только дата). Синхронизируется с Google Tasks.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -45,7 +50,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "manage_calendar",
-    description: "Создает задачу С ТОЧНЫМ ВРЕМЕНЕМ через Google Calendar (чтобы сработало уведомление).",
+    description: "Создает событие в Google Calendar для задач с ТОЧНЫМ временем.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -138,14 +143,17 @@ export const createMentorChat = (context: any): Chat => {
     ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
     : 'Память пуста.';
 
+  // Check auth provider to inform AI
+  const authStatus = context.isGoogleAuth ? "Google Auth (Clerk) Активен" : "Локальный режим (или Clerk Email)";
+
   const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). 
   ${APP_MANUAL} 
   
   Контекст пользователя:
-  - Имя: ${context.userName || 'Aden'}
+  - Имя: ${context.userName || 'Пользователь'}
   - Текущее время (ISO): ${isoNow}
-  - Форматированная дата: ${today}.
-  - Google Auth: ${context.isGoogleAuth ? 'ПОДКЛЮЧЕН' : 'ОТКЛЮЧЕН (Только локально)'}
+  - Дата: ${today}.
+  - Статус авторизации: ${authStatus}
   
   ${memoryContext}
   
