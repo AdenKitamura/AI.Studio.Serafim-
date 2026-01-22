@@ -409,7 +409,28 @@ const App = () => {
       </div>
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
-      {showQuotes && <QuotesLibrary myQuotes={thoughts} onAddQuote={(text, author, cat) => { const q = {id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString()}; setThoughts([q, ...thoughts]); persist('thoughts', q); }} onDeleteQuote={(id) => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} onClose={() => setShowQuotes(false)} />}
+      {showQuotes && (
+          <QuotesLibrary 
+            myQuotes={thoughts} 
+            onAddQuote={(text, author, cat) => { 
+                const q: Thought = {
+                    id: Date.now().toString(), 
+                    content: text, 
+                    author, 
+                    type: 'quote', 
+                    tags: [cat], 
+                    createdAt: new Date().toISOString()
+                }; 
+                setThoughts([q, ...thoughts]); 
+                persist('thoughts', q); 
+            }} 
+            onDeleteQuote={(id) => { 
+                setThoughts(thoughts.filter(t => t.id !== id)); 
+                remove('thoughts', id); 
+            }} 
+            onClose={() => setShowQuotes(false)} 
+          />
+      )}
       
       {showChatHistory && (
         <ChatHistoryModal 

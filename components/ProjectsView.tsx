@@ -15,7 +15,7 @@ interface ExtendedProjectsViewProps {
   onToggleTask: (id: string) => void;
   onDeleteTask: (id: string) => void;
   onAddThought: (thought: Thought) => void;
-  onUpdateThought: (thought: Thought) => void;
+  onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   onDeleteThought: (id: string) => void;
 }
 

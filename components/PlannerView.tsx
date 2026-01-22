@@ -17,7 +17,7 @@ interface PlannerViewProps {
   onToggleHabit?: (id: string, date: string) => void;
   onDeleteHabit?: (id: string) => void;
   onAddThought: (thought: Thought) => void;
-  onUpdateThought: (thought: Thought) => void;
+  onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   onDeleteThought: (id: string) => void;
 }
 
