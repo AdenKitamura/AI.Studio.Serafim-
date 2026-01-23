@@ -12,9 +12,13 @@ const getEnv = (key: string) => {
 const supabaseUrl = getEnv('VITE_SUPABASE_URL');
 const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
+// Safe Initialization: Prevents "White Screen" if keys are missing
+// The app will load, but Auth calls will fail gracefully instead of crashing the root.
+const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const safeKey = supabaseAnonKey || 'placeholder-key';
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Supabase URL or Key missing. Check .env file.');
+  console.warn('⚠️ SERAFIM: Supabase URL or Key missing. Auth will not work.');
 }
 
-// Single instance for the entire app
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(safeUrl, safeKey);

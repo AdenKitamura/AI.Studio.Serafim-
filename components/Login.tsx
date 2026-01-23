@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Fingerprint, Loader2 } from 'lucide-react';
+import { Fingerprint, Loader2, ArrowRight } from 'lucide-react';
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
@@ -10,7 +10,8 @@ const Login = () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        // Redirect back to the app root, App.tsx handles the view
+        redirectTo: window.location.origin, 
       },
     });
     if (error) {
@@ -20,57 +21,53 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-black relative overflow-hidden">
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-[#000000] relative overflow-hidden text-white font-mono">
       
-      {/* Subtle Grid Background */}
-      <div 
-        className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-        style={{ 
-          backgroundImage: 'linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)', 
-          backgroundSize: '40px 40px' 
-        }} 
-      />
-
-      <div className="relative z-10 w-full max-w-sm px-6 animate-in zoom-in-95 duration-500">
+      {/* Background Decor */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/40 via-[#000000] to-[#000000] pointer-events-none"></div>
+      
+      <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in-95 duration-700">
         
-        {/* Logo/Icon */}
-        <div className="flex flex-col items-center justify-center mb-12">
-            <div className="w-20 h-20 rounded-[2rem] border border-white/10 bg-white/5 flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(255,255,255,0.05)]">
-                <Fingerprint size={40} className="text-white opacity-80" strokeWidth={1.5} />
+        {/* Icon */}
+        <div className="mb-12 relative group">
+            <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+            <div className="w-24 h-24 rounded-[2.5rem] bg-zinc-900 border border-zinc-800 flex items-center justify-center relative shadow-2xl">
+                <Fingerprint size={48} strokeWidth={1} className="text-white/80" />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-widest uppercase text-center">
-              Serafim<span className="text-emerald-500">.</span>OS
-            </h1>
-            <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.3em] mt-2">
-              Secure Terminal Access
-            </p>
         </div>
 
-        {/* Main Action */}
+        {/* Title */}
+        <div className="text-center mb-16 space-y-3">
+            <h1 className="text-3xl font-black tracking-[0.2em] uppercase">
+              Serafim<span className="text-emerald-500">.</span>OS
+            </h1>
+            <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                System Online
+            </div>
+        </div>
+
+        {/* Action Button */}
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="group w-full py-5 bg-white hover:bg-emerald-400 text-black rounded-xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+          className="group relative w-72 h-16 bg-white hover:bg-emerald-400 text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-wait overflow-hidden shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_40px_rgba(52,211,153,0.4)]"
         >
-          {loading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Авторизация...
-            </>
-          ) : (
-            <>
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="G" />
-              Identify Via Google
-            </>
-          )}
+          <div className="absolute inset-0 flex items-center justify-center gap-3 transition-transform duration-300 group-hover:-translate-y-full">
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 grayscale opacity-80" alt="G" />
+            <span>Identify Via Google</span>
+          </div>
+          
+          <div className="absolute inset-0 flex items-center justify-center gap-3 translate-y-full transition-transform duration-300 group-hover:translate-y-0">
+             {loading ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} />}
+             <span>{loading ? 'Authorizing...' : 'Access Terminal'}</span>
+          </div>
         </button>
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-           <p className="text-[9px] text-white/10 font-mono uppercase">
-             System v4.2 • Protected by Supabase Auth
-           </p>
-        </div>
+        {/* Footer info */}
+        <p className="fixed bottom-8 text-[9px] text-zinc-700 font-bold uppercase tracking-widest">
+           Secure Environment • v4.2 Pro
+        </p>
 
       </div>
     </div>
