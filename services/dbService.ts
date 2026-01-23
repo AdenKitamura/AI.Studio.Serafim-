@@ -1,5 +1,5 @@
 import { Task, Thought, JournalEntry, Project, Habit, ChatSession, Memory } from '../types';
-import { getSupabase } from './supabaseClient';
+import { supabase } from './supabaseClient';
 
 const DB_NAME = 'SerafimOS_DB';
 const DB_VERSION = 4;
@@ -7,13 +7,11 @@ const DB_VERSION = 4;
 class DBService {
   private db: IDBDatabase | null = null;
   private userId: string | null = null;
-  private clerkToken: string | null = null;
 
-  // Called from App.tsx when Clerk loads
-  public setAuth(userId: string | null, token: string | null) {
+  // Called from App.tsx when Auth loads
+  public setAuth(userId: string | null) {
       this.userId = userId;
-      this.clerkToken = token;
-      if (this.userId && this.clerkToken) {
+      if (this.userId) {
           this.syncAllTables();
       }
   }
@@ -40,10 +38,9 @@ class DBService {
   // --- GENERIC SYNC METHODS ---
 
   private async pushToCloud(storeName: string, item: any) {
-    const supabase = await getSupabase(this.clerkToken);
-    if (!this.userId || !supabase) return;
+    if (!this.userId) return;
 
-    // Ensure item has user_id matching the Clerk User ID
+    // Ensure item has user_id matching the Auth User ID
     const itemWithUser = { ...item, user_id: this.userId };
     const mappedItem = this.mapToSnakeCase(storeName, itemWithUser);
     
@@ -52,8 +49,7 @@ class DBService {
   }
 
   private async deleteFromCloud(storeName: string, id: string) {
-    const supabase = await getSupabase(this.clerkToken);
-    if (!this.userId || !supabase) return;
+    if (!this.userId) return;
     await supabase.from(storeName).delete().eq('id', id);
   }
 
@@ -84,10 +80,9 @@ class DBService {
   }
 
   public async syncAllTables() {
-    const supabase = await getSupabase(this.clerkToken);
-    if (!this.userId || !supabase) return;
+    if (!this.userId) return;
 
-    console.log('☁️ Starting Clerk<->Supabase Sync...');
+    console.log('☁️ Starting Supabase Sync...');
     const tables = ['tasks', 'thoughts', 'journal', 'projects', 'habits', 'chat_sessions', 'memories'];
     
     for (const table of tables) {

@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
 import { createMentorChat } from '../services/geminiService';
-import * as googleService from '../services/googleService'; // Import Google Services
+import * as googleService from '../services/googleService'; 
 import { logger } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   XCircle, Terminal, Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuth } from '@clerk/clerk-react';
 
 interface MentorshipProps {
   tasks: Task[];
@@ -43,7 +42,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onSetTheme, onStartFocus,
     hasAiKey, onConnectAI, userName
 }) => {
-  const { getToken } = useAuth();
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -147,11 +145,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
       if (!chatSessionRef.current) {
-        // Pass Auth State Context to AI
-        const isGoogleAuth = googleService.checkSignInStatus();
         chatSessionRef.current = createMentorChat({ 
             tasks, thoughts, journal, projects, habits, memories, 
-            isGoogleAuth, userName 
+            isGoogleAuth: false, // Disabling direct Google Auth check for now in AI context
+            userName 
         });
       }
 
@@ -191,26 +188,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
                     projectId: args.projectId, 
                     createdAt: new Date().toISOString() 
                 });
-                
-                // 2. Sync to Google Tasks (Using Clerk Token)
-                try {
-                    const token = await getToken({ template: 'supabase' });
-                    if (token) {
-                        await googleService.createGoogleTask(token, args.title, '', taskDueDate);
-                        addLog('Google Task создан', 'success');
-                    } else {
-                        addLog('Синхронизация пропущена (нет токена)', 'info');
-                    }
-                } catch (e) {
-                    console.error("Task Sync Error", e);
-                    addLog('Ошибка Sync', 'tool');
-                }
+                addLog('Задача создана', 'success');
               }
               break;
             
             case 'manage_calendar':
+              // Calendar sync temporarily disabled during auth migration
               if (args.title && args.startTime && args.endTime) {
-                  // 1. Create Local Task so it appears in Dashboard
                   onAddTask({ 
                       id: Date.now().toString(), 
                       title: args.title + " (Cal)", 
@@ -219,20 +203,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       isCompleted: false, 
                       createdAt: new Date().toISOString() 
                   });
-
-                  // 2. Create Google Calendar Event
-                  try {
-                      const token = await getToken({ template: 'supabase' });
-                      if (token) {
-                          await googleService.createCalendarEvent(token, args.title, args.startTime, args.endTime, args.description);
-                          addLog('Календарь (Уведомление)', 'success');
-                      } else {
-                          addLog('Календарь недоступен (нет токена)', 'tool');
-                      }
-                  } catch (e) {
-                      console.error("Calendar Sync Error", e);
-                      addLog('Ошибка Calendar', 'tool');
-                  }
+                  addLog('Задача добавлена (Календарь пока недоступен)', 'info');
               }
               break;
 

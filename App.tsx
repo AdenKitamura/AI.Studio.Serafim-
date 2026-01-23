@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
@@ -14,28 +14,25 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import Fab from './components/Fab';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
+import Login from './components/Login'; // Import Login
 import { themes } from './themes';
 import { dbService } from './services/dbService';
-import { requestNotificationPermission } from './services/notificationService';
-import * as googleService from './services/googleService';
-import { logger } from './services/logger';
+import { supabase } from './services/supabaseClient'; // Use Supabase
 import { 
   Zap, Loader2, Settings as SettingsIcon, CheckCircle
 } from 'lucide-react';
-import { useAuth, useUser } from '@clerk/clerk-react';
+import { Session } from '@supabase/supabase-js';
 
 declare global {
   interface Window {
     deferredPrompt: any;
-    google: any;
-    gapi: any;
   }
 }
 
 const App = () => {
-  // Clerk Hooks
-  const { isLoaded, userId, getToken } = useAuth();
-  const { user } = useUser();
+  // Auth State
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [isDataReady, setIsDataReady] = useState(false);
   const [view, setView] = useState<ViewState>('dashboard');
@@ -51,7 +48,6 @@ const App = () => {
   const [showPWAInstall, setShowPWAInstall] = useState(false);
   const [showQuotes, setShowQuotes] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -64,36 +60,34 @@ const App = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
-  const userName = user?.fullName || user?.firstName || 'Aden';
+  // --- AUTH INITIALIZATION ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
 
-  // --- AUTH & SYNC ---
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const userId = session?.user?.id;
+  const userEmail = session?.user?.email;
+  const userName = session?.user?.user_metadata?.full_name || userEmail?.split('@')[0] || 'User';
+
+  // --- DATA SYNC ---
   useEffect(() => {
     const initSync = async () => {
-      if (isLoaded) {
-        if (userId) {
-          try {
-            // 1. Get Supabase Token from Clerk (needs 'supabase' template in Clerk Dashboard)
-            const supabaseToken = await getToken({ template: 'supabase' });
-            
-            // 2. Initialize DB Service with User & Token
-            dbService.setAuth(userId, supabaseToken);
-            
-            // 3. Initialize Google Service with OAuth Access Token (if user signed in with Google)
-            // Note: We need the OAuth Access Token for Calendar API, which is different from Supabase JWT
-            // For now, we rely on the user having authorized the scopes in Clerk.
-            const googleToken = await getToken(); // Gets standard session token, but for GAPI we might need to rely on Clerk's integration
-            
-            setShowSuccessToast(true);
-            setTimeout(() => setShowSuccessToast(false), 3000);
-          } catch (e) {
-            console.error("Auth Sync Failed", e);
-          }
-        } else {
-            // Offline/Anon mode
-            dbService.setAuth(null, null);
-        }
-
-        // Load Data regardless of auth state (will pull from IndexedDB)
+      if (userId) {
+        // Set Auth for DB Service (only needs ID now, client handles token)
+        dbService.setAuth(userId);
+        
+        // Load Data
         const [t, th, j, p, h, s, m] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
@@ -115,98 +109,15 @@ const App = () => {
           setSessions([initS]); setActiveSessionId(initS.id);
         }
         setIsDataReady(true);
+      } else {
+        setIsDataReady(false);
       }
     };
 
-    initSync();
-  }, [isLoaded, userId, getToken]);
-
-  // --- HANDLERS ---
-
-  const persist = (store: string, item: any) => {
-      dbService.saveItem(store, item);
-  };
-  
-  const remove = (store: string, id: string) => {
-      dbService.deleteItem(store, id);
-  };
-
-  const handleAddTask = (task: Task) => {
-    setTasks(prev => [task, ...prev]);
-    persist('tasks', task);
-  };
-
-  const handleUpdateTask = (id: string, updates: Partial<Task> & { _delete?: boolean }) => {
-    if (updates._delete) {
-        setTasks(prev => prev.filter(t => t.id !== id));
-        remove('tasks', id);
-        return;
+    if (userId && !authLoading) {
+      initSync();
     }
-    const updatedTask = tasks.find(t => t.id === id);
-    if (updatedTask) {
-        const newTask = { ...updatedTask, ...updates };
-        setTasks(prev => prev.map(t => t.id === id ? newTask : t));
-        persist('tasks', newTask);
-    }
-  };
-
-  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
-    const updatedProject = projects.find(p => p.id === id);
-    if(updatedProject) {
-        const newProj = { ...updatedProject, ...updates };
-        setProjects(prev => prev.map(p => p.id === id ? newProj : p));
-        persist('projects', newProj);
-    }
-  };
-
-  const handleUpdateThought = (id: string, updates: Partial<Thought>) => {
-    const updatedThought = thoughts.find(t => t.id === id);
-    if (updatedThought) {
-        const newThought = { ...updatedThought, ...updates };
-        setThoughts(prev => prev.map(t => t.id === id ? newThought : t));
-        persist('thoughts', newThought);
-    }
-  };
-
-  const handleAddHabit = (habit: Habit) => {
-    setHabits(prev => [habit, ...prev]);
-    persist('habits', habit);
-  };
-
-  const handleToggleHabit = (id: string, date: string) => {
-    const habit = habits.find(h => h.id === id);
-    if (habit) {
-        const exists = habit.completedDates.includes(date);
-        const newHabit = {
-            ...habit,
-            completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date]
-        };
-        setHabits(prev => prev.map(h => h.id === id ? newHabit : h));
-        persist('habits', newHabit);
-    }
-  };
-
-  const handleDeleteHabit = (id: string) => {
-      setHabits(prev => prev.filter(h => h.id !== id));
-      remove('habits', id);
-  };
-
-  const handleStartFocus = (mins: number) => {
-    setShowTimer(true);
-  };
-
-  const navigateTo = (newView: ViewState) => {
-    setView(newView);
-  };
-  
-  const hasAiKey = useMemo(() => {
-     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
-     // @ts-ignore
-     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return true;
-     return false;
-  }, []);
-
-  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
+  }, [userId, authLoading]);
 
   // Theme Application
   useEffect(() => {
@@ -238,22 +149,57 @@ const App = () => {
 
   }, [currentTheme, iconWeight, customBg]);
 
+  // --- HANDLERS ---
+  const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
+  const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };
+
+  const handleAddTask = (task: Task) => { setTasks(prev => [task, ...prev]); persist('tasks', task); };
+  const handleUpdateTask = (id: string, updates: Partial<Task> & { _delete?: boolean }) => {
+    if (updates._delete) { setTasks(prev => prev.filter(t => t.id !== id)); remove('tasks', id); return; }
+    const updatedTask = tasks.find(t => t.id === id);
+    if (updatedTask) { const newTask = { ...updatedTask, ...updates }; setTasks(prev => prev.map(t => t.id === id ? newTask : t)); persist('tasks', newTask); }
+  };
+  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
+    const updatedProject = projects.find(p => p.id === id);
+    if(updatedProject) { const newProj = { ...updatedProject, ...updates }; setProjects(prev => prev.map(p => p.id === id ? newProj : p)); persist('projects', newProj); }
+  };
+  const handleUpdateThought = (id: string, updates: Partial<Thought>) => {
+    const updatedThought = thoughts.find(t => t.id === id);
+    if (updatedThought) { const newThought = { ...updatedThought, ...updates }; setThoughts(prev => prev.map(t => t.id === id ? newThought : t)); persist('thoughts', newThought); }
+  };
+  const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); };
+  const handleToggleHabit = (id: string, date: string) => {
+    const habit = habits.find(h => h.id === id);
+    if (habit) { const exists = habit.completedDates.includes(date); const newHabit = { ...habit, completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date] }; setHabits(prev => prev.map(h => h.id === id ? newHabit : h)); persist('habits', newHabit); }
+  };
+  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); };
+  const handleStartFocus = (mins: number) => { setShowTimer(true); };
+  const navigateTo = (newView: ViewState) => { setView(newView); };
+  
+  const hasAiKey = useMemo(() => {
+     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
+     // @ts-ignore
+     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_API_KEY) return true;
+     return false;
+  }, []);
+
+  const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
+
+  // --- RENDER ---
+
+  if (authLoading) return <div className="h-screen w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-emerald-500" size={48} /></div>;
+
+  // PROTECTED ROUTE CHECK
+  if (!session) {
+    return <Login />;
+  }
+
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
       
-      {/* SUCCESS TOAST */}
-      {showSuccessToast && (
-          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-10 fade-in duration-500">
-              <div className="bg-emerald-500/90 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-emerald-400/30">
-                  <CheckCircle size={20} />
-                  <span className="text-xs font-black uppercase tracking-widest">Подключено: {user?.primaryEmailAddress?.emailAddress}</span>
-              </div>
-          </div>
-      )}
-
-      {/* MAIN APP CONTENT */}
+      {/* MAIN APP CONTENT (The Terminal) */}
       <div 
         className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
         style={{ transformOrigin: 'center center' }}
@@ -278,7 +224,7 @@ const App = () => {
               onClick={() => setShowSettings(true)} 
               className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn relative"
             >
-              {userId && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full"></div>}
+              {session && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full"></div>}
               <SettingsIcon size={20} />
             </button>
           </div>

@@ -5,7 +5,7 @@ import {
   X, Database, Settings as SettingsIcon, HardDrive, 
   CloudLightning, Cloud, CheckCircle, Shield, LogOut
 } from 'lucide-react';
-import { SignedIn, SignedOut, SignIn, UserButton, useUser, useClerk } from '@clerk/clerk-react';
+import { supabase } from '../services/supabaseClient';
 
 interface ProfileModalProps {
   appState: AppState;
@@ -32,9 +32,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'settings' | 'account' | 'system'>('account');
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
-  const { user } = useUser();
-  const { signOut } = useClerk();
-
+  
   useEffect(() => {
     if (navigator.storage && navigator.storage.estimate) {
         navigator.storage.estimate().then(estimate => {
@@ -49,42 +47,30 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   }, []);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
         
         {/* Header */}
         <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
             <div className="flex items-center gap-4">
-                <SignedIn>
-                     <div className="relative group">
-                        <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <UserButton 
-                          appearance={{ 
-                            elements: { 
-                              userButtonAvatarBox: "w-10 h-10 ring-2 ring-[var(--border-color)]",
-                              userButtonPopoverCard: "bg-[var(--bg-card)] border border-[var(--border-color)]",
-                              userButtonPopoverFooter: "hidden"
-                            } 
-                          }} 
-                        />
-                     </div>
-                     <div>
-                         <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">{user?.fullName || user?.firstName}</h3>
-                         <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">Serafim Cloud Active</p>
-                         </div>
-                     </div>
-                </SignedIn>
-                <SignedOut>
-                    <div className="w-10 h-10 bg-[var(--bg-item)] rounded-full flex items-center justify-center border border-[var(--border-color)]">
-                        <Shield size={20} className="text-[var(--text-muted)]" />
-                    </div>
-                    <div>
-                         <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">Гость</h3>
-                         <p className="text-[9px] font-black uppercase text-[var(--text-muted)]">Локальный режим</p>
-                    </div>
-                </SignedOut>
+               <div className="relative group">
+                  <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-800 flex items-center justify-center text-white font-bold text-lg ring-2 ring-[var(--border-color)]">
+                    {userName.charAt(0).toUpperCase()}
+                  </div>
+               </div>
+               <div>
+                   <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">{userName}</h3>
+                   <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                      <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">Serafim Cloud Active</p>
+                   </div>
+               </div>
             </div>
             <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] transition-all active:scale-90 shadow-sm glass-btn">
                 <X size={24} />
@@ -111,65 +97,30 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             
             {activeTab === 'account' && (
                 <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 flex flex-col gap-6 items-center justify-center">
-                    <SignedOut>
-                        <div className="glass-panel p-8 rounded-[3rem] w-full max-w-md border border-[var(--border-color)] relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent opacity-50"></div>
-                            <div className="text-center mb-8">
-                                <CloudLightning size={48} className="mx-auto text-[var(--accent)] mb-4" />
-                                <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">Вход в Систему</h2>
-                                <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
-                                    Синхронизация с Supabase, Google Calendar и Tasks. Единое пространство на всех устройствах.
-                                </p>
+                    <div className="w-full max-w-sm space-y-4">
+                        <div className="glass-panel p-6 rounded-[2rem] text-center border border-[var(--border-color)]">
+                            <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in">
+                                <CheckCircle size={40} className="text-emerald-500" />
                             </div>
-                            <SignIn 
-                                routing="virtual" 
-                                appearance={{
-                                    elements: {
-                                        card: "bg-transparent shadow-none w-full p-0",
-                                        headerTitle: "hidden",
-                                        headerSubtitle: "hidden",
-                                        socialButtonsBlockButton: "bg-[var(--bg-item)] border border-[var(--border-color)] text-[var(--text-main)] hover:bg-[var(--bg-card)] rounded-xl py-3 text-xs font-bold uppercase tracking-widest",
-                                        formButtonPrimary: "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl py-3 text-xs font-bold uppercase tracking-widest shadow-lg",
-                                        formFieldInput: "bg-[var(--bg-item)] border-[var(--border-color)] text-[var(--text-main)] rounded-xl",
-                                        formFieldLabel: "text-[var(--text-muted)] text-xs font-bold uppercase",
-                                        footerAction: "hidden",
-                                        dividerLine: "bg-[var(--border-color)]",
-                                        dividerText: "text-[var(--text-muted)] text-[10px] uppercase font-bold"
-                                    }
-                                }}
-                            />
-                        </div>
-                    </SignedOut>
-                    <SignedIn>
-                        <div className="w-full max-w-sm space-y-4">
-                            <div className="glass-panel p-6 rounded-[2rem] text-center border border-[var(--border-color)]">
-                                <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in">
-                                    <CheckCircle size={40} className="text-emerald-500" />
+                            <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Cloud</h2>
+                            <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-widest mt-1 mb-4">Подключено • Защищено</p>
+                            
+                            <div className="space-y-3 text-left">
+                                <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
+                                    <span className="text-xs font-bold text-[var(--text-muted)]">Пользователь</span>
+                                    <span className="text-xs font-bold text-[var(--text-main)]">{userName}</span>
                                 </div>
-                                <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Cloud</h2>
-                                <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-widest mt-1 mb-4">Подключено • Защищено</p>
-                                
-                                <div className="space-y-3 text-left">
-                                    <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
-                                        <span className="text-xs font-bold text-[var(--text-muted)]">Email</span>
-                                        <span className="text-xs font-bold text-[var(--text-main)]">{user?.primaryEmailAddress?.emailAddress}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
-                                        <span className="text-xs font-bold text-[var(--text-muted)]">База Данных</span>
-                                        <span className="text-[10px] font-black uppercase text-emerald-500">Supabase RLS</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
-                                        <span className="text-xs font-bold text-[var(--text-muted)]">Google API</span>
-                                        <span className="text-[10px] font-black uppercase text-[var(--text-muted)]">Через Clerk</span>
-                                    </div>
+                                <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
+                                    <span className="text-xs font-bold text-[var(--text-muted)]">База Данных</span>
+                                    <span className="text-[10px] font-black uppercase text-emerald-500">Supabase RLS</span>
                                 </div>
+                            </div>
 
-                                <button onClick={() => signOut()} className="w-full mt-6 py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2">
-                                    <LogOut size={16} /> Выйти из системы
-                                </button>
-                            </div>
+                            <button onClick={handleLogout} className="w-full mt-6 py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                                <LogOut size={16} /> Выйти из системы
+                            </button>
                         </div>
-                    </SignedIn>
+                    </div>
                 </div>
             )}
 
