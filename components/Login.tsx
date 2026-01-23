@@ -1,124 +1,77 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Sparkles, ArrowRight, Mail, Loader2, ShieldCheck, Cpu } from 'lucide-react';
+import { Fingerprint, Loader2 } from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(null);
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    });
-
-    if (error) {
-      setMessage({ text: error.message, type: 'error' });
-    } else {
-      setMessage({ text: 'Магическая ссылка отправлена на почту!', type: 'success' });
-    }
-    setLoading(false);
-  };
 
   const handleGoogleLogin = async () => {
+    setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
     });
-    if (error) console.error('Error logging in with Google:', error.message);
+    if (error) {
+      console.error('Login Error:', error.message);
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-black relative overflow-hidden">
-      {/* Background Ambience */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 via-black to-indigo-900/20 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none" />
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-black relative overflow-hidden">
+      
+      {/* Subtle Grid Background */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+        style={{ 
+          backgroundImage: 'linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px)', 
+          backgroundSize: '40px 40px' 
+        }} 
+      />
 
-      <div className="relative z-10 w-full max-w-md p-8">
-        <div className="glass-card rounded-[3rem] p-10 border border-white/10 shadow-2xl relative overflow-hidden">
-          
-          {/* Header */}
-          <div className="text-center mb-10">
-            <div className="w-20 h-20 bg-emerald-500/10 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-              <Cpu size={40} className="text-emerald-500" />
+      <div className="relative z-10 w-full max-w-sm px-6 animate-in zoom-in-95 duration-500">
+        
+        {/* Logo/Icon */}
+        <div className="flex flex-col items-center justify-center mb-12">
+            <div className="w-20 h-20 rounded-[2rem] border border-white/10 bg-white/5 flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(255,255,255,0.05)]">
+                <Fingerprint size={40} className="text-white opacity-80" strokeWidth={1.5} />
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tighter mb-2">
-              Serafim OS<span className="text-emerald-500">.</span>
+            <h1 className="text-2xl font-black text-white tracking-widest uppercase text-center">
+              Serafim<span className="text-emerald-500">.</span>OS
             </h1>
-            <p className="text-white/40 text-sm font-medium">
-              Вход в защищенный терминал
+            <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.3em] mt-2">
+              Secure Terminal Access
             </p>
-          </div>
-
-          {/* Form */}
-          <div className="space-y-6">
-            <button
-              onClick={handleGoogleLogin}
-              className="w-full py-4 bg-white text-black rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-            >
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-              Войти через Google
-            </button>
-
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-white/10"></div>
-              <span className="flex-shrink-0 mx-4 text-white/20 text-[10px] uppercase font-black tracking-widest">Или Email</span>
-              <div className="flex-grow border-t border-white/10"></div>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-white/20 outline-none focus:border-emerald-500/50 transition-all font-medium"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-              >
-                {loading ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  <>
-                    Отправить ссылку <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Feedback Message */}
-          {message && (
-            <div className={`mt-6 p-4 rounded-xl border flex items-center gap-3 text-xs font-bold uppercase tracking-wide animate-in slide-in-from-bottom-2 ${
-              message.type === 'success' 
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-            }`}>
-              {message.type === 'success' ? <Sparkles size={16} /> : <ShieldCheck size={16} />}
-              {message.text}
-            </div>
-          )}
-
-          <div className="mt-8 text-center">
-            <p className="text-[10px] text-white/20 uppercase font-black tracking-widest">
-              Secured by Supabase Auth
-            </p>
-          </div>
         </div>
+
+        {/* Main Action */}
+        <button
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="group w-full py-5 bg-white hover:bg-emerald-400 text-black rounded-xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Авторизация...
+            </>
+          ) : (
+            <>
+              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="G" />
+              Identify Via Google
+            </>
+          )}
+        </button>
+
+        {/* Footer */}
+        <div className="mt-8 text-center">
+           <p className="text-[9px] text-white/10 font-mono uppercase">
+             System v4.2 • Protected by Supabase Auth
+           </p>
+        </div>
+
       </div>
     </div>
   );
