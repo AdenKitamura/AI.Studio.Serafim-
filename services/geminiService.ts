@@ -1,6 +1,6 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
 import { Task, Thought, JournalEntry, Project, Habit, Memory } from "../types";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { ru } from 'date-fns/locale';
 
 const getApiKey = () => {
@@ -16,26 +16,24 @@ const getApiKey = () => {
 };
 
 const APP_MANUAL = `
-РУКОВОДСТВО SERAFIM OS (v4 PRO - CLERK EDITION):
+РУКОВОДСТВО SERAFIM OS (v4 PRO):
 1. АРХИТЕКТУРА И ДАННЫЕ:
-   - Пользователь авторизован через Clerk (Email/Google).
-   - База данных: Supabase (PostgreSQL) с защитой RLS (Row Level Security). Данные синхронизируются между устройствами.
-   - Если пользователь вошел через Google, у нас есть доступ к созданию событий в Google Calendar и Google Tasks через Clerk интеграцию.
+   - Пользователь авторизован. Данные в Supabase.
+   - Ты имеешь доступ к ДНЕВНИКУ, ЗАДАЧАМ, МЫСЛЯМ и ПАМЯТИ.
 
-2. ИНТЕГРАЦИЯ С GOOGLE:
-   - 'manage_calendar': Используй это, когда пользователь называет ТОЧНОЕ время (напр. "в 14:00"). Это создает событие в календаре.
-   - 'manage_task': Используй это для задач на день (напр. "завтра", "на неделе"). Это создает задачу в Serafim и Google Tasks.
+2. ТВОЯ РОЛЬ:
+   - Ты — AI Ментор. 
+   - Ты ОБЯЗАН использовать контекст дневника для ответов. Если пользователь спрашивает "как я себя чувствовал вчера?", ты ищешь запись за вчера и отвечаешь. Не проси пользователя копировать текст.
 
-3. ТВОЯ РОЛЬ:
-   - Ты — AI Ментор. Ты живешь в этом приложении.
-   - Ты знаешь всё, что в базе (задачи, мысли, дневник).
-   - Если пользователь спрашивает "где мои данные?", отвечай: "Они в безопасности в облаке Supabase и синхронизированы с твоим аккаунтом."
+3. ИНТЕГРАЦИЯ:
+   - 'manage_task': Создание задач.
+   - 'remember_fact': Запоминание важных фактов.
 `;
 
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает задачу БЕЗ точного времени (только дата). Синхронизируется с Google Tasks.",
+    description: "Создает задачу.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -46,20 +44,6 @@ const tools: FunctionDeclaration[] = [
         projectId: { type: Type.STRING }
       },
       required: ["action", "title"]
-    }
-  },
-  {
-    name: "manage_calendar",
-    description: "Создает событие в Google Calendar для задач с ТОЧНЫМ временем.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        title: { type: Type.STRING },
-        startTime: { type: Type.STRING, description: "ISO Date String (YYYY-MM-DDTHH:mm:ss)" },
-        endTime: { type: Type.STRING, description: "ISO Date String (обычно +30 мин от start)" },
-        description: { type: Type.STRING }
-      },
-      required: ["title", "startTime", "endTime"]
     }
   },
   {
@@ -77,7 +61,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "remember_fact",
-    description: "Сохраняет важный факт о пользователе или инструкцию в долгосрочную память.",
+    description: "Сохраняет важный факт о пользователе в долгосрочную память.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -101,7 +85,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "ui_control",
-    description: "Управляет интерфейсом приложения.",
+    description: "Управляет интерфейсом.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -115,19 +99,7 @@ const tools: FunctionDeclaration[] = [
 ];
 
 export const polishTranscript = async (text: string): Promise<string> => {
-  const apiKey = getApiKey();
-  if (!text || text.trim().length < 3 || !apiKey) return text;
-
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `SYSTEM: Fix grammar. Output strictly Russian text. INPUT: "${text}"`,
-    });
-    return response.text?.trim() || text;
-  } catch (e) {
-    return text;
-  }
+  return text; // Removed polishing logic as requested
 };
 
 export const createMentorChat = (context: any): Chat => {
@@ -138,26 +110,42 @@ export const createMentorChat = (context: any): Chat => {
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
   const isoNow = new Date().toISOString();
   
-  // Format memories for context
+  // Format memories
   const memoryContext = context.memories && context.memories.length > 0 
     ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
     : 'Память пуста.';
 
-  // Check auth provider to inform AI
-  const authStatus = context.isGoogleAuth ? "Google Auth (Clerk) Активен" : "Локальный режим (или Clerk Email)";
+  // Format Journal (Last 14 days)
+  let journalContext = "ДНЕВНИК (Последние 14 дней):\n";
+  const recentJournal = (context.journal || [])
+    .filter((j: JournalEntry) => new Date(j.date) > subDays(new Date(), 14))
+    .sort((a: JournalEntry, b: JournalEntry) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  if (recentJournal.length > 0) {
+    journalContext += recentJournal.map((j: JournalEntry) => 
+      `[${j.date}] Настроение: ${j.mood || 'N/A'}\nТекст: ${j.content}\nРефлексия: ${j.reflection?.mainFocus || ''}`
+    ).join('\n---\n');
+  } else {
+    journalContext += "Записей нет.";
+  }
+
+  // Format Tasks (Simple list)
+  const taskContext = `ТЕКУЩИЕ ЗАДАЧИ:\n${(context.tasks || []).filter((t: Task) => !t.isCompleted).slice(0, 10).map((t: Task) => `- ${t.title} (${t.priority})`).join('\n')}`;
 
   const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). 
   ${APP_MANUAL} 
   
   Контекст пользователя:
   - Имя: ${context.userName || 'Пользователь'}
-  - Текущее время (ISO): ${isoNow}
-  - Дата: ${today}.
-  - Статус авторизации: ${authStatus}
+  - Время: ${isoNow} (${today})
   
   ${memoryContext}
   
-  Твоя цель: Быть вторым мозгом. Помогать с фокусом, планированием и идеями. Будь краток, точен и харизматичен.`;
+  ${journalContext}
+
+  ${taskContext}
+  
+  Твоя цель: Быть вторым мозгом. Ты видишь дневник пользователя выше. Используй эту информацию для ответов. Будь краток и точен.`;
 
   return ai.chats.create({
     model: 'gemini-3-pro-preview',

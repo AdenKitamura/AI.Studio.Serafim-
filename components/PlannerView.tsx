@@ -44,8 +44,8 @@ const PlannerView: React.FC<PlannerViewProps> = ({
 
   return (
     <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu">
-      {/* Sticky Header - sits right below the App Header (110px offset) */}
-      <div className="px-6 py-6 sticky top-[110px] z-30 bg-[var(--bg-main)]/85 backdrop-blur-xl border-b border-[var(--border-color)] flex justify-between items-start transition-all duration-300">
+      {/* Sticky Header - Corrected to top-0 for internal scroll */}
+      <div className="px-6 py-6 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] flex justify-between items-start transition-all duration-300">
         <div className="cursor-pointer group flex items-center gap-3" onClick={() => setShowCalendar(!showCalendar)}>
           <div>
             <div className="flex items-center gap-2">
@@ -55,14 +55,14 @@ const PlannerView: React.FC<PlannerViewProps> = ({
               <ChevronDown size={20} className={`text-[var(--accent)] transition-transform duration-300 ${showCalendar ? 'rotate-180' : ''}`} />
             </div>
             <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">
-              {format(selectedDate, 'eeee, d MMMM yyyy', { locale: ru })}
+              {format(selectedDate, 'eeee, d MMMM', { locale: ru })}
             </p>
           </div>
         </div>
       </div>
 
       {showCalendar && (
-        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)]/90 backdrop-blur-md border-b border-[var(--border-color)] sticky top-[190px] z-20">
+        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)]/95 backdrop-blur-md border-b border-[var(--border-color)] sticky top-[75px] z-20">
           <CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} />
         </div>
       )}
