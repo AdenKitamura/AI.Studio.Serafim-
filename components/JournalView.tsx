@@ -83,15 +83,29 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
   const moods = [{ emoji: '😔', label: 'Тяжело' }, { emoji: '😐', label: 'Норма' }, { emoji: '🙂', label: 'Хорошо' }, { emoji: '😃', label: 'Отлично' }, { emoji: '🤩', label: 'Поток' }];
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-main)] overflow-hidden">
-      <div className="p-6 flex justify-between items-center border-b border-[var(--border-color)] bg-[var(--bg-main)]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="flex flex-col h-full bg-[var(--bg-main)] overflow-hidden will-change-transform transform-gpu">
+      {/* Sticky Header with correct top offset */}
+      <div className="px-6 py-6 sticky top-[110px] z-30 flex justify-between items-center border-b border-[var(--border-color)] bg-[var(--bg-main)]/85 backdrop-blur-xl transition-all duration-300">
         <div className="cursor-pointer group" onClick={() => setShowCalendar(!showCalendar)}>
-          <div className="flex items-center gap-2"><h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter uppercase">ДНЕВНИК</h2><ChevronDown size={18} className={`text-[var(--accent)] transition-transform ${showCalendar ? 'rotate-180' : ''}`} /></div>
-          <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">{format(selectedDate, 'eeee, d MMMM yyyy', { locale: ru })}</p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">ДНЕВНИК</h2>
+            <ChevronDown size={18} className={`text-[var(--accent)] transition-transform ${showCalendar ? 'rotate-180' : ''}`} />
+          </div>
+          <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">
+            {format(selectedDate, 'eeee, d MMMM yyyy', { locale: ru })}
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">{isPolishing ? <span className="text-[var(--accent)] animate-pulse">Очистка...</span> : <span>Авто-сохранение</span>}</div>
+        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+          {isPolishing ? <span className="text-[var(--accent)] animate-pulse">Очистка...</span> : <span>Авто-сохранение</span>}
+        </div>
       </div>
-      {showCalendar && <div className="p-6 bg-[var(--bg-main)] border-b border-[var(--border-color)] animate-in slide-in-from-top duration-300"><CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} /></div>}
+
+      {showCalendar && (
+        <div className="p-6 bg-[var(--bg-main)]/90 backdrop-blur-md border-b border-[var(--border-color)] sticky top-[190px] z-20 animate-in slide-in-from-top duration-300">
+          <CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} />
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-6 pb-48 no-scrollbar">
         <div className="max-w-2xl mx-auto py-8 space-y-8">
           <div className="flex justify-between items-center bg-[var(--bg-item)] p-2 rounded-3xl border border-[var(--border-color)]">{moods.map((m) => (<button key={m.emoji} onClick={() => setMood(m.emoji)} className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-2xl transition-all ${mood === m.emoji ? 'bg-[var(--bg-main)] shadow-md scale-105 border border-[var(--border-color)]' : 'opacity-40 hover:opacity-100'}`}><span className="text-2xl">{m.emoji}</span><span className="text-[8px] font-bold uppercase text-[var(--text-muted)]">{m.label}</span></button>))}</div>

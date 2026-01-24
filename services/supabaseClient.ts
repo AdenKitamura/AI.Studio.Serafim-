@@ -1,24 +1,22 @@
 import { createClient } from '@supabase/supabase-js';
 
-const getEnv = (key: string) => {
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore
-    return import.meta.env[key];
-  }
-  return '';
-};
+// --- КОНФИГУРАЦИЯ SUPABASE ---
+// URL проекта извлечен из вашего ключа (uuvxszzmurrmulfdjkea)
+const supabaseUrl = 'https://uuvxszzmurrmulfdjkea.supabase.co';
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL');
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+// Ваш Anon Key
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1dnhzenptdXJybXVsZmRqa2VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MTI5MDcsImV4cCI6MjA4MzI4ODkwN30.EXfnbARF4EgNIKl-KiBbr_0tEF3gAD2i3_tao0DGfHI';
 
-// Safe Initialization: Prevents "White Screen" if keys are missing
-// The app will load, but Auth calls will fail gracefully instead of crashing the root.
-const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
-const safeKey = supabaseAnonKey || 'placeholder-key';
+console.log('🔌 Serafim OS: Connecting to Supabase at', supabaseUrl);
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ SERAFIM: Supabase URL or Key missing. Auth will not work.');
+  console.error('⚠️ CRITICAL: Supabase config is missing!');
 }
 
-export const supabase = createClient(safeUrl, safeKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});

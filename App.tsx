@@ -14,12 +14,12 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import Fab from './components/Fab';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
-import Login from './components/Login'; // Import Login
+import Login from './components/Login'; 
 import { themes } from './themes';
 import { dbService } from './services/dbService';
-import { supabase } from './services/supabaseClient'; // Use Supabase
+import { supabase } from './services/supabaseClient';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, CheckCircle
+  Zap, Loader2, Settings as SettingsIcon
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
@@ -60,6 +60,31 @@ const App = () => {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
+  // --- NAVIGATION & HISTORY API ---
+  // This enables native "Back" swipe gesture on mobile
+  useEffect(() => {
+    // Set initial state
+    window.history.replaceState({ view: 'dashboard' }, '');
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.view) {
+        setView(event.state.view);
+      } else {
+        // Fallback or exit
+        setView('dashboard');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (newView: ViewState) => {
+    if (newView === view) return;
+    window.history.pushState({ view: newView }, '', '');
+    setView(newView);
+  };
+
   // --- AUTH INITIALIZATION ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -71,6 +96,9 @@ const App = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session && window.location.hash && window.location.hash.includes('access_token')) {
+         window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -84,10 +112,8 @@ const App = () => {
   useEffect(() => {
     const initSync = async () => {
       if (userId) {
-        // Set Auth for DB Service (only needs ID now, client handles token)
         dbService.setAuth(userId);
         
-        // Load Data
         const [t, th, j, p, h, s, m] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
@@ -174,7 +200,6 @@ const App = () => {
   };
   const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); };
   const handleStartFocus = (mins: number) => { setShowTimer(true); };
-  const navigateTo = (newView: ViewState) => { setView(newView); };
   
   const hasAiKey = useMemo(() => {
      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
@@ -185,11 +210,8 @@ const App = () => {
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
-  // --- RENDER ---
-
   if (authLoading) return <div className="h-screen w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-emerald-500" size={48} /></div>;
 
-  // PROTECTED ROUTE CHECK
   if (!session) {
     return <Login />;
   }
@@ -199,40 +221,44 @@ const App = () => {
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
       
-      {/* MAIN APP CONTENT (The Terminal) */}
+      {/* UNIFIED FIXED HEADER & TICKER (The Levitating Glass) */}
+      <div className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 pointer-events-none">
+        {/* Actual Header Content */}
+        <div className="bg-[var(--bg-main)]/85 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto transition-colors duration-500">
+           <header className="flex items-center justify-between px-6 pt-safe-top h-[70px] max-w-7xl mx-auto w-full">
+            <button 
+              onClick={() => setShowChatHistory(true)}
+              className="group flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
+            >
+              <h1 className="font-extrabold text-2xl tracking-tighter text-[var(--text-main)] drop-shadow-lg">
+                Serafim OS<span className="text-[var(--accent)] text-3xl leading-none">.</span>
+              </h1>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowTimer(!showTimer)} className="w-10 h-10 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
+              
+              <button 
+                onClick={() => setShowSettings(true)} 
+                className="w-10 h-10 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn relative"
+              >
+                {session && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full"></div>}
+                <SettingsIcon size={20} />
+              </button>
+            </div>
+          </header>
+
+          <Ticker onClick={() => setShowQuotes(true)} />
+        </div>
+      </div>
+
+      {/* MAIN CONTENT AREA */}
+      {/* Added paddingTop to account for fixed header (70px header + 40px ticker = 110px) */}
       <div 
         className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        <header className="flex-none flex items-center justify-between px-6 py-6 z-40 bg-transparent relative">
-          <button 
-            onClick={() => setShowChatHistory(true)}
-            className="group flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
-          >
-            <h1 className="font-extrabold text-2xl tracking-tighter text-[var(--text-main)] drop-shadow-lg">
-              Serafim OS<span className="text-[var(--accent)] text-3xl leading-none">.</span>
-            </h1>
-            <span className="text-[10px] font-bold text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity ml-2 uppercase tracking-widest border border-[var(--border-color)] px-2 py-0.5 rounded-md">
-              История
-            </span>
-          </button>
-
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowTimer(!showTimer)} className="w-11 h-11 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
-            
-            <button 
-              onClick={() => setShowSettings(true)} 
-              className="w-11 h-11 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn relative"
-            >
-              {session && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full"></div>}
-              <SettingsIcon size={20} />
-            </button>
-          </div>
-        </header>
-
-        <Ticker onClick={() => setShowQuotes(true)} />
-
-        <main className="flex-1 relative overflow-hidden z-10 page-enter">
+        <main className="flex-1 relative overflow-hidden z-10 pt-[110px]">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 
@@ -346,11 +372,11 @@ const App = () => {
         <Fab 
           onNavigate={navigateTo}
           currentView={view}
-          onAddTask={() => { setView('planner'); }} 
-          onAddThought={(type) => { setView('thoughts'); }}
-          onAddJournal={() => { setView('journal'); }}
+          onAddTask={() => { navigateTo('planner'); }} 
+          onAddThought={(type) => { navigateTo('thoughts'); }}
+          onAddJournal={() => { navigateTo('journal'); }}
           onOpenQuotes={() => setShowQuotes(true)}
-          onVoiceChat={() => { setView('chat'); setVoiceTrigger(v => v + 1); }}
+          onVoiceChat={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
         />
       </div>
 
@@ -383,10 +409,10 @@ const App = () => {
           sessions={sessions} 
           activeSessionId={activeSessionId}
           projects={projects}
-          onSelectSession={(id) => { setActiveSessionId(id); setView('chat'); setShowChatHistory(false); }}
+          onSelectSession={(id) => { setActiveSessionId(id); navigateTo('chat'); setShowChatHistory(false); }}
           onNewSession={(title, projectId) => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); setView('chat'); setShowChatHistory(false);
+             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false);
           }}
           onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
           onClose={() => setShowChatHistory(false)}
