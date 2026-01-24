@@ -8,12 +8,11 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     
-    // FIX FOR 404 ERRORS:
-    // Если мы не на localhost, мы всегда перенаправляем на главный рабочий домен.
-    // Это предотвращает возврат на удаленные preview-ссылки Vercel.
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const productionUrl = 'https://serafim-os.vercel.app';
-    const redirectUrl = isLocal ? window.location.origin : productionUrl;
+    // DYNAMIC REDIRECT FIX:
+    // Вместо хардкода адреса, мы говорим Supabase: "Верни пользователя туда, где он сейчас находится".
+    // Это чинит проблему, когда Vercel создает preview-ссылки, или когда основной домен глючит.
+    // Главное, чтобы этот URL был добавлен в Whitelist в Supabase.
+    const redirectUrl = window.location.origin;
 
     console.log('Initiating Login. Redirect target:', redirectUrl);
 
@@ -27,7 +26,7 @@ const Login = () => {
     if (error) {
       console.error('Login Error:', error.message);
       setLoading(false);
-      alert('Ошибка входа: ' + error.message);
+      alert('Ошибка системы безопасности: ' + error.message);
     }
   };
 
@@ -92,7 +91,7 @@ const Login = () => {
       {/* Footer */}
       <div className="py-6 relative z-10 text-center shrink-0 border-t border-white/5 bg-zinc-900/30 backdrop-blur-md">
          <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">
-           System Online • v4.8
+           System Online • v4.9 Stable
         </p>
       </div>
 
