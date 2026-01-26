@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, Task, Thought, Priority, Attachment } from '../types';
-import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, X, Eye, FileText } from 'lucide-react';
+import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, X, Eye, FileText, GripVertical } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ExtendedProjectsViewProps {
@@ -35,6 +35,10 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [newColor, setNewColor] = useState(COLORS[5]);
   const detailFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Drag and Drop State
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   useEffect(() => {
@@ -82,6 +86,28 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   const handleDeleteAttachment = (e: React.MouseEvent, attId: string) => { e.stopPropagation(); const newAttachments = taskForm.attachments.filter(a => a.id !== attId); setTaskForm(prev => ({ ...prev, attachments: newAttachments })); if (viewingTask) { onUpdateTask(viewingTask.id, { attachments: newAttachments }); } };
   const handleChangeColumnColor = (colId: string) => { const col = selectedProject?.columns?.find(c => c.id === colId); if(!col || !selectedProject) return; const nextColor = COLORS[(COLORS.indexOf(col.color || COLORS[0]) + 1) % COLORS.length]; const updated = selectedProject.columns!.map(c => c.id === colId ? {...c, color: nextColor} : c); onUpdateProject(selectedProject.id, { columns: updated }); };
 
+  // --- DND HANDLERS ---
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+      e.stopPropagation();
+      setDraggedTaskId(taskId);
+      e.dataTransfer.effectAllowed = 'move';
+      // Just a visual helper
+      e.dataTransfer.setData('text/plain', taskId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetColumnId: string) => {
+      e.preventDefault();
+      if (draggedTaskId) {
+          onUpdateTask(draggedTaskId, { columnId: targetColumnId });
+          setDraggedTaskId(null);
+      }
+  };
+
   // --- PROJECT DETAIL VIEW (KANBAN) ---
   if (selectedProject) {
     const projectTasks = tasks.filter(t => t.projectId === selectedProject.id);
@@ -122,11 +148,16 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
         {/* Board */}
         <div className="flex-1 overflow-hidden relative">
             <div className="h-full overflow-x-auto overflow-y-hidden p-6 pb-24">
-               <div className="flex gap-6 h-full">
+               <div className="flex gap-6 h-full min-w-max"> 
                    {columns.map(col => {
                        const colTasks = projectTasks.filter(t => (t.columnId === col.id) || (!t.columnId && col.id === columns[0].id));
                        return (
-                           <div key={col.id} className="flex-none w-80 flex flex-col h-full bg-[var(--bg-item)]/40 rounded-[2rem] border border-[var(--border-color)] backdrop-blur-sm">
+                           <div 
+                              key={col.id} 
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => handleDrop(e, col.id)}
+                              className="flex-none w-80 flex flex-col h-full bg-[var(--bg-item)]/40 rounded-[2rem] border border-[var(--border-color)] backdrop-blur-sm transition-colors hover:bg-[var(--bg-item)]/60"
+                           >
                                <div className="p-4 flex justify-between items-center border-b border-[var(--border-color)]">
                                    <div className="flex items-center gap-3">
                                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: col.color || COLORS[0] }}></div>
@@ -141,10 +172,23 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                                
                                <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar">
                                    {colTasks.map(task => (
-                                       <div key={task.id} onClick={() => openDetailModal(task)} className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-color)] shadow-sm hover:border-[var(--accent)] transition-all cursor-pointer group hover:scale-[1.02] active:scale-95">
+                                       <div 
+                                          key={task.id} 
+                                          draggable
+                                          onDragStart={(e) => handleDragStart(e, task.id)}
+                                          onClick={() => openDetailModal(task)} 
+                                          className={`
+                                            p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-color)] shadow-sm 
+                                            hover:border-[var(--accent)] transition-all cursor-pointer group hover:scale-[1.02] active:scale-95
+                                            ${draggedTaskId === task.id ? 'opacity-50 ring-2 ring-[var(--accent)] rotate-3 scale-95' : ''}
+                                          `}
+                                       >
                                            <div className="flex justify-between items-start mb-3">
                                                <p className={`text-sm font-bold leading-snug ${task.isCompleted ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-main)]'}`}>{task.title}</p>
-                                               {task.priority === Priority.HIGH && <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />}
+                                               <div className="flex gap-2">
+                                                 {task.priority === Priority.HIGH && <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />}
+                                                 <GripVertical size={14} className="text-[var(--text-muted)] opacity-20 group-hover:opacity-100 cursor-grab active:cursor-grabbing" />
+                                               </div>
                                            </div>
                                            <div className="flex items-center gap-3 text-[9px] font-black uppercase text-[var(--text-muted)]">
                                                {task.dueDate && <span className="flex items-center gap-1 bg-[var(--bg-item)] px-1.5 py-0.5 rounded"><Clock size={10} /> {format(new Date(task.dueDate), 'd MMM')}</span>}

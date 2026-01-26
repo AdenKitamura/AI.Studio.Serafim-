@@ -139,12 +139,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         {/* Projects */}
         <section>
           <div className="flex items-center justify-between mb-4 px-1"><h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Проекты</h3><button onClick={() => onNavigate('projects')} className="text-[9px] font-black text-[var(--accent)] uppercase tracking-widest">Все</button></div>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x">
+          {/* Force horizontal scroll with nowrap */}
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 flex-nowrap w-full">
             {activeProjects.length > 0 ? activeProjects.map(project => {
               const pTasks = tasks.filter(t => t.projectId === project.id);
               const progress = pTasks.length > 0 ? Math.round((pTasks.filter(t => t.isCompleted).length / pTasks.length) * 100) : 0;
               return (
-                <div key={project.id} onClick={() => onNavigate('projects')} className="snap-start flex-none w-52 glass-panel rounded-3xl p-5 hover:scale-[1.05] active:scale-[0.98] transition-all cursor-pointer shadow-sm">
+                <div key={project.id} onClick={() => onNavigate('projects')} className="flex-none w-52 glass-panel rounded-3xl p-5 hover:scale-[1.05] active:scale-[0.98] transition-all cursor-pointer shadow-sm">
                   <div className="w-10 h-10 rounded-xl bg-[var(--bg-main)] flex items-center justify-center mb-4 border border-[var(--border-color)] shadow-sm" style={{ color: project.color }}><Folder size={20} fill="currentColor" fillOpacity={0.1} /></div>
                   <h4 className="text-sm font-black text-[var(--text-main)] truncate mb-1">{project.title}</h4>
                   <div className="flex justify-between items-center mt-4"><span className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest">{progress}%</span><div className="flex-1 h-1 bg-[var(--bg-main)] rounded-full mx-2 overflow-hidden border border-[var(--border-color)]"><div className="h-full transition-all duration-1000" style={{ width: `${progress}%`, backgroundColor: project.color }} /></div></div>
