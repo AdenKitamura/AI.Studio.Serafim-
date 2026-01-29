@@ -13,6 +13,7 @@ export type FontFamily = 'JetBrains Mono';
 export type IconWeight = '1px' | '1.5px' | '2px' | '2.5px' | '3px';
 export type TextureType = 'custom' | 'none';
 export type CalendarMode = 'week' | 'month';
+export type GeminiModel = 'flash' | 'pro';
 
 // Interfaces depending on Basic Types
 export interface Attachment {

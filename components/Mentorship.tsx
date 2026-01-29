@@ -55,6 +55,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  
+  // Get model preference from localStorage directly here or rely on App logic. 
+  // Since we didn't add the prop to MentorshipProps in App.tsx (my bad in previous step thinking), 
+  // we can read it from localStorage for now to avoid prop drilling if App.tsx wasn't fully updated, 
+  // BUT App.tsx WAS updated in this response. 
+  // Wait, I didn't update MentorshipProps in App.tsx render return to pass geminiModel. 
+  // I will assume for this file I read it from localStorage to be safe or just use a default.
+  // Actually, let's fix this properly. I need to make sure I update this component to rely on localStorage 
+  // if I don't want to break the signature, OR update the signature. 
+  // Given I can't see the App.tsx change fully applied yet (it's in the same response), 
+  // I will read localStorage here as a fallback or if passed.
+  
+  const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -147,9 +160,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
       if (!chatSessionRef.current) {
         chatSessionRef.current = createMentorChat({ 
             tasks, thoughts, journal, projects, habits, memories, 
-            isGoogleAuth: false, // Disabling direct Google Auth check for now in AI context
+            isGoogleAuth: false, 
             userName 
-        });
+        }, getStoredModel());
       }
 
       const now = new Date();

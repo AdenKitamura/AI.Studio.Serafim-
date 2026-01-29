@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory } from './types';
+import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
 import JournalView from './components/JournalView';
@@ -40,7 +40,7 @@ const App = () => {
   // Customization State
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'emerald') as ThemeKey);
   const [iconWeight, setIconWeight] = useState<IconWeight>(() => (localStorage.getItem('sb_icon_weight') || '2px') as IconWeight);
-  const [customBg, setCustomBg] = useState<string>(() => localStorage.getItem('sb_custom_bg') || '');
+  const [geminiModel, setGeminiModel] = useState<GeminiModel>(() => (localStorage.getItem('sb_gemini_model') || 'flash') as GeminiModel);
 
   // App Logic States
   const [showSettings, setShowSettings] = useState(false);
@@ -160,20 +160,15 @@ const App = () => {
     root.style.setProperty('--icon-weight', iconWeight);
     body.setAttribute('data-theme-type', theme.type);
     
-    if (customBg) {
-      body.setAttribute('data-texture', 'custom');
-      root.style.setProperty('--custom-bg', `url(${customBg})`);
-    } else {
-      body.setAttribute('data-texture', 'none');
-      root.style.removeProperty('--custom-bg');
-    }
+    // Background handling removed from here as per request, just clean up
+    body.setAttribute('data-texture', 'none');
+    root.style.removeProperty('--custom-bg');
 
     localStorage.setItem('sb_theme', validTheme);
     localStorage.setItem('sb_icon_weight', iconWeight);
-    if (customBg) localStorage.setItem('sb_custom_bg', customBg);
-    else localStorage.removeItem('sb_custom_bg');
+    localStorage.setItem('sb_gemini_model', geminiModel);
 
-  }, [currentTheme, iconWeight, customBg]);
+  }, [currentTheme, iconWeight, geminiModel]);
 
   // --- HANDLERS ---
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
@@ -425,10 +420,13 @@ const App = () => {
           userName={userName} 
           currentTheme={currentTheme} 
           setTheme={setCurrentTheme} 
+          geminiModel={geminiModel}
+          setGeminiModel={setGeminiModel}
           onClose={() => setShowSettings(false)} 
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []); persist('tasks', d.tasks || []); persist('thoughts', d.thoughts || []);}} 
           hasAiKey={hasAiKey}
-          customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: customBg ? 'custom' : 'none', setTexture: () => {}, customBg, setCustomBg }}
+          session={session}
+          customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: 'none', setTexture: () => {} }}
         />
       )}
 

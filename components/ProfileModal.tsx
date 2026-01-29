@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { AppState, ThemeKey, FontFamily, IconWeight, TextureType } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppState, ThemeKey, FontFamily, IconWeight, TextureType, GeminiModel } from '../types';
 import Settings from './Settings';
 import { 
-  X, Database, Settings as SettingsIcon, HardDrive, 
-  CloudLightning, Cloud, CheckCircle, Shield, LogOut
+  X, Settings as SettingsIcon, HardDrive, 
+  CheckCircle, LogOut, User, Terminal, Wifi, Cloud
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
+import { logger, SystemLog } from '../services/logger';
 
 interface ProfileModalProps {
   appState: AppState;
   userName: string;
   currentTheme: ThemeKey;
   setTheme: (t: ThemeKey) => void;
+  geminiModel: GeminiModel;
+  setGeminiModel: (m: GeminiModel) => void;
   onClose: () => void;
   onImport: (data: any) => void;
   hasAiKey: boolean; 
@@ -22,17 +25,24 @@ interface ProfileModalProps {
     setIconWeight: (w: IconWeight) => void;
     texture: TextureType;
     setTexture: (t: TextureType) => void;
-    customBg?: string;
-    setCustomBg?: (bg: string) => void;
   };
+  session: any; // Passed from App to check google tokens
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
-    appState, userName, currentTheme, setTheme, onClose, onImport, customization
+    appState, userName, currentTheme, setTheme, geminiModel, setGeminiModel,
+    onClose, onImport, customization, session, hasAiKey
 }) => {
-  const [activeTab, setActiveTab] = useState<'settings' | 'account' | 'system'>('account');
-  const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<'general' | 'settings' | 'console'>('general');
+  const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number, rawQuota: number } | null>(null);
+  const [logs, setLogs] = useState<SystemLog[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState({
+      supabase: 'checking',
+      gemini: 'checking',
+      google: 'checking'
+  });
   
+  // Storage Estimate
   useEffect(() => {
     if (navigator.storage && navigator.storage.estimate) {
         navigator.storage.estimate().then(estimate => {
@@ -41,15 +51,61 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             setStorageInfo({
                 used: (usedBytes / (1024 * 1024)).toFixed(2) + ' MB',
                 total: (quotaBytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB',
-                percent: Math.min(100, (usedBytes / quotaBytes) * 100)
+                percent: Math.min(100, (usedBytes / quotaBytes) * 100),
+                rawQuota: quotaBytes
             });
         });
     }
   }, []);
 
+  // Logs Subscription
+  useEffect(() => {
+      setLogs(logger.getLogs());
+      const unsub = logger.subscribe((newLogs) => setLogs([...newLogs]));
+      return unsub;
+  }, []);
+
+  // Connection Check
+  useEffect(() => {
+      const checkConnections = async () => {
+          // 1. Supabase Check
+          const { error } = await supabase.from('tasks').select('id').limit(1);
+          const sbStatus = error ? 'error' : 'connected';
+          
+          // 2. Gemini Check
+          const gemStatus = hasAiKey ? 'connected' : 'disconnected';
+
+          // 3. Google Check (Tasks/Calendar scopes)
+          // We check if provider_token exists in the session object which usually indicates oauth success
+          const googleStatus = session?.provider_token ? 'connected' : 'disconnected';
+
+          setConnectionStatus({
+              supabase: sbStatus,
+              gemini: gemStatus,
+              google: googleStatus
+          });
+      };
+      
+      if (activeTab === 'console') {
+          checkConnections();
+      }
+  }, [activeTab, session, hasAiKey]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.reload();
+  };
+
+  const statusColor = (status: string) => {
+      if (status === 'connected') return 'text-emerald-500';
+      if (status === 'checking') return 'text-yellow-500 animate-pulse';
+      return 'text-rose-500';
+  };
+
+  const statusIcon = (status: string) => {
+      if (status === 'connected') return <CheckCircle size={14} />;
+      if (status === 'checking') return <div className="w-2 h-2 bg-yellow-500 rounded-full animate-ping"/>;
+      return <X size={14} />;
   };
 
   return (
@@ -80,14 +136,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Navigation Tabs */}
         <div className="p-4 pb-0">
             <div className="flex bg-[var(--bg-item)] p-1 rounded-xl border border-[var(--border-color)] gap-1 shadow-inner overflow-x-auto no-scrollbar">
-                <button onClick={() => setActiveTab('account')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'account' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
-                    <Cloud size={14} /> Аккаунт
+                <button onClick={() => setActiveTab('general')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'general' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+                    <User size={14} /> Профиль
                 </button>
                 <button onClick={() => setActiveTab('settings')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
                     <SettingsIcon size={14} /> Настройки
                 </button>
-                <button onClick={() => setActiveTab('system')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'system' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
-                    <HardDrive size={14} /> Система
+                <button onClick={() => setActiveTab('console')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'console' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+                    <Terminal size={14} /> Консоль
                 </button>
             </div>
         </div>
@@ -95,41 +151,65 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Content Area */}
         <div className="flex-1 overflow-hidden relative">
             
-            {activeTab === 'account' && (
-                <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 flex flex-col gap-6 items-center justify-center">
-                    <div className="w-full max-w-sm space-y-4">
-                        <div className="glass-panel p-6 rounded-[2rem] text-center border border-[var(--border-color)]">
-                            <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in">
-                                <CheckCircle size={40} className="text-emerald-500" />
+            {/* --- GENERAL TAB (User Info + Storage) --- */}
+            {activeTab === 'general' && (
+                <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32 flex flex-col gap-6">
+                    
+                    {/* User Card */}
+                    <div className="glass-panel p-6 rounded-[2rem] text-center border border-[var(--border-color)]">
+                        <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in">
+                            <CheckCircle size={40} className="text-emerald-500" />
+                        </div>
+                        <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Identity</h2>
+                        <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-widest mt-1 mb-6">Авторизован</p>
+                        
+                        <button onClick={handleLogout} className="w-full py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                            <LogOut size={16} /> Выйти из системы
+                        </button>
+                    </div>
+
+                    {/* Storage Widget */}
+                    <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group border border-[var(--border-color)]">
+                        <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
+                            <HardDrive size={200} />
+                        </div>
+                        <div className="relative z-10">
+                            <div className="flex justify-between items-end mb-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl"><HardDrive size={24} /></div>
+                                    <div>
+                                        <p className="text-lg font-bold text-[var(--text-main)]">IndexedDB</p>
+                                        <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide">Браузерная память</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xl font-black text-[var(--text-main)]">{storageInfo?.total || '...'}</p>
+                                    <p className="text-[9px] font-black uppercase text-[var(--accent)]">Доступно</p>
+                                </div>
                             </div>
-                            <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Cloud</h2>
-                            <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-widest mt-1 mb-4">Подключено • Защищено</p>
                             
-                            <div className="space-y-3 text-left">
-                                <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
-                                    <span className="text-xs font-bold text-[var(--text-muted)]">Пользователь</span>
-                                    <span className="text-xs font-bold text-[var(--text-main)]">{userName}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-[var(--bg-item)] rounded-xl border border-[var(--border-color)]">
-                                    <span className="text-xs font-bold text-[var(--text-muted)]">База Данных</span>
-                                    <span className="text-[10px] font-black uppercase text-emerald-500">Supabase RLS</span>
-                                </div>
+                            <div className="flex justify-between text-[10px] font-black text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+                                <span>Использовано: {storageInfo?.used}</span>
+                                <span>{storageInfo?.percent.toFixed(2)}%</span>
                             </div>
 
-                            <button onClick={handleLogout} className="w-full mt-6 py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2">
-                                <LogOut size={16} /> Выйти из системы
-                            </button>
+                            <div className="h-4 w-full bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-color)] p-[2px]">
+                                <div className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_15px_var(--accent-glow)]" style={{ width: `${Math.max(2, storageInfo?.percent || 0)}%` }}></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* --- SETTINGS TAB --- */}
             {activeTab === 'settings' && (
               <div className="h-full overflow-y-auto no-scrollbar pb-24">
                 <div className="p-6">
                   <Settings 
                     currentTheme={currentTheme} 
                     setTheme={setTheme} 
+                    geminiModel={geminiModel}
+                    setGeminiModel={setGeminiModel}
                     onClose={onClose} 
                     exportData={{ ...appState, user: userName }} 
                     onImport={onImport}
@@ -139,31 +219,67 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             )}
             
-            {activeTab === 'system' && (
+            {/* --- CONSOLE TAB (Logs & Connectivity) --- */}
+            {activeTab === 'console' && (
               <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32">
-                <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group border border-[var(--border-color)]">
-                    <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
-                        <HardDrive size={200} />
-                    </div>
-                    <div className="relative z-10">
-                        <div className="flex justify-between items-end mb-8">
-                            <div className="flex items-center gap-4">
-                                <div className="p-4 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl"><Database size={28} /></div>
-                                <div>
-                                    <p className="text-lg font-bold text-[var(--text-main)]">IndexedDB Core</p>
-                                    <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide">Локальный кэш</p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-2xl font-black text-[var(--text-main)]">{storageInfo?.percent.toFixed(2)}%</p>
-                                <p className="text-[9px] font-black uppercase text-[var(--accent)]">{storageInfo?.used}</p>
-                            </div>
-                        </div>
-                        <div className="h-3 w-full bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-color)] p-[2px]">
-                            <div className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_15px_var(--accent-glow)]" style={{ width: `${Math.max(2, storageInfo?.percent || 0)}%` }}></div>
-                        </div>
-                    </div>
-                </div>
+                  
+                  {/* Connectivity Dashboard */}
+                  <div className="glass-panel rounded-2xl p-5 border border-[var(--border-color)] space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                          <Wifi size={16} className="text-[var(--accent)]"/>
+                          <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Статус Соединений</h3>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
+                          <div className="flex items-center gap-3">
+                              <Cloud size={16} className="text-emerald-500" />
+                              <span className="text-xs font-bold text-[var(--text-main)]">Supabase DB</span>
+                          </div>
+                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${statusColor(connectionStatus.supabase)}`}>
+                              {connectionStatus.supabase} {statusIcon(connectionStatus.supabase)}
+                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
+                          <div className="flex items-center gap-3">
+                              <Terminal size={16} className="text-purple-500" />
+                              <span className="text-xs font-bold text-[var(--text-main)]">Gemini API</span>
+                          </div>
+                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${statusColor(connectionStatus.gemini)}`}>
+                              {connectionStatus.gemini} {statusIcon(connectionStatus.gemini)}
+                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
+                          <div className="flex items-center gap-3">
+                              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" />
+                              <span className="text-xs font-bold text-[var(--text-main)]">Tasks & Calendar</span>
+                          </div>
+                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${statusColor(connectionStatus.google)}`}>
+                              {connectionStatus.google} {statusIcon(connectionStatus.google)}
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* System Logs */}
+                  <div className="glass-panel rounded-2xl p-1 border border-[var(--border-color)] flex flex-col h-80">
+                      <div className="px-4 py-2 bg-[var(--bg-main)] border-b border-[var(--border-color)] rounded-t-xl flex justify-between items-center">
+                          <span className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">System Logs</span>
+                          <button onClick={() => logger.clear()} className="text-[var(--text-muted)] hover:text-white"><X size={12}/></button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-[10px] bg-black/40 rounded-b-xl">
+                          {logs.length === 0 && <span className="text-[var(--text-muted)] opacity-50">Log is empty...</span>}
+                          {logs.map(log => (
+                              <div key={log.id} className="flex gap-2">
+                                  <span className="text-[var(--text-muted)] opacity-50">[{log.timestamp}]</span>
+                                  <span className={`${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : 'text-[var(--text-main)]'}`}>
+                                      {log.message}
+                                  </span>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
               </div>
             )}
         </div>

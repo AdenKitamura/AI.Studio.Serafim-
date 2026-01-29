@@ -1,29 +1,30 @@
 import React, { useRef } from 'react';
 import { themes } from '../themes';
-import { ThemeKey, IconWeight } from '../types';
+import { ThemeKey, IconWeight, GeminiModel } from '../types';
 import { 
   CheckCircle, Palette, Database, Download, Upload, 
-  AlertTriangle, Image as ImageIcon, Trash2, PenTool, 
-  Zap
+  AlertTriangle, PenTool, Zap, Brain
 } from 'lucide-react';
 
 interface SettingsProps {
   currentTheme: ThemeKey;
   setTheme: (theme: ThemeKey) => void;
+  geminiModel: GeminiModel;
+  setGeminiModel: (m: GeminiModel) => void;
   onClose: () => void;
   exportData: any;
   onImport: (data: any) => void;
   customization: {
     iconWeight: IconWeight;
     setIconWeight: (w: IconWeight) => void;
-    customBg?: string;
-    setCustomBg?: (bg: string) => void;
   };
 }
 
-const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, exportData, onImport, customization }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+    currentTheme, setTheme, geminiModel, setGeminiModel, 
+    onClose, exportData, onImport, customization 
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const bgInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
     const dataStr = JSON.stringify(exportData, null, 2);
@@ -53,24 +54,6 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const result = e.target?.result as string;
-        if (customization.setCustomBg) {
-            customization.setCustomBg(result);
-        }
-    };
-    reader.readAsDataURL(file);
-    if (bgInputRef.current) bgInputRef.current.value = '';
-  };
-
-  const clearBg = () => {
-      if (customization.setCustomBg) customization.setCustomBg('');
   };
 
   const iconWeights: {id: IconWeight, label: string}[] = [
@@ -126,34 +109,30 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
           </div>
         </section>
 
-        {/* --- BACKGROUND UPLOAD --- */}
+        {/* --- AI MODEL --- */}
         <section>
           <div className="flex items-center gap-3 mb-4 px-2">
-            <ImageIcon size={16} className="text-[var(--accent)]" />
-            <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Фон Интерфейса</h3>
+            <Brain size={16} className="text-[var(--accent)]" />
+            <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Нейросетевая Модель</h3>
           </div>
-          
-          <div className="glass-panel p-5 rounded-3xl space-y-4">
-              <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={handleBgUpload} />
+          <div className="glass-panel p-2 rounded-2xl flex gap-2">
+              <button 
+                  onClick={() => setGeminiModel('flash')}
+                  className={`flex-1 py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${geminiModel === 'flash' ? 'bg-[var(--bg-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-item)]'}`}
+              >
+                  <Zap size={20} className={geminiModel === 'flash' ? 'text-yellow-500' : 'opacity-50'} />
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${geminiModel === 'flash' ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>Gemini Flash</span>
+                  <span className="text-[9px] text-[var(--text-muted)] opacity-60">Быстрая</span>
+              </button>
               
-              {customization.customBg ? (
-                  <div className="relative w-full h-40 rounded-2xl overflow-hidden border border-[var(--border-color)] group">
-                      <img src={customization.customBg} className="w-full h-full object-cover opacity-60" />
-                      <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm">
-                          <button onClick={() => bgInputRef.current?.click()} className="p-3 bg-white/10 rounded-xl hover:bg-white/20 text-white"><Upload size={20} /></button>
-                          <button onClick={clearBg} className="p-3 bg-rose-500/20 rounded-xl hover:bg-rose-500 text-white"><Trash2 size={20} /></button>
-                      </div>
-                  </div>
-              ) : (
-                  <button 
-                    onClick={() => bgInputRef.current?.click()}
-                    className="w-full h-24 rounded-2xl border border-dashed border-[var(--border-color)] flex flex-col items-center justify-center gap-2 hover:bg-[var(--bg-item)] transition-all text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                  >
-                      <Upload size={20} />
-                      <span className="text-[9px] font-black uppercase tracking-widest">Загрузить фото</span>
-                  </button>
-              )}
-              <p className="text-[9px] text-[var(--text-muted)] text-center opacity-60">Изображение накладывается поверх темы</p>
+              <button 
+                  onClick={() => setGeminiModel('pro')}
+                  className={`flex-1 py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${geminiModel === 'pro' ? 'bg-[var(--bg-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-item)]'}`}
+              >
+                  <Brain size={20} className={geminiModel === 'pro' ? 'text-purple-500' : 'opacity-50'} />
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${geminiModel === 'pro' ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>Gemini Pro</span>
+                  <span className="text-[9px] text-[var(--text-muted)] opacity-60">Умная</span>
+              </button>
           </div>
         </section>
 
@@ -213,7 +192,7 @@ const Settings: React.FC<SettingsProps> = ({ currentTheme, setTheme, onClose, ex
         
         {/* Footer */}
         <div className="text-center py-6 opacity-30">
-            <p className="text-[9px] font-black uppercase tracking-widest">Serafim OS v4.0 Personal</p>
+            <p className="text-[9px] font-black uppercase tracking-widest">Serafim OS v4.5 Pro</p>
             <p className="text-[9px] font-serif italic mt-1">For Cognitive Excellence</p>
         </div>
 

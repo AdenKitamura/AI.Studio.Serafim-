@@ -1,5 +1,5 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
-import { Task, Thought, JournalEntry, Project, Habit, Memory } from "../types";
+import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel } from "../types";
 import { format, subDays } from "date-fns";
 import { ru } from 'date-fns/locale';
 
@@ -99,10 +99,10 @@ const tools: FunctionDeclaration[] = [
 ];
 
 export const polishTranscript = async (text: string): Promise<string> => {
-  return text; // Removed polishing logic as requested
+  return text; 
 };
 
-export const createMentorChat = (context: any): Chat => {
+export const createMentorChat = (context: any, modelPreference: GeminiModel = 'flash'): Chat => {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("API Key missing");
   
@@ -147,8 +147,11 @@ export const createMentorChat = (context: any): Chat => {
   
   Твоя цель: Быть вторым мозгом. Ты видишь дневник пользователя выше. Используй эту информацию для ответов. Будь краток и точен.`;
 
+  // Map user preference to actual API models
+  const modelName = modelPreference === 'pro' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+
   return ai.chats.create({
-    model: 'gemini-3-pro-preview',
+    model: modelName,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       tools: [{ functionDeclarations: tools }],
