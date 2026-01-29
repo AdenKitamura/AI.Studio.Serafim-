@@ -121,11 +121,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   </div>
                </div>
                <div>
-                   <h3 className="font-bold text-lg text-[var(--text-main)] leading-none mb-1">{userName}</h3>
-                   <div className="flex items-center gap-2">
+                   {/* Swapped Title and Subtitle */}
+                   <div className="flex items-center gap-2 mb-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <p className="text-[9px] font-black uppercase text-[var(--text-muted)] tracking-widest opacity-80">Serafim Cloud Active</p>
+                      <h3 className="font-black text-xs uppercase text-[var(--text-main)] tracking-widest leading-none">Serafim Cloud Active</h3>
                    </div>
+                   <p className="text-lg font-bold text-[var(--text-muted)] leading-none">{userName}</p>
                </div>
             </div>
             <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] transition-all active:scale-90 shadow-sm glass-btn">
@@ -168,33 +169,37 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         </button>
                     </div>
 
-                    {/* Storage Widget */}
+                    {/* Storage Widget - Fixed Layout for Tablets */}
                     <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group border border-[var(--border-color)]">
                         <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
                             <HardDrive size={200} />
                         </div>
-                        <div className="relative z-10">
-                            <div className="flex justify-between items-end mb-6">
+                        <div className="relative z-10 flex flex-col gap-4">
+                            {/* Header Section */}
+                            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                                 <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl"><HardDrive size={24} /></div>
+                                    <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl shrink-0"><HardDrive size={24} /></div>
                                     <div>
                                         <p className="text-lg font-bold text-[var(--text-main)]">IndexedDB</p>
                                         <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide">Браузерная память</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-left sm:text-right">
                                     <p className="text-xl font-black text-[var(--text-main)]">{storageInfo?.total || '...'}</p>
                                     <p className="text-[9px] font-black uppercase text-[var(--accent)]">Доступно</p>
                                 </div>
                             </div>
                             
-                            <div className="flex justify-between text-[10px] font-black text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+                            {/* Stats */}
+                            <div className="flex justify-between text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">
                                 <span>Использовано: {storageInfo?.used}</span>
                                 <span>{storageInfo?.percent.toFixed(2)}%</span>
                             </div>
 
+                            {/* Progress Bar Container */}
                             <div className="h-4 w-full bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-color)] p-[2px]">
-                                <div className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_15px_var(--accent-glow)]" style={{ width: `${Math.max(2, storageInfo?.percent || 0)}%` }}></div>
+                                {/* Progress Bar Fill */}
+                                <div className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_15px_var(--accent-glow)] min-w-[2%]" style={{ width: `${Math.max(2, storageInfo?.percent || 0)}%` }}></div>
                             </div>
                         </div>
                     </div>

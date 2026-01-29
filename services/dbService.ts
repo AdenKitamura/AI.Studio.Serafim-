@@ -9,10 +9,11 @@ class DBService {
   private userId: string | null = null;
 
   // Called from App.tsx when Auth loads
-  public setAuth(userId: string | null) {
+  // Now async so App can await the initial sync if needed
+  public async setAuth(userId: string | null) {
       this.userId = userId;
       if (this.userId) {
-          this.syncAllTables();
+          await this.syncAllTables();
       }
   }
 
@@ -55,6 +56,8 @@ class DBService {
 
   private mapToSnakeCase(storeName: string, item: any): any {
     const res: any = { ...item };
+    
+    // Explicitly handle date/boolean/foreign keys
     if (item.dueDate) { res.due_date = item.dueDate; delete res.dueDate; }
     if (item.isCompleted !== undefined) { res.is_completed = item.isCompleted; delete res.isCompleted; }
     if (item.createdAt) { res.created_at = item.createdAt; delete res.createdAt; }
@@ -63,6 +66,13 @@ class DBService {
     if (item.completedDates) { res.completed_dates = item.completedDates; delete res.completedDates; }
     if (item.isArchived !== undefined) { res.is_archived = item.isArchived; delete res.isArchived; }
     if (item.lastInteraction) { res.last_interaction = item.lastInteraction; delete res.lastInteraction; }
+    
+    // Explicitly ensure JSON fields for Projects are preserved
+    if (storeName === 'projects') {
+        if (item.columns) res.columns = item.columns;
+        if (item.boards) res.boards = item.boards;
+    }
+
     return res;
   }
   
@@ -88,7 +98,9 @@ class DBService {
     for (const table of tables) {
       const { data, error } = await supabase.from(table).select('*');
       if (!error && data) {
+        // Map snake_case from DB to camelCase for App
         const localItems = data.map(item => this.mapFromSnakeCase(item));
+        // Overwrite local DB with Cloud Truth
         await this.saveAll(table, localItems, false);
       } else if (error) {
         console.error('Sync Error on table ' + table, error);
@@ -139,6 +151,8 @@ class DBService {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
+      // Clear store before bulk save if getting from cloud to ensure consistency? 
+      // For now, put overwrites existing IDs.
       items.forEach(item => store.put(item));
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);

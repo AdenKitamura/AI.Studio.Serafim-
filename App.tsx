@@ -108,12 +108,12 @@ const App = () => {
   const userEmail = session?.user?.email;
   const userName = session?.user?.user_metadata?.full_name || userEmail?.split('@')[0] || 'User';
 
-  // --- DATA SYNC ---
+  // --- DATA SYNC (Load -> Sync -> Reload Pattern) ---
   useEffect(() => {
-    const initSync = async () => {
-      if (userId) {
-        dbService.setAuth(userId);
-        
+    const fetchData = async () => {
+      if (!userId) return;
+
+      const loadFromDB = async () => {
         const [t, th, j, p, h, s, m] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
@@ -125,6 +125,7 @@ const App = () => {
         ]);
         
         setTasks(t); setThoughts(th); setJournal(j); setHabits(h); setMemories(m);
+        // If projects empty, add default, BUT do not persist it yet to avoid conflict if cloud has data
         setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#10b981', createdAt: new Date().toISOString() }]); 
         
         if (s.length > 0) {
@@ -134,14 +135,27 @@ const App = () => {
           const initS: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
           setSessions([initS]); setActiveSessionId(initS.id);
         }
-        setIsDataReady(true);
-      } else {
-        setIsDataReady(false);
-      }
+      };
+
+      // 1. Start Background Sync (Async)
+      // We do not await this immediately so the UI loads fast from local cache
+      const syncPromise = dbService.setAuth(userId);
+
+      // 2. Load what we have Locally immediately
+      await loadFromDB();
+      setIsDataReady(true);
+
+      // 3. Wait for Cloud Sync to finish
+      await syncPromise;
+
+      // 4. Reload Data to reflect Cloud State (Fixes empty projects on new devices)
+      await loadFromDB();
     };
 
     if (userId && !authLoading) {
-      initSync();
+      fetchData();
+    } else {
+      setIsDataReady(false);
     }
   }, [userId, authLoading]);
 
