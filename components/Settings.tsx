@@ -3,7 +3,7 @@ import { themes } from '../themes';
 import { ThemeKey, IconWeight, GeminiModel } from '../types';
 import { 
   CheckCircle, Palette, Database, Download, Upload, 
-  AlertTriangle, PenTool, Zap, Brain
+  AlertTriangle, PenTool, Zap, Brain, RefreshCw
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -56,6 +56,19 @@ const Settings: React.FC<SettingsProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleUpdateApp = () => {
+      if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+              for (const registration of registrations) {
+                  registration.unregister();
+              }
+              window.location.reload();
+          });
+      } else {
+          window.location.reload();
+      }
+  };
+
   const iconWeights: {id: IconWeight, label: string}[] = [
       { id: '1px', label: 'Ultra Thin' },
       { id: '1.5px', label: 'Thin' },
@@ -69,6 +82,25 @@ const Settings: React.FC<SettingsProps> = ({
       
       <div className="max-w-xl mx-auto space-y-8 pb-24">
         
+        {/* --- SYSTEM UPDATE --- */}
+        <section>
+            <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border-emerald-500/20 bg-emerald-500/5">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-500/20 text-emerald-500 rounded-lg"><RefreshCw size={18} /></div>
+                    <div>
+                        <h3 className="text-sm font-bold text-[var(--text-main)]">Версия Приложения</h3>
+                        <p className="text-[10px] text-[var(--text-muted)] opacity-60">Обновить до последней версии</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleUpdateApp}
+                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
+                >
+                    Обновить
+                </button>
+            </div>
+        </section>
+
         {/* --- APPEARANCE --- */}
         <section>
           <div className="flex items-center gap-3 mb-4 px-2">

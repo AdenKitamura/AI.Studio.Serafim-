@@ -38,6 +38,8 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   
   // Drag and Drop State
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [touchDragTask, setTouchDragTask] = useState<{ id: string, title: string, x: number, y: number } | null>(null);
+  const longPressTimer = useRef<any>(null);
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
@@ -86,12 +88,21 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   const handleDeleteAttachment = (e: React.MouseEvent, attId: string) => { e.stopPropagation(); const newAttachments = taskForm.attachments.filter(a => a.id !== attId); setTaskForm(prev => ({ ...prev, attachments: newAttachments })); if (viewingTask) { onUpdateTask(viewingTask.id, { attachments: newAttachments }); } };
   const handleChangeColumnColor = (colId: string) => { const col = selectedProject?.columns?.find(c => c.id === colId); if(!col || !selectedProject) return; const nextColor = COLORS[(COLORS.indexOf(col.color || COLORS[0]) + 1) % COLORS.length]; const updated = selectedProject.columns!.map(c => c.id === colId ? {...c, color: nextColor} : c); onUpdateProject(selectedProject.id, { columns: updated }); };
 
-  // --- DND HANDLERS ---
+  // --- LOGIC: MOVE TASK (Updates Progress if Done) ---
+  const moveTask = (taskId: string, targetColId: string) => {
+      const targetCol = selectedProject?.columns?.find(c => c.id === targetColId);
+      // Determine if task is completed based on column (usually the last one or named 'Готово')
+      // We assume the last column in the array is "Done" if not explicitly named
+      const isDone = targetCol?.title === 'Готово' || targetCol?.id === 'c3' || (selectedProject?.columns && targetColId === selectedProject.columns[selectedProject.columns.length - 1].id);
+      
+      onUpdateTask(taskId, { columnId: targetColId, isCompleted: !!isDone });
+  };
+
+  // --- DND HANDLERS (MOUSE) ---
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
       e.stopPropagation();
       setDraggedTaskId(taskId);
       e.dataTransfer.effectAllowed = 'move';
-      // Just a visual helper
       e.dataTransfer.setData('text/plain', taskId);
   };
 
@@ -103,8 +114,49 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   const handleDrop = (e: React.DragEvent, targetColumnId: string) => {
       e.preventDefault();
       if (draggedTaskId) {
-          onUpdateTask(draggedTaskId, { columnId: targetColumnId });
+          moveTask(draggedTaskId, targetColumnId);
           setDraggedTaskId(null);
+      }
+  };
+
+  // --- TOUCH DND HANDLERS ---
+  const handleTouchStart = (e: React.TouchEvent, task: Task) => {
+      const touch = e.touches[0];
+      const startX = touch.clientX;
+      const startY = touch.clientY;
+
+      longPressTimer.current = setTimeout(() => {
+          setTouchDragTask({ id: task.id, title: task.title, x: startX, y: startY });
+          if (navigator.vibrate) navigator.vibrate(50);
+      }, 400); // 400ms long press trigger
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+      if (longPressTimer.current && !touchDragTask) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+      }
+      if (touchDragTask) {
+          e.preventDefault(); // Stop scroll
+          const touch = e.touches[0];
+          setTouchDragTask(prev => prev ? ({ ...prev, x: touch.clientX, y: touch.clientY }) : null);
+      }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      
+      if (touchDragTask) {
+          const touch = e.changedTouches[0];
+          // Find drop target manually via coordinates
+          const element = document.elementFromPoint(touch.clientX, touch.clientY);
+          const columnEl = element?.closest('[data-column-id]');
+          
+          if (columnEl) {
+              const colId = columnEl.getAttribute('data-column-id');
+              if (colId) moveTask(touchDragTask.id, colId);
+          }
+          setTouchDragTask(null);
       }
   };
 
@@ -116,7 +168,11 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
     const progress = projectTasks.length > 0 ? Math.round((completedCount / projectTasks.length) * 100) : 0;
 
     return (
-      <div className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300 max-w-[100vw] overflow-x-hidden">
+      <div 
+        className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300 max-w-[100vw] overflow-x-hidden touch-none"
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         
         {/* Header */}
         <div className="p-6 pb-2 bg-[var(--bg-main)]/95 backdrop-blur z-20 sticky top-0 border-b border-[var(--border-color)]">
@@ -154,9 +210,10 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                        return (
                            <div 
                               key={col.id} 
+                              data-column-id={col.id}
                               onDragOver={handleDragOver}
                               onDrop={(e) => handleDrop(e, col.id)}
-                              className="flex-none w-80 flex flex-col h-full bg-[var(--bg-item)]/40 rounded-[2rem] border border-[var(--border-color)] backdrop-blur-sm transition-colors hover:bg-[var(--bg-item)]/60"
+                              className={`flex-none w-80 flex flex-col h-full bg-[var(--bg-item)]/40 rounded-[2rem] border border-[var(--border-color)] backdrop-blur-sm transition-colors ${touchDragTask ? 'border-dashed border-[var(--accent)] bg-[var(--accent)]/5' : ''}`}
                            >
                                <div className="p-4 flex justify-between items-center border-b border-[var(--border-color)]">
                                    <div className="flex items-center gap-3">
@@ -176,18 +233,19 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                                           key={task.id} 
                                           draggable
                                           onDragStart={(e) => handleDragStart(e, task.id)}
+                                          onTouchStart={(e) => handleTouchStart(e, task)}
                                           onClick={() => openDetailModal(task)} 
                                           className={`
                                             p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-color)] shadow-sm 
-                                            hover:border-[var(--accent)] transition-all cursor-pointer group hover:scale-[1.02] active:scale-95
-                                            ${draggedTaskId === task.id ? 'opacity-50 ring-2 ring-[var(--accent)] rotate-3 scale-95' : ''}
+                                            hover:border-[var(--accent)] transition-all cursor-pointer group hover:scale-[1.02] active:scale-95 select-none
+                                            ${draggedTaskId === task.id || touchDragTask?.id === task.id ? 'opacity-30' : ''}
                                           `}
                                        >
                                            <div className="flex justify-between items-start mb-3">
                                                <p className={`text-sm font-bold leading-snug ${task.isCompleted ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-main)]'}`}>{task.title}</p>
                                                <div className="flex gap-2">
                                                  {task.priority === Priority.HIGH && <div className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />}
-                                                 <GripVertical size={14} className="text-[var(--text-muted)] opacity-20 group-hover:opacity-100 cursor-grab active:cursor-grabbing" />
+                                                 <GripVertical size={14} className="text-[var(--text-muted)] opacity-20 group-hover:opacity-100" />
                                                </div>
                                            </div>
                                            <div className="flex items-center gap-3 text-[9px] font-black uppercase text-[var(--text-muted)]">
@@ -204,6 +262,23 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                </div>
             </div>
         </div>
+
+        {/* Touch Drag Overlay */}
+        {touchDragTask && (
+            <div 
+                className="fixed z-[200] pointer-events-none p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--accent)] shadow-2xl w-64"
+                style={{ 
+                    left: touchDragTask.x, 
+                    top: touchDragTask.y,
+                    transform: 'translate(-50%, -50%) rotate(3deg)'
+                }}
+            >
+                <p className="text-sm font-bold text-[var(--text-main)]">{touchDragTask.title}</p>
+                <div className="mt-2 flex items-center gap-2 text-[var(--accent)]">
+                    <GripVertical size={16} /> <span className="text-[10px] font-black uppercase">Перенос...</span>
+                </div>
+            </div>
+        )}
 
         {/* Task Creation Modal */}
         {isTaskCreateOpen && (<div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95"><div className="w-full max-w-sm glass-card rounded-[2.5rem] p-6 shadow-2xl border border-white/10"><div className="flex justify-between items-center mb-6"><h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-main)]">Новая задача</h3><button onClick={() => setIsTaskCreateOpen(false)}><X size={20} className="text-[var(--text-muted)]" /></button></div><input autoFocus value={taskForm.title} onChange={e => setTaskForm({...taskForm, title: e.target.value})} placeholder="Название..." className="w-full bg-transparent text-xl font-bold text-[var(--text-main)] outline-none pb-2 border-b border-[var(--border-color)] mb-4" /><div className="flex gap-2"><input type="date" className="bg-[var(--bg-item)] p-2 rounded-lg text-xs text-white outline-none" value={taskForm.date} onChange={e => setTaskForm({...taskForm, date: e.target.value})} /><button onClick={() => saveTask(false)} className="flex-1 py-2 bg-[var(--text-main)] text-[var(--bg-main)] rounded-lg font-bold text-xs uppercase">Создать</button></div></div></div>)}
