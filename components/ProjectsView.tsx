@@ -116,7 +116,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
     const progress = projectTasks.length > 0 ? Math.round((completedCount / projectTasks.length) * 100) : 0;
 
     return (
-      <div className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300">
+      <div className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300 max-w-[100vw] overflow-x-hidden">
         
         {/* Header */}
         <div className="p-6 pb-2 bg-[var(--bg-main)]/95 backdrop-blur z-20 sticky top-0 border-b border-[var(--border-color)]">
@@ -218,7 +218,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
 
   // --- PROJECT LIST VIEW (GRID) ---
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-main)] p-6 overflow-y-auto no-scrollbar">
+    <div className="flex flex-col h-full bg-[var(--bg-main)] p-6 overflow-y-auto no-scrollbar max-w-[100vw] overflow-x-hidden">
         
         <div className="max-w-4xl mx-auto w-full pt-6">
             <div className="flex items-center justify-between mb-8">

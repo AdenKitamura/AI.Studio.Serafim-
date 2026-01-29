@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType, GeminiModel } from '../types';
 import Settings from './Settings';
 import { 
@@ -26,7 +26,7 @@ interface ProfileModalProps {
     texture: TextureType;
     setTexture: (t: TextureType) => void;
   };
-  session: any; // Passed from App to check google tokens
+  session: any;
 }
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ 
@@ -68,15 +68,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   // Connection Check
   useEffect(() => {
       const checkConnections = async () => {
-          // 1. Supabase Check
           const { error } = await supabase.from('tasks').select('id').limit(1);
           const sbStatus = error ? 'error' : 'connected';
-          
-          // 2. Gemini Check
           const gemStatus = hasAiKey ? 'connected' : 'disconnected';
-
-          // 3. Google Check (Tasks/Calendar scopes)
-          // We check if provider_token exists in the session object which usually indicates oauth success
           const googleStatus = session?.provider_token ? 'connected' : 'disconnected';
 
           setConnectionStatus({
@@ -111,27 +105,30 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] bg-[var(--bg-main)]/80 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 duration-300">
         
-        {/* Header */}
-        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm">
-            <div className="flex items-center gap-4">
-               <div className="relative group">
-                  <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-800 flex items-center justify-center text-white font-bold text-lg ring-2 ring-[var(--border-color)]">
-                    {userName.charAt(0).toUpperCase()}
-                  </div>
-               </div>
-               <div>
-                   {/* Swapped Title and Subtitle */}
-                   <div className="flex items-center gap-2 mb-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <h3 className="font-black text-xs uppercase text-[var(--text-main)] tracking-widest leading-none">Serafim Cloud Active</h3>
-                   </div>
-                   <p className="text-lg font-bold text-[var(--text-muted)] leading-none">{userName}</p>
-               </div>
+        {/* Header - Redesigned Layout */}
+        <div className="p-4 border-b border-[var(--border-color)] grid grid-cols-[1fr_auto_1fr] items-center bg-[var(--bg-main)]/90 backdrop-blur-md sticky top-0 z-20 shadow-sm gap-4">
+            
+            {/* Left: Status */}
+            <div className="flex items-center gap-2 justify-start min-w-0">
+               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+               <span className="font-black text-[10px] uppercase text-[var(--text-main)] tracking-widest whitespace-nowrap truncate">
+                 Serafim Cloud Active
+               </span>
             </div>
-            <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] transition-all active:scale-90 shadow-sm glass-btn">
-                <X size={24} />
-            </button>
+
+            {/* Center: Name */}
+            <div className="flex items-center justify-center min-w-0">
+               <h3 className="font-bold text-lg text-[var(--text-main)] leading-none truncate text-center">
+                 {userName}
+               </h3>
+            </div>
+
+            {/* Right: Close */}
+            <div className="flex justify-end">
+                <button onClick={onClose} className="p-2 bg-[var(--bg-item)] rounded-full text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)] transition-all active:scale-90 shadow-sm glass-btn">
+                    <X size={20} />
+                </button>
+            </div>
         </div>
 
         {/* Navigation Tabs */}
@@ -169,37 +166,47 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         </button>
                     </div>
 
-                    {/* Storage Widget - Fixed Layout for Tablets */}
+                    {/* Storage Widget - Refactored for Responsiveness */}
                     <div className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group border border-[var(--border-color)]">
                         <div className="absolute -right-10 -bottom-10 text-[var(--accent)] opacity-[0.03]">
-                            <HardDrive size={200} />
+                            <HardDrive size={150} />
                         </div>
                         <div className="relative z-10 flex flex-col gap-4">
-                            {/* Header Section */}
-                            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl shrink-0"><HardDrive size={24} /></div>
-                                    <div>
-                                        <p className="text-lg font-bold text-[var(--text-main)]">IndexedDB</p>
-                                        <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide">Браузерная память</p>
-                                    </div>
+                            {/* Icon & Title */}
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-[var(--accent)]/10 text-[var(--accent)] rounded-2xl shrink-0">
+                                    <HardDrive size={24} />
                                 </div>
-                                <div className="text-left sm:text-right">
-                                    <p className="text-xl font-black text-[var(--text-main)]">{storageInfo?.total || '...'}</p>
-                                    <p className="text-[9px] font-black uppercase text-[var(--accent)]">Доступно</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-lg font-bold text-[var(--text-main)] truncate">IndexedDB</p>
+                                    <p className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 uppercase tracking-wide truncate">Браузерная память</p>
                                 </div>
-                            </div>
-                            
-                            {/* Stats */}
-                            <div className="flex justify-between text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">
-                                <span>Использовано: {storageInfo?.used}</span>
-                                <span>{storageInfo?.percent.toFixed(2)}%</span>
                             </div>
 
-                            {/* Progress Bar Container */}
-                            <div className="h-4 w-full bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-color)] p-[2px]">
-                                {/* Progress Bar Fill */}
-                                <div className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_15px_var(--accent-glow)] min-w-[2%]" style={{ width: `${Math.max(2, storageInfo?.percent || 0)}%` }}></div>
+                            {/* Metrics Grid */}
+                            <div className="grid grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <p className="text-[10px] text-[var(--text-muted)] uppercase font-bold">Занято</p>
+                                    <p className="text-sm font-black text-[var(--text-main)]">{storageInfo?.used || '...'}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-[var(--text-muted)] uppercase font-bold">Всего</p>
+                                    <p className="text-sm font-black text-[var(--text-main)]">{storageInfo?.total || '...'}</p>
+                                </div>
+                            </div>
+
+                            {/* Progress Bar Container - Ensuring it fits */}
+                            <div className="w-full bg-[var(--bg-main)] rounded-full h-4 border border-[var(--border-color)] overflow-hidden mt-1 relative">
+                                {/* Track Background */}
+                                <div className="absolute inset-0 bg-white/5"></div>
+                                {/* Fill */}
+                                <div 
+                                    className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000 shadow-[0_0_10px_var(--accent-glow)] relative z-10" 
+                                    style={{ width: `${Math.max(5, storageInfo?.percent || 0)}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-center text-[10px] font-black text-[var(--text-muted)] opacity-60">
+                                {storageInfo?.percent.toFixed(1)}% Использовано
                             </div>
                         </div>
                     </div>

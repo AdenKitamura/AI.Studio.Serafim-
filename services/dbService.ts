@@ -67,7 +67,7 @@ class DBService {
     if (item.isArchived !== undefined) { res.is_archived = item.isArchived; delete res.isArchived; }
     if (item.lastInteraction) { res.last_interaction = item.lastInteraction; delete res.lastInteraction; }
     
-    // Explicitly ensure JSON fields for Projects are preserved
+    // CRITICAL: Explicitly ensure JSON fields for Projects are preserved during sync
     if (storeName === 'projects') {
         if (item.columns) res.columns = item.columns;
         if (item.boards) res.boards = item.boards;
@@ -86,6 +86,11 @@ class DBService {
     if (res.completed_dates) { res.completedDates = res.completed_dates; delete res.completed_dates; }
     if (res.is_archived !== undefined) { res.isArchived = res.is_archived; delete res.is_archived; }
     if (res.last_interaction) { res.lastInteraction = res.last_interaction; delete res.last_interaction; }
+    
+    // JSON fields usually come back as-is from Supabase, but explicit mapping ensures consistency if types vary
+    if (res.columns) res.columns = res.columns; 
+    if (res.boards) res.boards = res.boards;
+
     return res;
   }
 
