@@ -137,7 +137,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
           longPressTimer.current = null;
       }
       if (touchDragTask) {
-          e.preventDefault(); // Stop scroll
+          e.preventDefault(); // Stop scroll ONLY when dragging
           const touch = e.touches[0];
           setTouchDragTask(prev => prev ? ({ ...prev, x: touch.clientX, y: touch.clientY }) : null);
       }
@@ -169,7 +169,7 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
 
     return (
       <div 
-        className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300 max-w-[100vw] overflow-x-hidden touch-none"
+        className="flex flex-col h-full bg-[var(--bg-main)] animate-in slide-in-from-right duration-300 max-w-[100vw] overflow-x-hidden"
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
