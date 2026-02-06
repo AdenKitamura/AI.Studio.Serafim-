@@ -189,11 +189,26 @@ const App = () => {
   const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };
 
   const handleAddTask = (task: Task) => { setTasks(prev => [task, ...prev]); persist('tasks', task); };
-  const handleUpdateTask = (id: string, updates: Partial<Task> & { _delete?: boolean }) => {
-    if (updates._delete) { setTasks(prev => prev.filter(t => t.id !== id)); remove('tasks', id); return; }
-    const updatedTask = tasks.find(t => t.id === id);
-    if (updatedTask) { const newTask = { ...updatedTask, ...updates }; setTasks(prev => prev.map(t => t.id === id ? newTask : t)); persist('tasks', newTask); }
+  
+  const handleUpdateTask = (id: string, updates: Partial<Task>) => {
+    setTasks(prev => {
+        const taskIndex = prev.findIndex(t => t.id === id);
+        if (taskIndex === -1) return prev;
+        
+        const updatedTask = { ...prev[taskIndex], ...updates };
+        persist('tasks', updatedTask);
+        
+        const newTasks = [...prev];
+        newTasks[taskIndex] = updatedTask;
+        return newTasks;
+    });
   };
+
+  const handleDeleteTask = (id: string) => {
+      setTasks(prev => prev.filter(t => t.id !== id));
+      remove('tasks', id);
+  };
+
   const handleUpdateProject = (id: string, updates: Partial<Project>) => {
     const updatedProject = projects.find(p => p.id === id);
     if(updatedProject) { const newProj = { ...updatedProject, ...updates }; setProjects(prev => prev.map(p => p.id === id ? newProj : p)); persist('projects', newProj); }
@@ -280,6 +295,7 @@ const App = () => {
                   onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }} 
                   onNavigate={navigateTo} 
                   onToggleTask={(id, updates) => handleUpdateTask(id, updates || { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
+                  onDeleteTask={handleDeleteTask}
                   onAddHabit={handleAddHabit}
                   onToggleHabit={handleToggleHabit}
                   onDeleteHabit={handleDeleteHabit}
@@ -349,7 +365,8 @@ const App = () => {
               habits={habits} 
               thoughts={thoughts}
               onAddTask={handleAddTask} 
-              onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
+              onToggleTask={(id, updates) => handleUpdateTask(id, updates || { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
+              onDeleteTask={handleDeleteTask}
               onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
               onUpdateThought={handleUpdateThought}
               onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}
@@ -365,11 +382,11 @@ const App = () => {
               thoughts={thoughts} 
               onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
               onUpdateProject={handleUpdateProject}
-              onDeleteProject={id => { setProjects(projects.filter(p => p.id !== id)); remove('projects', id); }} 
+              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); remove('projects', id); }} 
               onAddTask={handleAddTask} 
               onUpdateTask={handleUpdateTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
-              onDeleteTask={id => { setTasks(tasks.filter(t => t.id !== id)); remove('tasks', id); }} 
+              onDeleteTask={handleDeleteTask} 
               onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
               onUpdateThought={handleUpdateThought}
               onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}

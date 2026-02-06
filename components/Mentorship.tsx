@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
-import { createMentorChat } from '../services/geminiService';
+import { createMentorChat, fixGrammar } from '../services/geminiService';
 import * as googleService from '../services/googleService'; 
 import { logger } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -45,6 +45,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isFixingGrammar, setIsFixingGrammar] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [interimText, setInterimText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [agentLogs, setAgentLogs] = useState<{msg: string, type: 'tool' | 'info' | 'success'}[]>([]);
@@ -56,45 +58,112 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   
-  // Get model preference from localStorage directly here or rely on App logic. 
-  // Since we didn't add the prop to MentorshipProps in App.tsx (my bad in previous step thinking), 
-  // we can read it from localStorage for now to avoid prop drilling if App.tsx wasn't fully updated, 
-  // BUT App.tsx WAS updated in this response. 
-  // Wait, I didn't update MentorshipProps in App.tsx render return to pass geminiModel. 
-  // I will assume for this file I read it from localStorage to be safe or just use a default.
-  // Actually, let's fix this properly. I need to make sure I update this component to rely on localStorage 
-  // if I don't want to break the signature, OR update the signature. 
-  // Given I can't see the App.tsx change fully applied yet (it's in the same response), 
-  // I will read localStorage here as a fallback or if passed.
-  
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
+  // --- TTS LOGIC (Individual Message) ---
+  const speakMessage = (text: string, id: string) => {
+    if (!window.speechSynthesis) return;
+    
+    // Stop if currently speaking this message
+    if (speakingMessageId === id) {
+        window.speechSynthesis.cancel();
+        setSpeakingMessageId(null);
+        return;
+    }
+
+    // Stop any other speech
+    window.speechSynthesis.cancel();
+
+    // Clean text
+    const cleanText = text.replace(/[*#`]/g, '');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'ru-RU';
+    utterance.rate = 1.1;
+    
+    const voices = window.speechSynthesis.getVoices();
+    const ruVoice = voices.find(v => v.lang.includes('ru') && !v.name.includes('Google')); 
+    if (ruVoice) utterance.voice = ruVoice;
+
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+
+    setSpeakingMessageId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        setSpeakingMessageId(null);
+    }
+  };
+
+  // --- AI GRAMMAR FIX ---
+  const handleSmartFix = async () => {
+      if (!input.trim() || isFixingGrammar) return;
+      setIsFixingGrammar(true);
+      try {
+          const fixed = await fixGrammar(input);
+          setInput(fixed);
+      } catch (e) {
+          console.error('Fix failed', e);
+      } finally {
+          setIsFixingGrammar(false);
+      }
+  };
+
+  // Setup Speech Recognition
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = false;
+      rec.continuous = false; // Reset to false for better stability on mobile
       rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.lang = 'ru-RU';
       
-      rec.onresult = (event: any) => {
+      rec.onresult = async (event: any) => {
         let finalStr = '';
         let interimStr = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) finalStr += event.results[i][0].transcript;
           else interimStr = event.results[i][0].transcript;
         }
-        if (finalStr) setInput(prev => (prev + ' ' + finalStr).trim());
-        setInterimText(interimStr);
+
+        if (finalStr) {
+            stopSpeaking(); 
+            // Auto-Magic Fix: immediately trigger Gemini to clean up the voice input
+            setInterimText('✨ Улучшаю...');
+            setIsFixingGrammar(true);
+            try {
+                const fixed = await fixGrammar(finalStr);
+                setInput(prev => {
+                   const separator = prev.length > 0 ? ' ' : '';
+                   return prev + separator + fixed;
+                });
+            } catch (e) {
+                // Fallback to raw input if AI fails
+                setInput(prev => (prev + ' ' + finalStr).trim());
+            } finally {
+                setIsFixingGrammar(false);
+                setInterimText('');
+            }
+        } else {
+            setInterimText(interimStr);
+        }
       };
       
-      rec.onstart = () => setIsRecording(true);
-      rec.onend = () => { setIsRecording(false); setInterimText(''); };
-      rec.onerror = (e: any) => { console.error('Speech error:', e); setIsRecording(false); };
+      rec.onstart = () => { setIsRecording(true); stopSpeaking(); };
+      rec.onend = () => { setIsRecording(false); if(!isFixingGrammar) setInterimText(''); };
+      rec.onerror = (e: any) => { console.error('Speech error:', e); setIsRecording(false); setInterimText(''); };
       
       recognitionRef.current = rec;
     }
+
+    return () => {
+        stopSpeaking(); // Cleanup speech on unmount
+    };
   }, []);
 
   // Scroll to bottom
@@ -103,7 +172,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   }, [activeSession?.messages, isThinking]);
 
   useEffect(() => {
-      chatSessionRef.current = null;
+      chatSessionRef.current = null; // Reset chat instance on session switch
+      stopSpeaking();
   }, [activeSessionId]);
 
   const toggleVoice = () => {
@@ -140,6 +210,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         return; 
     }
     
+    stopSpeaking(); 
+
     const userMsg: ChatMessage = { 
       id: Date.now().toString(), 
       role: 'user', 
@@ -182,6 +254,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       const response = await chatSessionRef.current.sendMessage({ message: contents });
 
+      // Handle Tools
       if (response.functionCalls) {
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
@@ -191,7 +264,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
             case 'manage_task':
               if (args.action === 'create') {
                 const taskDueDate = args.dueDate ? args.dueDate : null;
-                // 1. Create Local Task
                 onAddTask({ 
                     id: Date.now().toString(), 
                     title: args.title, 
@@ -204,22 +276,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 addLog('Задача создана', 'success');
               }
               break;
-            
-            case 'manage_calendar':
-              // Calendar sync temporarily disabled during auth migration
-              if (args.title && args.startTime && args.endTime) {
-                  onAddTask({ 
-                      id: Date.now().toString(), 
-                      title: args.title + " (Cal)", 
-                      priority: Priority.HIGH, 
-                      dueDate: args.startTime, 
-                      isCompleted: false, 
-                      createdAt: new Date().toISOString() 
-                  });
-                  addLog('Задача добавлена (Календарь пока недоступен)', 'info');
-              }
-              break;
-
             case 'create_idea':
               onAddThought({
                   id: Date.now().toString(),
@@ -231,7 +287,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
               });
               addLog('Идея сохранена', 'success');
               break;
-            
             case 'remember_fact':
               if (args.fact) {
                   onAddMemory({
@@ -242,7 +297,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
                   addLog('Запомнил', 'success');
               }
               break;
-
             case 'manage_project':
               onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
               addLog('Проект создан', 'success');
@@ -255,10 +309,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
         }
       }
 
+      const responseText = response.text || "Готово.";
       const modelMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: response.text || "Готово.", 
+        content: responseText, 
         timestamp: Date.now() 
       };
       
@@ -266,16 +321,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     } catch (e: any) {
       console.error(e);
-      addLog('Ошибка AI', 'tool');
-      
+      addLog('Ошибка API. Перезагружаю сессию...', 'tool');
+      chatSessionRef.current = null;
       const errorMsg: ChatMessage = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        content: "Извини, ошибка соединения. Проверь API ключ.", 
+        content: "Произошла ошибка соединения. Я сбросил сессию. Попробуйте спросить еще раз.", 
         timestamp: Date.now() 
       };
       onUpdateMessages([...newHistory, errorMsg]);
-      chatSessionRef.current = null;
     } finally {
       setIsThinking(false);
     }
@@ -315,11 +369,21 @@ const Mentorship: React.FC<MentorshipProps> = ({
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
           {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4'}`}>
+              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
                 <div className="text-sm leading-relaxed whitespace-pre-wrap font-semibold font-sans">
                   {msg.content}
                 </div>
+                
+                {/* Individual TTS Button for AI messages */}
+                {msg.role === 'model' && (
+                    <button 
+                        onClick={() => speakMessage(msg.content, msg.id)}
+                        className={`absolute -bottom-8 left-2 p-2 rounded-full transition-all ${speakingMessageId === msg.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] opacity-0 group-hover:opacity-100'}`}
+                    >
+                        {speakingMessageId === msg.id ? <VolumeX size={16} className="animate-pulse" /> : <Volume2 size={16} />}
+                    </button>
+                )}
               </div>
             </div>
           ))}
@@ -350,20 +414,35 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)] ${isThinking ? 'opacity-70 pointer-events-none' : ''}`}>
             
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
+            
+            {/* Image Attach Button */}
             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors">
               <ImageIcon size={20} />
             </button>
 
+            {/* Smart Fix Button (Manual trigger for typed text) */}
+            {input.length > 2 && (
+                <button 
+                    onClick={handleSmartFix}
+                    className={`p-2 transition-colors ${isFixingGrammar ? 'text-[var(--accent)] animate-spin' : 'text-[var(--text-muted)] hover:text-[var(--accent)]'}`}
+                    title="Исправить грамматику"
+                >
+                    <Sparkles size={18} />
+                </button>
+            )}
+
+            {/* Input Field */}
             <textarea 
               rows={1} 
               value={input} 
-              onChange={e => setInput(e.target.value)}
+              onChange={e => { setInput(e.target.value); stopSpeaking(); }}
               onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
               placeholder={isThinking ? "Ожидание ответа..." : "Сообщение..."}
               disabled={isThinking}
               className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" 
             />
 
+            {/* Mic Button */}
             <button 
               onClick={toggleVoice} 
               className={`p-3 transition-colors ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
@@ -371,6 +450,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
               {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
 
+            {/* Send Button */}
             <button 
               type="button"
               onClick={handleSend}
@@ -381,6 +461,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             </button>
           </div>
           
+          {/* Status Text (Interim or Improving) */}
           {interimText && <div className="text-center text-[9px] font-black text-[var(--accent)] animate-pulse uppercase tracking-widest">{interimText}</div>}
         </div>
       </div>

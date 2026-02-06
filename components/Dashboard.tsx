@@ -15,6 +15,7 @@ interface DashboardProps {
   onAddThought: (thought: Thought) => void;
   onNavigate: (view: any) => void;
   onToggleTask: (id: string, updates?: Partial<Task>) => void; // Updated signature for edits
+  onDeleteTask: (id: string) => void;
   onAddHabit: (habit: Habit) => void;
   onToggleHabit: (id: string, date: string) => void;
   onDeleteHabit: (id: string) => void;
@@ -22,7 +23,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     tasks, thoughts, journal, projects, habits = [],
-    onAddTask, onAddProject, onAddThought, onNavigate, onToggleTask,
+    onAddTask, onAddProject, onAddThought, onNavigate, onToggleTask, onDeleteTask,
     onAddHabit, onToggleHabit, onDeleteHabit
 }) => {
   const upcomingReminders = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(new Date(t.dueDate))).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 2), [tasks]);
@@ -59,7 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const handleDeleteTask = () => {
       if(!editingTask) return;
-      (onToggleTask as any)(editingTask.id, { _delete: true }); // Special signal
+      onDeleteTask(editingTask.id);
       setEditingTask(null);
   };
 

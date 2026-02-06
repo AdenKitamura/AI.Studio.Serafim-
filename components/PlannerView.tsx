@@ -12,7 +12,8 @@ interface PlannerViewProps {
   habits?: Habit[];
   thoughts: Thought[];
   onAddTask: (task: Task) => void;
-  onToggleTask: (id: string, updates?: Partial<Task>) => void; // Updated signature
+  onToggleTask: (id: string, updates?: Partial<Task>) => void; 
+  onDeleteTask: (id: string) => void;
   onAddHabit?: (habit: Habit) => void;
   onToggleHabit?: (id: string, date: string) => void;
   onDeleteHabit?: (id: string) => void;
@@ -23,7 +24,7 @@ interface PlannerViewProps {
 
 const PlannerView: React.FC<PlannerViewProps> = ({ 
     tasks, projects, habits = [], thoughts,
-    onAddTask, onToggleTask, 
+    onAddTask, onToggleTask, onDeleteTask,
     onAddHabit, onToggleHabit, onDeleteHabit
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -84,12 +85,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({
 
   const handleDeleteTask = () => {
       if (!editingTask) return;
-      // Pass special flag or handle delete in parent. 
-      // Assuming onToggleTask can handle _delete property based on App.tsx implementation logic
-      // OR we cast to any if the prop isn't strictly typed for deletion in this file context,
-      // but ideally onToggleTask signature in App.tsx handles updates.
-      // Based on App.tsx, handleUpdateTask handles { _delete: true }
-      (onToggleTask as any)(editingTask.id, { _delete: true });
+      onDeleteTask(editingTask.id);
       setEditingTask(null);
   };
 

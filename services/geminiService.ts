@@ -15,21 +15,6 @@ const getApiKey = () => {
   return '';
 };
 
-const APP_MANUAL = `
-РУКОВОДСТВО SERAFIM OS (v4 PRO):
-1. АРХИТЕКТУРА И ДАННЫЕ:
-   - Пользователь авторизован. Данные в Supabase.
-   - Ты имеешь доступ к ДНЕВНИКУ, ЗАДАЧАМ, МЫСЛЯМ и ПАМЯТИ.
-
-2. ТВОЯ РОЛЬ:
-   - Ты — AI Ментор. 
-   - Ты ОБЯЗАН использовать контекст дневника для ответов. Если пользователь спрашивает "как я себя чувствовал вчера?", ты ищешь запись за вчера и отвечаешь. Не проси пользователя копировать текст.
-
-3. ИНТЕГРАЦИЯ:
-   - 'manage_task': Создание задач.
-   - 'remember_fact': Запоминание важных фактов.
-`;
-
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
@@ -98,54 +83,59 @@ const tools: FunctionDeclaration[] = [
   }
 ];
 
-export const polishTranscript = async (text: string): Promise<string> => {
-  return text; 
-};
-
 export const createMentorChat = (context: any, modelPreference: GeminiModel = 'flash'): Chat => {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("API Key missing");
   
   const ai = new GoogleGenAI({ apiKey });
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
-  const isoNow = new Date().toISOString();
   
   // Format memories
   const memoryContext = context.memories && context.memories.length > 0 
-    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
-    : 'Память пуста.';
+    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ (ФАКТЫ О ПОЛЬЗОВАТЕЛЕ):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+    : 'Память о пользователе пока пуста.';
 
-  // Format Journal (Last 14 days)
-  let journalContext = "ДНЕВНИК (Последние 14 дней):\n";
+  // Format Journal (Last 5 meaningful entries)
+  let journalContext = "ДНЕВНИК (ПОСЛЕДНИЕ ЗАПИСИ):\n";
   const recentJournal = (context.journal || [])
-    .filter((j: JournalEntry) => new Date(j.date) > subDays(new Date(), 14))
-    .sort((a: JournalEntry, b: JournalEntry) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .filter((j: JournalEntry) => j.content && j.content.length > 10)
+    .sort((a: JournalEntry, b: JournalEntry) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
   
   if (recentJournal.length > 0) {
     journalContext += recentJournal.map((j: JournalEntry) => 
-      `[${j.date}] Настроение: ${j.mood || 'N/A'}\nТекст: ${j.content}\nРефлексия: ${j.reflection?.mainFocus || ''}`
+      `[${j.date}] Настроение: ${j.mood || 'N/A'}\nЗапись: ${j.content.substring(0, 300)}...`
     ).join('\n---\n');
   } else {
     journalContext += "Записей нет.";
   }
 
-  // Format Tasks (Simple list)
-  const taskContext = `ТЕКУЩИЕ ЗАДАЧИ:\n${(context.tasks || []).filter((t: Task) => !t.isCompleted).slice(0, 10).map((t: Task) => `- ${t.title} (${t.priority})`).join('\n')}`;
+  // Format Tasks
+  const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted).slice(0, 15);
+  const taskContext = `АКТУАЛЬНЫЕ ЗАДАЧИ (${activeTasks.length}):\n${activeTasks.map((t: Task) => `- ${t.title} [${t.priority}] ${t.dueDate ? `(Дедлайн: ${t.dueDate})` : ''}`).join('\n')}`;
 
-  const SYSTEM_INSTRUCTION = `Ты — Serafim OS v4 Pro (AI Mentor). 
-  ${APP_MANUAL} 
-  
-  Контекст пользователя:
-  - Имя: ${context.userName || 'Пользователь'}
-  - Время: ${isoNow} (${today})
-  
-  ${memoryContext}
-  
-  ${journalContext}
+  const SYSTEM_INSTRUCTION = `
+Ты — Serafim OS (v4 Pro), совершенный цифровой ассистент и второй мозг.
+Твоя личность: Рациональный, эмпатичный, краткий, но глубокий. Ты не просто чат-бот, ты операционная система жизни.
 
-  ${taskContext}
-  
-  Твоя цель: Быть вторым мозгом. Ты видишь дневник пользователя выше. Используй эту информацию для ответов. Будь краток и точен.`;
+ТЕКУЩИЙ КОНТЕКСТ:
+- Пользователь: ${context.userName || 'Архитектор'}
+- Сейчас: ${today}
+
+${memoryContext}
+
+${journalContext}
+
+${taskContext}
+
+ПРАВИЛА:
+1. Твой голос должен быть естественным для TTS (Text-to-Speech). Избегай сложных списков с кучей буллетов, если это не необходимо. Пиши так, как говорят люди.
+2. Используй контекст Дневника и Задач. Если пользователь жалуется на усталость, проверь, не перегружен ли он задачами.
+3. Если пользователь просит что-то сделать (создать задачу, запомнить, поменять тему) — ВСЕГДА вызывай соответствующий инструмент (tool function). Не просто говори "Я сделаю", а делай.
+4. Будь проактивен. Если видишь конфликт в расписании или высокий уровень стресса в дневнике, предложи помощь.
+
+Ты интегрирован в интерфейс. Твои ответы рендерятся и озвучиваются.
+`;
 
   // Map user preference to actual API models
   const modelName = modelPreference === 'pro' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
@@ -181,5 +171,21 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
     return JSON.parse(response.text || "{}");
   } catch (e) { 
     return {}; 
+  }
+};
+
+export const fixGrammar = async (text: string) => {
+  const apiKey = getApiKey();
+  if (!apiKey) return text;
+
+  const ai = new GoogleGenAI({ apiKey });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Исправь пунктуацию, грамматику и регистр в этом тексте. Это транскрипция голоса. Если есть английские слова, написанные кириллицей (например "хэлоу"), исправь их на английский (Hello). Верни ТОЛЬКО исправленный текст без комментариев: "${text}"`,
+    });
+    return response.text?.trim() || text;
+  } catch (e) {
+    return text;
   }
 };
