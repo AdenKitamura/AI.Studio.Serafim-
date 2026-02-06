@@ -50,6 +50,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [interimText, setInterimText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [agentLogs, setAgentLogs] = useState<{msg: string, type: 'tool' | 'info' | 'success'}[]>([]);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   
   const recognitionRef = useRef<any>(null);
   const chatSessionRef = useRef<any>(null);
@@ -60,35 +61,67 @@ const Mentorship: React.FC<MentorshipProps> = ({
   
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
+  // --- TTS SETUP: Load Voices ---
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        setAvailableVoices(voices);
+      }
+    };
+
+    loadVoices();
+    
+    // Chrome/Android load voices asynchronously
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
   // --- TTS LOGIC (Individual Message) ---
   const speakMessage = (text: string, id: string) => {
     if (!window.speechSynthesis) return;
     
-    // Stop if currently speaking this message
+    // 1. If currently speaking this exact message, stop it.
     if (speakingMessageId === id) {
         window.speechSynthesis.cancel();
         setSpeakingMessageId(null);
         return;
     }
 
-    // Stop any other speech
+    // 2. Stop any previous speech immediately
     window.speechSynthesis.cancel();
 
-    // Clean text
-    const cleanText = text.replace(/[*#`]/g, '');
+    // 3. Clean text (Remove Markdown bold, italics, etc for smoother speech)
+    const cleanText = text
+      .replace(/[*#`_]/g, '') // remove markdown chars
+      .replace(/\n\n/g, '. '); // replace double newlines with pauses
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'ru-RU';
-    utterance.rate = 1.1;
-    
-    const voices = window.speechSynthesis.getVoices();
-    const ruVoice = voices.find(v => v.lang.includes('ru') && !v.name.includes('Google')); 
-    if (ruVoice) utterance.voice = ruVoice;
+    utterance.rate = 1.05; // Slightly faster for conversational feel
+    utterance.pitch = 1;
 
+    // 4. Select Best Russian Voice
+    // Priority: Google Russian -> Microsoft Russian -> Any Russian
+    const ruVoice = availableVoices.find(v => v.lang.includes('ru') && v.name.includes('Google')) 
+                 || availableVoices.find(v => v.lang.includes('ru'));
+
+    if (ruVoice) {
+      utterance.voice = ruVoice;
+      utterance.lang = ruVoice.lang;
+    } else {
+      // Fallback if no RU voice found (unlikely on modern OS)
+      utterance.lang = 'ru-RU'; 
+    }
+
+    // 5. Handle State
+    utterance.onstart = () => setSpeakingMessageId(id);
     utterance.onend = () => setSpeakingMessageId(null);
-    utterance.onerror = () => setSpeakingMessageId(null);
+    utterance.onerror = (e) => {
+        console.error("TTS Error", e);
+        setSpeakingMessageId(null);
+    };
 
-    setSpeakingMessageId(id);
     window.speechSynthesis.speak(utterance);
   };
 
@@ -379,7 +412,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 {msg.role === 'model' && (
                     <button 
                         onClick={() => speakMessage(msg.content, msg.id)}
-                        className={`absolute -bottom-8 left-2 p-2 rounded-full transition-all ${speakingMessageId === msg.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] opacity-0 group-hover:opacity-100'}`}
+                        className={`absolute -bottom-8 left-2 p-2 rounded-full transition-all cursor-pointer ${speakingMessageId === msg.id ? 'bg-[var(--accent)] text-white shadow-lg scale-110' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)]'}`}
                     >
                         {speakingMessageId === msg.id ? <VolumeX size={16} className="animate-pulse" /> : <Volume2 size={16} />}
                     </button>
