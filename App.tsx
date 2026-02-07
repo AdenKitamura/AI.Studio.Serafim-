@@ -306,8 +306,16 @@ const App = () => {
               tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} memories={memories}
               sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
               onUpdateMessages={(msgs) => { 
-                  const updatedSession = { ...sessions.find(s => s.id === activeSessionId)!, messages: msgs, lastInteraction: Date.now() };
-                  setSessions(prev => prev.map(s => s.id === activeSessionId ? updatedSession : s));
+                  const sessionIndex = sessions.findIndex(s => s.id === activeSessionId);
+                  if (sessionIndex === -1) return; // Guard against missing session
+                  
+                  const updatedSession = { ...sessions[sessionIndex], messages: msgs, lastInteraction: Date.now() };
+                  
+                  // Optimistic update
+                  const newSessions = [...sessions];
+                  newSessions[sessionIndex] = updatedSession;
+                  
+                  setSessions(newSessions);
                   persist('chat_sessions', updatedSession);
               }}
               onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); }}

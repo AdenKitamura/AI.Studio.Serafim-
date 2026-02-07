@@ -5,7 +5,7 @@ import * as googleService from '../services/googleService';
 import { logger } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -51,6 +51,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [agentLogs, setAgentLogs] = useState<{msg: string, type: 'tool' | 'info' | 'success'}[]>([]);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(true);
   
   const recognitionRef = useRef<any>(null);
   const chatSessionRef = useRef<any>(null);
@@ -61,12 +62,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
   
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
-  // --- TTS SETUP: Load Voices ---
+  // --- TTS SETUP: Load Voices SAFELY ---
   useEffect(() => {
+    // Safety check: if browser doesn't support speech synthesis, do nothing (don't crash)
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
     const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        setAvailableVoices(voices);
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          setAvailableVoices(voices);
+        }
+      } catch (e) {
+        console.warn("TTS voices load error", e);
       }
     };
 
@@ -80,7 +88,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   // --- TTS LOGIC (Individual Message) ---
   const speakMessage = (text: string, id: string) => {
-    if (!window.speechSynthesis) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+        addLog('Озвучка недоступна на этом устройстве', 'tool');
+        return;
+    }
     
     // 1. If currently speaking this exact message, stop it.
     if (speakingMessageId === id) {
@@ -122,11 +133,16 @@ const Mentorship: React.FC<MentorshipProps> = ({
         setSpeakingMessageId(null);
     };
 
-    window.speechSynthesis.speak(utterance);
+    try {
+        window.speechSynthesis.speak(utterance);
+    } catch (e) {
+        console.error("Speak error", e);
+        setSpeakingMessageId(null);
+    }
   };
 
   const stopSpeaking = () => {
-    if (window.speechSynthesis) {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
         setSpeakingMessageId(null);
     }
@@ -146,52 +162,69 @@ const Mentorship: React.FC<MentorshipProps> = ({
       }
   };
 
-  // Setup Speech Recognition
+  // Setup Speech Recognition - STRICT SAFETY CHECK
   useEffect(() => {
-    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      const rec = new SpeechRecognition();
-      rec.continuous = false; // Reset to false for better stability on mobile
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-      rec.lang = 'ru-RU';
-      
-      rec.onresult = async (event: any) => {
-        let finalStr = '';
-        let interimStr = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) finalStr += event.results[i][0].transcript;
-          else interimStr = event.results[i][0].transcript;
-        }
+    if (typeof window === 'undefined') return;
 
-        if (finalStr) {
-            stopSpeaking(); 
-            // Auto-Magic Fix: immediately trigger Gemini to clean up the voice input
-            setInterimText('✨ Улучшаю...');
-            setIsFixingGrammar(true);
-            try {
-                const fixed = await fixGrammar(finalStr);
-                setInput(prev => {
-                   const separator = prev.length > 0 ? ' ' : '';
-                   return prev + separator + fixed;
-                });
-            } catch (e) {
-                // Fallback to raw input if AI fails
-                setInput(prev => (prev + ' ' + finalStr).trim());
-            } finally {
-                setIsFixingGrammar(false);
-                setInterimText('');
-            }
-        } else {
-            setInterimText(interimStr);
-        }
-      };
-      
-      rec.onstart = () => { setIsRecording(true); stopSpeaking(); };
-      rec.onend = () => { setIsRecording(false); if(!isFixingGrammar) setInterimText(''); };
-      rec.onerror = (e: any) => { console.error('Speech error:', e); setIsRecording(false); setInterimText(''); };
-      
-      recognitionRef.current = rec;
+    // Check if API exists
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        setIsSpeechSupported(false);
+        return;
+    }
+
+    try {
+        const rec = new SpeechRecognition();
+        rec.continuous = false; // Reset to false for better stability on mobile
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        rec.lang = 'ru-RU';
+        
+        rec.onresult = async (event: any) => {
+          let finalStr = '';
+          let interimStr = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) finalStr += event.results[i][0].transcript;
+            else interimStr = event.results[i][0].transcript;
+          }
+
+          if (finalStr) {
+              stopSpeaking(); 
+              // Auto-Magic Fix: immediately trigger Gemini to clean up the voice input
+              setInterimText('✨ Улучшаю...');
+              setIsFixingGrammar(true);
+              try {
+                  const fixed = await fixGrammar(finalStr);
+                  setInput(prev => {
+                    const separator = prev.length > 0 ? ' ' : '';
+                    return prev + separator + fixed;
+                  });
+              } catch (e) {
+                  // Fallback to raw input if AI fails
+                  setInput(prev => (prev + ' ' + finalStr).trim());
+              } finally {
+                  setIsFixingGrammar(false);
+                  setInterimText('');
+              }
+          } else {
+              setInterimText(interimStr);
+          }
+        };
+        
+        rec.onstart = () => { setIsRecording(true); stopSpeaking(); };
+        rec.onend = () => { setIsRecording(false); if(!isFixingGrammar) setInterimText(''); };
+        rec.onerror = (e: any) => { 
+            console.error('Speech error:', e); 
+            setIsRecording(false); 
+            setInterimText(''); 
+            // If not allowed, don't crash, just stop
+        };
+        
+        recognitionRef.current = rec;
+    } catch (e) {
+        console.error("Failed to initialize speech recognition", e);
+        setIsSpeechSupported(false);
     }
 
     return () => {
@@ -210,12 +243,23 @@ const Mentorship: React.FC<MentorshipProps> = ({
   }, [activeSessionId]);
 
   const toggleVoice = () => {
-    if (!recognitionRef.current) return;
+    if (!recognitionRef.current) {
+        if (!isSpeechSupported) {
+            alert('Ваш браузер не поддерживает голосовой ввод. Попробуйте Google Chrome.');
+        }
+        return;
+    }
+    
     if (isRecording) {
       recognitionRef.current.stop();
     } else {
-      recognitionRef.current.lang = 'ru-RU';
-      recognitionRef.current.start();
+      try {
+        recognitionRef.current.lang = 'ru-RU';
+        recognitionRef.current.start();
+      } catch (e) {
+        console.error("Start error", e);
+        setIsRecording(false);
+      }
     }
   };
 
@@ -480,7 +524,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
               onClick={toggleVoice} 
               className={`p-3 transition-colors ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
             >
-              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+              {!isSpeechSupported ? <AlertTriangle size={20} className="text-amber-500 opacity-50" /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
 
             {/* Send Button */}
