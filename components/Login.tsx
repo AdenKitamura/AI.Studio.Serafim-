@@ -8,10 +8,6 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     
-    // DYNAMIC REDIRECT FIX:
-    // Вместо хардкода адреса, мы говорим Supabase: "Верни пользователя туда, где он сейчас находится".
-    // Это чинит проблему, когда Vercel создает preview-ссылки, или когда основной домен глючит.
-    // Главное, чтобы этот URL был добавлен в Whitelist в Supabase.
     const redirectUrl = window.location.origin;
 
     console.log('Initiating Login. Redirect target:', redirectUrl);
@@ -19,7 +15,13 @@ const Login = () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl, 
+        redirectTo: redirectUrl,
+        // CRITICAL: Request access to Tasks and Calendar
+        scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
+        queryParams: {
+          access_type: 'offline', // Request Refresh Token to keep connection alive
+          prompt: 'consent', // Force consent screen to ensure we get the token
+        },
       },
     });
     
@@ -82,8 +84,7 @@ const Login = () => {
         </button>
         
         <p className="mt-8 text-[9px] text-zinc-600 font-medium max-w-xs text-center leading-relaxed">
-          Access is restricted to authorized personnel. <br/>
-          By entering, you agree to the cognitive protocols.
+          Serafim требует доступа к Google Tasks и Calendar для полной функциональности.
         </p>
 
       </div>

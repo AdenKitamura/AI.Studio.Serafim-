@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType, GeminiModel } from '../types';
 import Settings from './Settings';
 import { 
   X, Settings as SettingsIcon, HardDrive, 
-  CheckCircle, LogOut, User, Terminal, Wifi, Cloud
+  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { logger, SystemLog } from '../services/logger';
@@ -42,6 +42,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       google: 'checking'
   });
   
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  
   // Storage Estimate
   useEffect(() => {
     if (navigator.storage && navigator.storage.estimate) {
@@ -61,9 +63,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   // Logs Subscription
   useEffect(() => {
       setLogs(logger.getLogs());
-      const unsub = logger.subscribe((newLogs) => setLogs([...newLogs]));
+      const unsub = logger.subscribe((newLogs) => {
+          setLogs([...newLogs]);
+      });
       return unsub;
   }, []);
+
+  // Auto-scroll logs
+  useEffect(() => {
+      if (activeTab === 'console') {
+          setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      }
+  }, [logs, activeTab]);
 
   // Connection Check
   useEffect(() => {
@@ -231,64 +242,60 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             )}
             
-            {/* --- CONSOLE TAB (Logs & Connectivity) --- */}
+            {/* --- CONSOLE TAB (Real-time Logs) --- */}
             {activeTab === 'console' && (
-              <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32">
+              <div className="p-6 h-full overflow-y-auto space-y-6 no-scrollbar pb-32 flex flex-col">
                   
                   {/* Connectivity Dashboard */}
-                  <div className="glass-panel rounded-2xl p-5 border border-[var(--border-color)] space-y-4">
+                  <div className="glass-panel rounded-2xl p-5 border border-[var(--border-color)] space-y-4 shrink-0">
                       <div className="flex items-center gap-2 mb-2">
-                          <Wifi size={16} className="text-[var(--accent)]"/>
-                          <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Статус Соединений</h3>
+                          <Activity size={16} className="text-[var(--accent)]"/>
+                          <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Статус Сети</h3>
                       </div>
                       
-                      <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
-                          <div className="flex items-center gap-3">
-                              <Cloud size={16} className="text-emerald-500" />
-                              <span className="text-xs font-bold text-[var(--text-main)]">Supabase DB</span>
+                      <div className="grid grid-cols-1 gap-2">
+                          <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
+                              <div className="flex items-center gap-3">
+                                  <Cloud size={14} className="text-emerald-500" />
+                                  <span className="text-[10px] font-bold text-[var(--text-main)]">Supabase DB</span>
+                              </div>
+                              <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.supabase)}`}>
+                                  {connectionStatus.supabase} {statusIcon(connectionStatus.supabase)}
+                              </div>
                           </div>
-                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${statusColor(connectionStatus.supabase)}`}>
-                              {connectionStatus.supabase} {statusIcon(connectionStatus.supabase)}
-                          </div>
-                      </div>
 
-                      <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
-                          <div className="flex items-center gap-3">
-                              <Terminal size={16} className="text-purple-500" />
-                              <span className="text-xs font-bold text-[var(--text-main)]">Gemini API</span>
-                          </div>
-                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${statusColor(connectionStatus.gemini)}`}>
-                              {connectionStatus.gemini} {statusIcon(connectionStatus.gemini)}
-                          </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
-                          <div className="flex items-center gap-3">
-                              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" />
-                              <span className="text-xs font-bold text-[var(--text-main)]">Tasks & Calendar</span>
-                          </div>
-                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${statusColor(connectionStatus.google)}`}>
-                              {connectionStatus.google} {statusIcon(connectionStatus.google)}
+                          <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
+                              <div className="flex items-center gap-3">
+                                  <Terminal size={14} className="text-purple-500" />
+                                  <span className="text-[10px] font-bold text-[var(--text-main)]">Gemini API</span>
+                              </div>
+                              <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.gemini)}`}>
+                                  {connectionStatus.gemini} {statusIcon(connectionStatus.gemini)}
+                              </div>
                           </div>
                       </div>
                   </div>
 
-                  {/* System Logs */}
-                  <div className="glass-panel rounded-2xl p-1 border border-[var(--border-color)] flex flex-col h-80">
-                      <div className="px-4 py-2 bg-[var(--bg-main)] border-b border-[var(--border-color)] rounded-t-xl flex justify-between items-center">
-                          <span className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">System Logs</span>
-                          <button onClick={() => logger.clear()} className="text-[var(--text-muted)] hover:text-white"><X size={12}/></button>
+                  {/* Real-time System Logs */}
+                  <div className="glass-panel rounded-2xl p-1 border border-[var(--border-color)] flex flex-col flex-1 overflow-hidden shadow-2xl">
+                      <div className="px-4 py-3 bg-[var(--bg-main)] border-b border-[var(--border-color)] rounded-t-xl flex justify-between items-center shrink-0">
+                          <div className="flex items-center gap-2">
+                            <Terminal size={12} className="text-[var(--accent)]" />
+                            <span className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">Live Kernel Output</span>
+                          </div>
+                          <button onClick={() => logger.clear()} className="text-[9px] font-bold uppercase text-[var(--text-muted)] hover:text-white bg-white/5 px-2 py-1 rounded">Clear</button>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-[10px] bg-black/40 rounded-b-xl">
-                          {logs.length === 0 && <span className="text-[var(--text-muted)] opacity-50">Log is empty...</span>}
+                      <div className="flex-1 overflow-y-auto p-4 space-y-1.5 font-mono text-[10px] bg-black/80 rounded-b-xl scrollbar-thin scrollbar-thumb-white/20">
+                          {logs.length === 0 && <span className="text-[var(--text-muted)] opacity-50 italic">>> System initialized. Waiting for input...</span>}
                           {logs.map(log => (
-                              <div key={log.id} className="flex gap-2">
-                                  <span className="text-[var(--text-muted)] opacity-50">[{log.timestamp}]</span>
-                                  <span className={`${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : 'text-[var(--text-main)]'}`}>
-                                      {log.message}
+                              <div key={log.id} className="flex gap-2 break-all animate-in fade-in slide-in-from-left-1 duration-100">
+                                  <span className="text-[var(--text-muted)] opacity-40 shrink-0">[{log.timestamp}]</span>
+                                  <span className={`${log.type === 'error' ? 'text-red-400 font-bold' : log.type === 'success' ? 'text-emerald-400' : log.type === 'warning' ? 'text-amber-400' : 'text-emerald-500/80'}`}>
+                                      <span className="opacity-50 mr-2">{'>'}</span>{log.message}
                                   </span>
                               </div>
                           ))}
+                          <div ref={logsEndRef} className="h-4" />
                       </div>
                   </div>
 

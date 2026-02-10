@@ -18,6 +18,7 @@ import Login from './components/Login';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
+import { logger } from './services/logger';
 import { 
   Zap, Loader2, Settings as SettingsIcon
 } from 'lucide-react';
@@ -69,6 +70,7 @@ const App = () => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state && event.state.view) {
         setView(event.state.view);
+        logger.log('Nav', `Navigated back to ${event.state.view}`, 'info');
       } else {
         // Fallback or exit
         setView('dashboard');
@@ -81,6 +83,7 @@ const App = () => {
 
   const navigateTo = (newView: ViewState) => {
     if (newView === view) return;
+    logger.log('Nav', `Switching view to: ${newView}`, 'info');
     window.history.pushState({ view: newView }, '', '');
     setView(newView);
   };
@@ -90,6 +93,7 @@ const App = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
+      if(session) logger.log('Auth', 'Session restored', 'success');
     });
 
     const {
@@ -114,6 +118,7 @@ const App = () => {
       if (!userId) return;
 
       const loadFromDB = async () => {
+        logger.log('System', 'Loading local data...', 'info');
         const [t, th, j, p, h, s, m] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
@@ -135,6 +140,7 @@ const App = () => {
           const initS: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
           setSessions([initS]); setActiveSessionId(initS.id);
         }
+        logger.log('System', 'Local data loaded', 'success');
       };
 
       // 1. Start Background Sync (Async)
@@ -332,6 +338,7 @@ const App = () => {
               onConnectAI={() => setShowSettings(true)}
               voiceTrigger={voiceTrigger}
               userName={userName}
+              session={session}
             />
           )}
           {view === 'journal' && (

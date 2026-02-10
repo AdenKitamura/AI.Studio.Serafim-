@@ -1,5 +1,6 @@
 import { Task, Thought, JournalEntry, Project, Habit, ChatSession, Memory } from '../types';
 import { supabase } from './supabaseClient';
+import { logger } from './logger';
 
 const DB_NAME = 'SerafimOS_DB';
 const DB_VERSION = 4;
@@ -13,6 +14,7 @@ class DBService {
   public async setAuth(userId: string | null) {
       this.userId = userId;
       if (this.userId) {
+          logger.log('DB', `Authenticated user ${userId.substring(0,6)}...`, 'info');
           await this.syncAllTables();
       }
   }
@@ -45,12 +47,19 @@ class DBService {
     const itemWithUser = { ...item, user_id: this.userId };
     const mappedItem = this.mapToSnakeCase(storeName, itemWithUser);
     
+    logger.log('Cloud', `Pushing to ${storeName}...`, 'info');
     const { error } = await supabase.from(storeName).upsert(mappedItem);
-    if (error) console.error(`Sync error [${storeName}]:`, error);
+    if (error) {
+        console.error(`Sync error [${storeName}]:`, error);
+        logger.log('Cloud', `Sync Error: ${error.message}`, 'error');
+    } else {
+        logger.log('Cloud', `Synced ${storeName} item`, 'success');
+    }
   }
 
   private async deleteFromCloud(storeName: string, id: string) {
     if (!this.userId) return;
+    logger.log('Cloud', `Deleting from ${storeName}...`, 'info');
     await supabase.from(storeName).delete().eq('id', id);
   }
 
@@ -62,7 +71,7 @@ class DBService {
     if (item.isCompleted !== undefined) { res.is_completed = item.isCompleted; delete res.isCompleted; }
     if (item.createdAt) { res.created_at = item.createdAt; delete res.createdAt; }
     if (item.projectId) { res.project_id = item.projectId; delete res.projectId; }
-    if (item.columnId) { res.column_id = item.columnId; delete res.columnId; }
+    if (item.columnId) { res.column_id = item.columnId; delete res.column_id; }
     if (item.completedDates) { res.completed_dates = item.completedDates; delete res.completedDates; }
     if (item.isArchived !== undefined) { res.is_archived = item.isArchived; delete res.isArchived; }
     if (item.lastInteraction) { res.last_interaction = item.lastInteraction; delete res.lastInteraction; }
@@ -97,7 +106,7 @@ class DBService {
   public async syncAllTables() {
     if (!this.userId) return;
 
-    console.log('☁️ Starting Supabase Sync...');
+    logger.log('Sync', 'Starting full synchronization...', 'info');
     const tables = ['tasks', 'thoughts', 'journal', 'projects', 'habits', 'chat_sessions', 'memories'];
     
     for (const table of tables) {
@@ -109,9 +118,10 @@ class DBService {
         await this.saveAll(table, localItems, false);
       } else if (error) {
         console.error('Sync Error on table ' + table, error);
+        logger.log('Sync', `Error syncing ${table}: ${error.message}`, 'error');
       }
     }
-    console.log('☁️ Sync Complete');
+    logger.log('Sync', 'Full synchronization complete.', 'success');
   }
 
   // --- CRUD ---
