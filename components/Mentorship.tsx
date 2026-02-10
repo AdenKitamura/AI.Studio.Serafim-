@@ -260,7 +260,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 logger.log('System', 'Task created locally', 'success');
 
                 // 2. Google Sync Debug
-                const googleToken = session?.provider_token;
+                // Try session token first, then cached token
+                const googleToken = session?.provider_token || localStorage.getItem('google_access_token');
                 
                 if (googleToken) {
                     logger.log('Google', 'Attempting Sync...', 'info');
@@ -270,7 +271,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                         logger.log('Google', 'Sync Exception', 'error', syncError.message);
                     }
                 } else {
-                    logger.log('Google', 'Token missing. Re-connect in Settings.', 'warning');
+                    logger.log('Google', 'Token missing. Please re-login for sync.', 'warning');
                 }
               }
               break;

@@ -10,14 +10,17 @@ const Login = () => {
     
     const redirectUrl = window.location.origin;
 
-    // FIX: Removed "scopes" and "access_type: offline".
-    // This allows basic profile login for ANYONE without Google Verification blocks.
+    // REQUEST SCOPES for Tasks & Calendar.
+    // NOTE: This might show "App not verified" warning from Google. 
+    // User must click "Advanced" -> "Proceed to App (unsafe)" to allow syncing.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
+        scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
         queryParams: {
-          prompt: 'select_account',
+          access_type: 'offline',
+          prompt: 'consent',
         },
       },
     });
@@ -58,7 +61,7 @@ const Login = () => {
                    <Cpu size={10} /> Public Core
                 </span>
                 <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-zinc-900 border border-zinc-800">
-                   <ShieldCheck size={10} /> Secured
+                   <ShieldCheck size={10} /> Sync Active
                 </span>
             </div>
         </div>
@@ -76,12 +79,12 @@ const Login = () => {
           
           <div className="absolute inset-0 flex items-center justify-center gap-3 translate-y-full transition-transform duration-500 ease-out group-hover:translate-y-0 text-black">
              {loading ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} />}
-             <span>{loading ? 'Connecting...' : 'Enter System'}</span>
+             <span>{loading ? 'Google Auth...' : 'Enter System'}</span>
           </div>
         </button>
         
         <p className="mt-8 text-[9px] text-zinc-600 font-medium max-w-xs text-center leading-relaxed">
-          Безопасный вход. Синхронизация задач подключается в настройках.
+          Включает синхронизацию Google Tasks и Calendar. Если увидите предупреждение безопасности — нажмите "Advanced" -> "Proceed".
         </p>
 
       </div>

@@ -3,6 +3,7 @@ import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types'
 import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, X, Trash2, ArrowRight } from 'lucide-react';
 import { format, isToday, isFuture, differenceInMinutes } from 'date-fns';
 import HabitTracker from './HabitTracker';
+import Ticker from './Ticker';
 
 interface DashboardProps {
   tasks: Task[];
@@ -67,8 +68,10 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="flex flex-col h-full bg-transparent overflow-y-auto no-scrollbar pb-40">
       
-      {/* Spacer */}
-      <div className="pt-8"></div>
+      {/* Ticker Section */}
+      <div className="pt-2 px-0 mb-4">
+          <Ticker />
+      </div>
 
       <div className="px-6 space-y-6">
         

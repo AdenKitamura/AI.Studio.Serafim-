@@ -19,7 +19,7 @@ import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
 import { logger } from './services/logger';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, Menu
+  Zap, Loader2, Settings as SettingsIcon, History
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
@@ -82,13 +82,25 @@ const App = () => {
 
   // --- AUTH INITIALIZATION ---
   useEffect(() => {
+    // Check local session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
+      // Try to save token if it exists initially (rare but possible on direct redirect)
+      if (session?.provider_token) {
+          localStorage.setItem('google_access_token', session.provider_token);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      
+      // CRITICAL: Persist Google Token because Supabase drops it on refresh
+      if (session?.provider_token) {
+          localStorage.setItem('google_access_token', session.provider_token);
+          logger.log('Auth', 'Google Token refreshed and saved', 'success');
+      }
+
       if (session && window.location.hash && window.location.hash.includes('access_token')) {
          window.history.replaceState(null, '', window.location.pathname);
       }
@@ -229,9 +241,9 @@ const App = () => {
       <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
         <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto h-[60px] flex items-center px-5 justify-between max-w-7xl mx-auto w-full transition-all">
             
-            {/* Brand / History Toggle */}
+            {/* Brand (Home) */}
             <button 
-              onClick={() => setShowChatHistory(true)}
+              onClick={() => navigateTo('dashboard')}
               className="flex items-center gap-2 group active:opacity-70 transition-opacity"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-white shadow-lg">
@@ -244,6 +256,13 @@ const App = () => {
 
             {/* Quick Actions */}
             <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowChatHistory(true)} 
+                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
+              >
+                <History size={18} />
+              </button>
+
               <button 
                 onClick={() => setShowTimer(!showTimer)} 
                 className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
@@ -262,7 +281,6 @@ const App = () => {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      {/* Reduced paddingTop to 60px (Header height), paddingBottom to 100px for Fab */}
       <div 
         className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 ${isModalOpen ? 'scale-[0.95] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
         style={{ transformOrigin: 'center center' }}
