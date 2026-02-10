@@ -5,7 +5,6 @@ import PlannerView from './components/PlannerView';
 import JournalView from './components/JournalView';
 import ProjectsView from './components/ProjectsView';
 import ThoughtsView from './components/ThoughtsView';
-import Ticker from './components/Ticker';
 import ProfileModal from './components/ProfileModal';
 import FocusTimer from './components/FocusTimer';
 import Dashboard from './components/Dashboard';
@@ -20,7 +19,7 @@ import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
 import { logger } from './services/logger';
 import { 
-  Zap, Loader2, Settings as SettingsIcon
+  Zap, Loader2, Settings as SettingsIcon, Menu
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
@@ -62,28 +61,21 @@ const App = () => {
   const [voiceTrigger, setVoiceTrigger] = useState(0);
 
   // --- NAVIGATION & HISTORY API ---
-  // This enables native "Back" swipe gesture on mobile
   useEffect(() => {
-    // Set initial state
     window.history.replaceState({ view: 'dashboard' }, '');
-
     const handlePopState = (event: PopStateEvent) => {
       if (event.state && event.state.view) {
         setView(event.state.view);
-        logger.log('Nav', `Navigated back to ${event.state.view}`, 'info');
       } else {
-        // Fallback or exit
         setView('dashboard');
       }
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const navigateTo = (newView: ViewState) => {
     if (newView === view) return;
-    logger.log('Nav', `Switching view to: ${newView}`, 'info');
     window.history.pushState({ view: newView }, '', '');
     setView(newView);
   };
@@ -93,12 +85,9 @@ const App = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
-      if(session) logger.log('Auth', 'Session restored', 'success');
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session && window.location.hash && window.location.hash.includes('access_token')) {
          window.history.replaceState(null, '', window.location.pathname);
@@ -112,13 +101,11 @@ const App = () => {
   const userEmail = session?.user?.email;
   const userName = session?.user?.user_metadata?.full_name || userEmail?.split('@')[0] || 'User';
 
-  // --- DATA SYNC (Load -> Sync -> Reload Pattern) ---
+  // --- DATA SYNC ---
   useEffect(() => {
     const fetchData = async () => {
       if (!userId) return;
-
       const loadFromDB = async () => {
-        logger.log('System', 'Loading local data...', 'info');
         const [t, th, j, p, h, s, m] = await Promise.all([
           dbService.getAll<Task>('tasks'),
           dbService.getAll<Thought>('thoughts'),
@@ -130,7 +117,6 @@ const App = () => {
         ]);
         
         setTasks(t); setThoughts(th); setJournal(j); setHabits(h); setMemories(m);
-        // If projects empty, add default, BUT do not persist it yet to avoid conflict if cloud has data
         setProjects(p.length > 0 ? p : [{ id: 'p1', title: 'Личное', color: '#10b981', createdAt: new Date().toISOString() }]); 
         
         if (s.length > 0) {
@@ -140,21 +126,12 @@ const App = () => {
           const initS: ChatSession = { id: 'init', title: 'Серафим', category: 'general', messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
           setSessions([initS]); setActiveSessionId(initS.id);
         }
-        logger.log('System', 'Local data loaded', 'success');
       };
 
-      // 1. Start Background Sync (Async)
-      // We do not await this immediately so the UI loads fast from local cache
       const syncPromise = dbService.setAuth(userId);
-
-      // 2. Load what we have Locally immediately
       await loadFromDB();
       setIsDataReady(true);
-
-      // 3. Wait for Cloud Sync to finish
       await syncPromise;
-
-      // 4. Reload Data to reflect Cloud State (Fixes empty projects on new devices)
       await loadFromDB();
     };
 
@@ -180,10 +157,6 @@ const App = () => {
     root.style.setProperty('--icon-weight', iconWeight);
     body.setAttribute('data-theme-type', theme.type);
     
-    // Background handling removed from here as per request, just clean up
-    body.setAttribute('data-texture', 'none');
-    root.style.removeProperty('--custom-bg');
-
     localStorage.setItem('sb_theme', validTheme);
     localStorage.setItem('sb_icon_weight', iconWeight);
     localStorage.setItem('sb_gemini_model', geminiModel);
@@ -197,22 +170,14 @@ const App = () => {
   const handleAddTask = (task: Task) => { 
       setTasks(prev => [task, ...prev]); 
       persist('tasks', task); 
-      logger.log('User', `Created task: ${task.title}`, 'success');
   };
   
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
     setTasks(prev => {
         const taskIndex = prev.findIndex(t => t.id === id);
         if (taskIndex === -1) return prev;
-        
         const updatedTask = { ...prev[taskIndex], ...updates };
         persist('tasks', updatedTask);
-        
-        // Semantic Logging for meaningful updates
-        if (updates.isCompleted !== undefined) {
-            logger.log('User', updates.isCompleted ? 'Task completed' : 'Task restored', 'info');
-        }
-        
         const newTasks = [...prev];
         newTasks[taskIndex] = updatedTask;
         return newTasks;
@@ -222,7 +187,6 @@ const App = () => {
   const handleDeleteTask = (id: string) => {
       setTasks(prev => prev.filter(t => t.id !== id));
       remove('tasks', id);
-      logger.log('User', 'Task deleted', 'warning');
   };
 
   const handleUpdateProject = (id: string, updates: Partial<Project>) => {
@@ -233,12 +197,12 @@ const App = () => {
     const updatedThought = thoughts.find(t => t.id === id);
     if (updatedThought) { const newThought = { ...updatedThought, ...updates }; setThoughts(prev => prev.map(t => t.id === id ? newThought : t)); persist('thoughts', newThought); }
   };
-  const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); logger.log('User', `Habit added: ${habit.title}`, 'success'); };
+  const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); };
   const handleToggleHabit = (id: string, date: string) => {
     const habit = habits.find(h => h.id === id);
     if (habit) { const exists = habit.completedDates.includes(date); const newHabit = { ...habit, completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date] }; setHabits(prev => prev.map(h => h.id === id ? newHabit : h)); persist('habits', newHabit); }
   };
-  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); logger.log('User', 'Habit deleted', 'warning'); };
+  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); };
   const handleStartFocus = (mins: number) => { setShowTimer(true); };
   
   const hasAiKey = useMemo(() => {
@@ -259,46 +223,51 @@ const App = () => {
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-black relative">
+    <div className="h-[100dvh] w-full overflow-hidden bg-black relative selection:bg-[var(--accent)]/30">
       
-      {/* UNIFIED FIXED HEADER & TICKER (The Levitating Glass) */}
-      <div className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 pointer-events-none">
-        {/* Actual Header Content */}
-        <div className="bg-[var(--bg-main)]/85 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto transition-colors duration-500">
-           <header className="flex items-center justify-between px-6 pt-safe-top h-[70px] max-w-7xl mx-auto w-full">
+      {/* MINIMAL HEADER */}
+      <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
+        <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto h-[60px] flex items-center px-5 justify-between max-w-7xl mx-auto w-full transition-all">
+            
+            {/* Brand / History Toggle */}
             <button 
               onClick={() => setShowChatHistory(true)}
-              className="group flex items-center gap-1 cursor-pointer active:scale-95 transition-transform"
+              className="flex items-center gap-2 group active:opacity-70 transition-opacity"
             >
-              <h1 className="font-extrabold text-2xl tracking-tighter text-[var(--text-main)] drop-shadow-lg">
-                Serafim OS<span className="text-[var(--accent)] text-3xl leading-none">.</span>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-white shadow-lg">
+                 <span className="font-black text-xs">S</span>
+              </div>
+              <h1 className="font-bold text-lg tracking-tight text-[var(--text-main)]">
+                Serafim
               </h1>
             </button>
 
-            <div className="flex items-center gap-3">
-              <button onClick={() => setShowTimer(!showTimer)} className="w-10 h-10 rounded-2xl flex items-center justify-center glass-panel text-[var(--accent)] hover:text-white transition-all hover:bg-[var(--accent)] glass-btn"><Zap size={20} /></button>
+            {/* Quick Actions */}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowTimer(!showTimer)} 
+                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
+              >
+                <Zap size={18} />
+              </button>
               
               <button 
                 onClick={() => setShowSettings(true)} 
-                className="w-10 h-10 rounded-2xl glass-panel flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all glass-btn relative"
+                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
               >
-                {session && <div className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full"></div>}
-                <SettingsIcon size={20} />
+                <SettingsIcon size={18} />
               </button>
             </div>
-          </header>
-
-          <Ticker onClick={() => setShowQuotes(true)} />
         </div>
       </div>
 
       {/* MAIN CONTENT AREA */}
-      {/* Updated padding-bottom to 128px (approx 32 tailwind units) for the new larger Dock */}
+      {/* Reduced paddingTop to 60px (Header height), paddingBottom to 100px for Fab */}
       <div 
-        className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
+        className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 ${isModalOpen ? 'scale-[0.95] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        <main className="flex-1 relative overflow-hidden z-10 pt-[110px] pb-32">
+        <main className="flex-1 relative overflow-hidden z-10 pt-[60px] pb-[100px]">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 
@@ -307,8 +276,8 @@ const App = () => {
                   projects={projects} 
                   habits={habits} 
                   onAddTask={handleAddTask} 
-                  onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); logger.log('User', 'Project created', 'success'); }} 
-                  onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); logger.log('User', 'Thought added', 'success'); }} 
+                  onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
+                  onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }} 
                   onNavigate={navigateTo} 
                   onToggleTask={(id, updates) => handleUpdateTask(id, updates || { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
                   onDeleteTask={handleDeleteTask}
@@ -323,25 +292,21 @@ const App = () => {
               sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
               onUpdateMessages={(msgs) => { 
                   const sessionIndex = sessions.findIndex(s => s.id === activeSessionId);
-                  if (sessionIndex === -1) return; // Guard against missing session
-                  
+                  if (sessionIndex === -1) return;
                   const updatedSession = { ...sessions[sessionIndex], messages: msgs, lastInteraction: Date.now() };
-                  
-                  // Optimistic update
                   const newSessions = [...sessions];
                   newSessions[sessionIndex] = updatedSession;
-                  
                   setSessions(newSessions);
                   persist('chat_sessions', updatedSession);
               }}
-              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); logger.log('User', 'New chat session started', 'info'); }}
-              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); logger.log('User', 'Chat session deleted', 'warning'); }}
+              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); }}
+              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
               onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
               onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
               onAddHabit={handleAddHabit}
-              onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); logger.log('Memory', 'Fact memorized', 'success'); }}
+              onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
@@ -378,10 +343,9 @@ const App = () => {
                   const newItem = {id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata};
                   setThoughts([newItem, ...thoughts]); 
                   persist('thoughts', newItem);
-                  logger.log('User', 'Thought created', 'success');
               }} 
               onUpdate={handleUpdateThought}
-              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); logger.log('User', 'Thought deleted', 'warning'); }} 
+              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
             />
           )}
           {view === 'planner' && (
@@ -406,9 +370,9 @@ const App = () => {
               projects={projects} 
               tasks={tasks} 
               thoughts={thoughts} 
-              onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); logger.log('User', 'Project created', 'success'); }} 
+              onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
               onUpdateProject={handleUpdateProject}
-              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); remove('projects', id); logger.log('User', 'Project deleted', 'warning'); }} 
+              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); remove('projects', id); }} 
               onAddTask={handleAddTask} 
               onUpdateTask={handleUpdateTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
@@ -437,21 +401,11 @@ const App = () => {
           <QuotesLibrary 
             myQuotes={thoughts} 
             onAddQuote={(text, author, cat) => { 
-                const q: Thought = {
-                    id: Date.now().toString(), 
-                    content: text, 
-                    author, 
-                    type: 'quote', 
-                    tags: [cat], 
-                    createdAt: new Date().toISOString()
-                }; 
+                const q: Thought = { id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString() }; 
                 setThoughts([q, ...thoughts]); 
                 persist('thoughts', q); 
             }} 
-            onDeleteQuote={(id) => { 
-                setThoughts(thoughts.filter(t => t.id !== id)); 
-                remove('thoughts', id); 
-            }} 
+            onDeleteQuote={(id) => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
             onClose={() => setShowQuotes(false)} 
           />
       )}
@@ -464,9 +418,9 @@ const App = () => {
           onSelectSession={(id) => { setActiveSessionId(id); navigateTo('chat'); setShowChatHistory(false); }}
           onNewSession={(title, projectId) => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false); logger.log('User', 'New chat created', 'info');
+             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false);
           }}
-          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); logger.log('User', 'Chat deleted', 'warning'); }}
+          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
           onClose={() => setShowChatHistory(false)}
         />
       )}

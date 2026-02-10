@@ -36,12 +36,12 @@
       body {
         font-family: var(--app-font);
         -webkit-tap-highlight-color: transparent;
-        background-color: var(--bg-main);
-        overscroll-behavior-y: none; /* Prevent pull-to-refresh on body */
+        background-color: #050505;
+        overscroll-behavior-y: none;
         position: fixed;
         width: 100%;
         height: 100dvh;
-        overflow-x: hidden; /* Force no horizontal scroll on body */
+        overflow-x: hidden;
         overflow-y: hidden;
         margin: 0;
         padding: 0;
@@ -49,10 +49,9 @@
         transition: background-color 0.5s ease;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        text-rendering: optimizeLegibility;
       }
 
-      /* GPU Acceleration for smooth transforms */
+      /* GPU Acceleration */
       .glass-panel, .glass-card, header, .sticky, .fixed {
         transform: translate3d(0, 0, 0);
         will-change: transform, opacity;
@@ -63,31 +62,7 @@
         transition: stroke-width 0.3s ease;
       }
 
-      /* --- TEXTURES --- */
-      
-      .texture-layer {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 0;
-        transition: background-image 0.5s ease, opacity 0.5s ease;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: cover;
-        mix-blend-mode: overlay; 
-        transform: translate3d(0,0,0);
-      }
-
-      body[data-texture="none"] .texture-layer { display: none; }
-
-      body[data-texture="custom"] .texture-layer {
-        opacity: 0.25;
-        background-image: var(--custom-bg);
-      }
-
+      /* --- BACKGROUND --- */
       .background-gradient {
         position: fixed;
         top: 0;
@@ -95,74 +70,58 @@
         width: 100%;
         height: 100%;
         z-index: -1;
+        /* Very subtle grain */
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+        background-color: var(--bg-main);
         transition: opacity 0.5s ease;
-        background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
-        transform: translate3d(0,0,0);
       }
 
-      /* --- GLASS STYLES --- */
+      /* --- GLASS UI (Clean, Thin, Modern) --- */
       
       .glass-panel {
-        background-color: color-mix(in srgb, var(--bg-item), transparent 60%); 
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        border: 1px solid var(--border-color);
-        box-shadow: 
-          0 4px 24px -1px rgba(0, 0, 0, 0.1),
-          inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
       }
-      
+
       .glass-card {
-        background-color: color-mix(in srgb, var(--bg-item), transparent 40%);
-        backdrop-filter: blur(25px) saturate(120%);
-        -webkit-backdrop-filter: blur(25px) saturate(120%);
-        border: 1px solid var(--border-color);
-        box-shadow: 
-          0 25px 50px -12px rgba(0, 0, 0, 0.3),
-          inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+        background: #09090b;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.5);
       }
 
       .glass-btn {
-        transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.2s ease;
         cursor: pointer;
       }
+      
       .glass-btn:active {
+        background: rgba(255, 255, 255, 0.08);
         transform: scale(0.96);
-        background-color: var(--bg-item);
-      }
-      .glass-btn:hover {
-        background-color: color-mix(in srgb, var(--bg-item), transparent 30%);
-        border-color: var(--text-muted);
       }
 
+      /* --- UTILS --- */
       #root {
         height: 100%;
         width: 100%;
         position: relative;
         z-index: 10;
         isolation: isolate;
-        overflow-x: hidden; /* Ensure root doesn't scroll horizontally */
+        overflow-x: hidden;
       }
       
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { 
         -ms-overflow-style: none; 
         scrollbar-width: none;
-        -webkit-overflow-scrolling: touch; /* Crucial for iOS momentum scroll */
-        scroll-behavior: smooth;
-        /* Removed touch-action: pan-y to allow horizontal scroll */
       }
       
       .pt-safe-top {
-        padding-top: max(24px, var(--sat));
-      }
-      
-      .page-enter {
-        animation: fadeInScale 0.3s cubic-bezier(0.2, 0, 0, 1);
-      }
-      @keyframes fadeInScale {
-        from { opacity: 0; transform: scale(0.98); }
-        to { opacity: 1; transform: scale(1); }
+        padding-top: max(16px, var(--sat));
       }
     </style>
   <script type="importmap">
@@ -182,7 +141,6 @@
 </head>
   <body>
     <div class="background-gradient"></div>
-    <div class="texture-layer"></div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
