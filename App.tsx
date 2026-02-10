@@ -293,12 +293,12 @@ const App = () => {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      {/* Added paddingTop to account for fixed header (70px header + 40px ticker = 110px) */}
+      {/* Updated paddingTop and paddingBottom for Header and new Bottom Dock */}
       <div 
         className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isModalOpen ? 'scale-[0.92] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-75' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        <main className="flex-1 relative overflow-hidden z-10 pt-[110px]">
+        <main className="flex-1 relative overflow-hidden z-10 pt-[110px] pb-[100px]">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 

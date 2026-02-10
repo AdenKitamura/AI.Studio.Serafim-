@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
-import { Plus, CheckCircle, Brain, Lightbulb, BookOpen, Quote, LayoutDashboard, Folder, Activity, Mic, X, Layers, CheckSquare } from 'lucide-react';
+import React from 'react';
+import { 
+  Mic, 
+  Folder, 
+  BookOpen, 
+  Activity, 
+  Calendar,
+  LayoutDashboard
+} from 'lucide-react';
 import { ViewState } from '../types';
 
 interface FabProps {
@@ -12,100 +19,88 @@ interface FabProps {
   onVoiceChat: () => void;
 }
 
-const Fab: React.FC<FabProps> = ({ onNavigate, currentView, onAddTask, onAddThought, onAddJournal, onOpenQuotes, onVoiceChat }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const Fab: React.FC<FabProps> = ({ 
+    onNavigate, 
+    currentView, 
+    onVoiceChat 
+}) => {
 
-  const handleAction = (action: () => void) => {
-    action();
-    setIsOpen(false);
-  };
-
-  const handleNav = (view: ViewState) => {
-      onNavigate(view);
-      setIsOpen(false);
-  };
-
-  // Lift FAB when inside Journal view to avoid overlap with bottom toolbar
-  const isLifted = currentView === 'journal';
+  const navItemClass = (isActive: boolean) => `
+    flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-2xl transition-all duration-300
+    ${isActive 
+      ? 'text-[var(--text-main)] bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.05)] scale-105' 
+      : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 active:scale-95'}
+  `;
 
   return (
-    <>
-      {isOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[45]" onClick={() => setIsOpen(false)} />}
-      
-      <div 
-        className={`fixed right-6 z-[50] flex flex-col items-end gap-3 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]`}
-        style={{ bottom: isLifted ? '100px' : '32px' }}
-      >
-        {isOpen && (
-          <div className="flex flex-col items-end gap-4 pb-2 animate-in slide-in-from-bottom-10 fade-in duration-300">
+    <div className="fixed bottom-0 left-0 w-full z-[100] px-4 pb-6 pt-2 pointer-events-none flex justify-center">
+        
+        {/* Main Dock Container */}
+        <div className="pointer-events-auto bg-[#09090b]/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] px-2 h-[80px] flex items-center shadow-[0_10px_40px_rgba(0,0,0,0.5)] relative max-w-md w-full justify-between">
             
-            {/* Quick Actions (Row) */}
-            <div className="flex gap-2">
-                 <button 
-                  onClick={() => handleAction(onVoiceChat)}
-                  className="w-14 h-14 rounded-2xl glass-card border-[var(--border-color)] text-[var(--text-main)] flex flex-col items-center justify-center shadow-lg hover:bg-[var(--bg-item)] active:scale-95 transition-all"
-                >
-                  <Mic size={20} className="text-[var(--accent)] mb-1" />
-                  <span className="text-[7px] font-black uppercase">Голос</span>
-                </button>
+            {/* Left Group */}
+            <div className="flex items-center gap-1 pl-2">
                 <button 
-                  onClick={() => handleAction(onAddTask)}
-                  className="w-14 h-14 rounded-2xl glass-card border-[var(--border-color)] text-[var(--text-main)] flex flex-col items-center justify-center shadow-lg hover:bg-[var(--bg-item)] active:scale-95 transition-all"
+                    onClick={() => onNavigate('projects')}
+                    className={navItemClass(currentView === 'projects')}
                 >
-                  <CheckCircle size={20} className="text-[var(--text-main)] opacity-70 mb-1" />
-                  <span className="text-[7px] font-black uppercase">Дело</span>
+                    <Folder size={22} strokeWidth={currentView === 'projects' ? 2.5 : 2} />
+                    <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Pro</span>
                 </button>
+
                 <button 
-                  onClick={() => handleAction(() => onAddThought('thought'))}
-                  className="w-14 h-14 rounded-2xl glass-card border-[var(--border-color)] text-[var(--text-main)] flex flex-col items-center justify-center shadow-lg hover:bg-[var(--bg-item)] active:scale-95 transition-all"
+                    onClick={() => onNavigate('planner')}
+                    className={navItemClass(currentView === 'planner' || currentView === 'dashboard')}
                 >
-                  <Brain size={20} className="text-[var(--text-muted)] mb-1" />
-                  <span className="text-[7px] font-black uppercase">Идея</span>
+                    <Calendar size={22} strokeWidth={(currentView === 'planner' || currentView === 'dashboard') ? 2.5 : 2} />
+                    <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Plan</span>
                 </button>
             </div>
 
-            {/* Navigation Grid (Compact 3x2) */}
-             <div className="glass-card p-2 rounded-[1.5rem] border border-[var(--border-color)] shadow-2xl">
-                 <div className="grid grid-cols-3 gap-2">
-                     <button onClick={() => handleNav('dashboard')} className={`w-20 h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${currentView === 'dashboard' ? 'bg-[var(--accent)] text-white border-transparent shadow-md' : 'bg-[var(--bg-main)]/50 border-transparent hover:bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                         <LayoutDashboard size={18} />
-                         <span className="text-[8px] font-black uppercase tracking-wide">Главная</span>
-                     </button>
-                     <button onClick={() => handleNav('projects')} className={`w-20 h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${currentView === 'projects' ? 'bg-[var(--accent)] text-white border-transparent shadow-md' : 'bg-[var(--bg-main)]/50 border-transparent hover:bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                         <Folder size={18} />
-                         <span className="text-[8px] font-black uppercase tracking-wide">Проекты</span>
-                     </button>
-                     <button onClick={() => handleNav('journal')} className={`w-20 h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${currentView === 'journal' ? 'bg-[var(--accent)] text-white border-transparent shadow-md' : 'bg-[var(--bg-main)]/50 border-transparent hover:bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                         <BookOpen size={18} />
-                         <span className="text-[8px] font-black uppercase tracking-wide">Дневник</span>
-                     </button>
-                     <button onClick={() => handleNav('thoughts')} className={`w-20 h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${currentView === 'thoughts' ? 'bg-[var(--accent)] text-white border-transparent shadow-md' : 'bg-[var(--bg-main)]/50 border-transparent hover:bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                         <Layers size={18} />
-                         <span className="text-[8px] font-black uppercase tracking-wide">Мысли</span>
-                     </button>
-                     <button onClick={() => handleNav('planner')} className={`w-20 h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${currentView === 'planner' ? 'bg-[var(--accent)] text-white border-transparent shadow-md' : 'bg-[var(--bg-main)]/50 border-transparent hover:bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                         <CheckSquare size={18} />
-                         <span className="text-[8px] font-black uppercase tracking-wide">План</span>
-                     </button>
-                     <button onClick={() => handleNav('analytics')} className={`w-20 h-16 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all ${currentView === 'analytics' ? 'bg-[var(--accent)] text-white border-transparent shadow-md' : 'bg-[var(--bg-main)]/50 border-transparent hover:bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                         <Activity size={18} />
-                         <span className="text-[8px] font-black uppercase tracking-wide">Инфо</span>
-                     </button>
-                 </div>
-             </div>
-          </div>
-        )}
-        
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`w-16 h-16 rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] transition-all duration-300 glass-btn flex items-center justify-center border ${
-            isOpen ? 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] rotate-45' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white border-white/20'
-          }`}
-        >
-          <Plus size={32} strokeWidth={3} />
-        </button>
-      </div>
-    </>
+            {/* Center Mic Button (Floating) */}
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/3">
+                <button 
+                    onClick={onVoiceChat}
+                    className={`
+                        w-20 h-20 rounded-full flex items-center justify-center
+                        bg-gradient-to-b from-[var(--accent)] to-[#4f46e5]
+                        shadow-[0_10px_30px_rgba(99,102,241,0.4)] border-4 border-[#09090b]
+                        transition-all duration-300 hover:scale-105 active:scale-95 group
+                        ${currentView === 'chat' ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-black' : ''}
+                    `}
+                >
+                    <div className="relative z-10">
+                        <Mic size={32} className="text-white drop-shadow-md group-hover:animate-pulse" strokeWidth={2.5} />
+                    </div>
+                    {/* Glow Effect */}
+                    <div className="absolute inset-0 bg-white/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </button>
+            </div>
+
+            {/* Spacer for Mic */}
+            <div className="w-16"></div>
+
+            {/* Right Group */}
+            <div className="flex items-center gap-1 pr-2">
+                <button 
+                    onClick={() => onNavigate('journal')}
+                    className={navItemClass(currentView === 'journal')}
+                >
+                    <BookOpen size={22} strokeWidth={currentView === 'journal' ? 2.5 : 2} />
+                    <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Diary</span>
+                </button>
+
+                <button 
+                    onClick={() => onNavigate('analytics')}
+                    className={navItemClass(currentView === 'analytics')}
+                >
+                    <Activity size={22} strokeWidth={currentView === 'analytics' ? 2.5 : 2} />
+                    <span className="text-[9px] font-black uppercase tracking-wider opacity-80">Info</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
   );
 };
 
