@@ -356,7 +356,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </button>
 
       <div className="flex-1 relative overflow-hidden z-10">
-        <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none z-20" style={{ background: `linear-gradient(to top, var(--bg-main) 0%, transparent 100%)` }} />
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
           {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
@@ -376,7 +375,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      <div className="flex-none p-6 pb-24 relative z-50">
+      <div className="flex-none p-4 pb-28 relative z-50">
         <div className="max-w-2xl mx-auto space-y-4">
           {attachedImage && <div className="relative inline-block animate-in zoom-in"><img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" /><button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><X size={12}/></button></div>}
           

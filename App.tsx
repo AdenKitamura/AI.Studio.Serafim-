@@ -376,30 +376,30 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
-        {/* --- MOBILE COMMAND INTERFACE (TRANSPARENT GLOW) --- */}
+        {/* --- MOBILE COMMAND INTERFACE (TRANSPARENT, EXACT 10% REDUCTION) --- */}
         {view !== 'journal' && (
           <div className="md:hidden fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4">
               
               <div className="flex items-center gap-6 pointer-events-auto">
                   
-                  {/* Left: Menu (Glass + Glow) */}
+                  {/* Left: Menu (50px = approx 10% less than 56px) */}
                   <button 
                     onClick={() => setIsSidebarOpen(true)}
-                    className="w-12 h-12 rounded-[1.2rem] glass-panel text-[var(--text-main)] flex items-center justify-center border border-[var(--border-color)] active:scale-95 transition-all shadow-lg"
+                    className="w-[50px] h-[50px] rounded-[1.2rem] glass-panel text-[var(--text-main)] flex items-center justify-center border border-[var(--border-color)] active:scale-95 transition-all shadow-lg"
                   >
                     <Menu size={20} />
                   </button>
 
-                  {/* Center: THE CORE (Mic) - Floating & Luminescent */}
+                  {/* Center: THE CORE (Mic) (72px = approx 10% less than 80px) */}
                   <button 
                     onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
-                    className="w-18 h-18 rounded-[2rem] bg-[var(--accent)] text-white flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] border border-white/20 transition-all active:scale-90 hover:scale-105"
+                    className="w-[72px] h-[72px] rounded-[2rem] bg-[var(--accent)] text-white flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] border border-white/20 transition-all active:scale-90 hover:scale-105"
                   >
                     <Mic size={28} />
                   </button>
 
                   {/* Right: Placeholder for balance (invisible) */}
-                   <div className="w-12 h-12" />
+                   <div className="w-[50px] h-[50px]" />
 
               </div>
           </div>
