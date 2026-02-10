@@ -63,7 +63,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const silenceTimerRef = useRef<any>(null);
-  const rawBufferRef = useRef<string>('');
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
@@ -109,29 +108,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const stopSpeaking = () => { if (typeof window !== 'undefined' && window.speechSynthesis) { window.speechSynthesis.cancel(); setSpeakingMessageId(null); } };
 
-  // --- SPEECH RECOGNITION (ADVANCED) ---
-  const processSpeechBuffer = async () => {
-      if (!rawBufferRef.current.trim()) return;
-      
-      const rawText = rawBufferRef.current.trim();
-      rawBufferRef.current = ''; // Clear buffer immediately to avoid dupes
-      setInterimText(''); 
-      setIsFixingGrammar(true);
-
-      try {
-          const fixedText = await fixGrammar(rawText);
-          setInput(prev => {
-              const needsSpace = prev.length > 0 && !prev.endsWith(' ');
-              return prev + (needsSpace ? ' ' : '') + fixedText;
-          });
-      } catch (e) {
-          // Fallback to raw text if AI fails
-          setInput(prev => prev + ' ' + rawText);
-      } finally {
-          setIsFixingGrammar(false);
-      }
-  };
-
+  // --- SPEECH RECOGNITION (FIXED) ---
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -145,31 +122,40 @@ const Mentorship: React.FC<MentorshipProps> = ({
         rec.lang = 'ru-RU';
         
         rec.onresult = (event: any) => {
-          // Clear silence timer on every result, we are still talking
+          // Reset silence timer
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
           
-          let hasFinal = false;
+          let finalTranscript = '';
+          let currentInterim = '';
 
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                rawBufferRef.current += ' ' + event.results[i][0].transcript;
-                hasFinal = true;
+              finalTranscript += event.results[i][0].transcript;
             } else {
-                setInterimText(event.results[i][0].transcript);
+              currentInterim += event.results[i][0].transcript;
             }
           }
 
-          // If we got a final result, or even if we just paused interim, set the timer
-          // Silence Detection: 1500ms
+          if (finalTranscript) {
+             // Append to state immediately to avoid history duplication bugs
+             setInput(prev => {
+                 const cleanPrev = prev.trim();
+                 return cleanPrev ? `${cleanPrev} ${finalTranscript.trim()}` : finalTranscript.trim();
+             });
+          }
+          
+          setInterimText(currentInterim);
+
+          // Silence Detection: 2000ms pause triggers "soft stop" visual
           silenceTimerRef.current = setTimeout(() => {
-              processSpeechBuffer();
-          }, 1500);
+              // We don't auto-send, just clear visual clutter or maybe hint user
+              setInterimText(''); 
+          }, 2000);
         };
 
         rec.onend = () => { 
-            // If mic cuts out, try to process what we have
-            if (rawBufferRef.current) processSpeechBuffer();
             setIsRecording(false); 
+            setInterimText('');
         };
         
         rec.onerror = (e: any) => { 
@@ -200,10 +186,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!recognitionRef.current) return;
     if (isRecording) {
         recognitionRef.current.stop(); 
-        processSpeechBuffer(); // Force process remaining
     } else { 
         try { 
-            rawBufferRef.current = '';
             setInterimText('');
             recognitionRef.current.start(); 
             setIsRecording(true);
@@ -356,7 +340,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </button>
 
       <div className="flex-1 relative overflow-hidden z-10">
-        <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-64">
+        {/* Adjusted padding: pb-36 allows scroll to clear input bar */}
+        <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-36">
           {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
@@ -375,7 +360,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      <div className="flex-none p-4 pb-28 relative z-50">
+      {/* Input Area: Decreased padding to lower it. pb-24 ensures it clears the floating buttons. */}
+      <div className="flex-none p-4 pb-24 relative z-50">
         <div className="max-w-2xl mx-auto space-y-4">
           {attachedImage && <div className="relative inline-block animate-in zoom-in"><img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" /><button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><X size={12}/></button></div>}
           

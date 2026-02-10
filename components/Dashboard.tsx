@@ -66,7 +66,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-transparent overflow-y-auto no-scrollbar pb-40">
+    <div className="flex flex-col h-full bg-transparent overflow-y-auto no-scrollbar pb-32">
       
       {/* Ticker Section - Clean top */}
       <div className="pt-2 px-0 mb-4 opacity-50 hover:opacity-100 transition-opacity">

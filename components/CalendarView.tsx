@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Task } from '../types';
 import { format, eachDayOfInterval, isSameDay, isToday, addMonths, endOfWeek } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import ru from 'date-fns/locale/ru';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 
 interface CalendarViewProps {

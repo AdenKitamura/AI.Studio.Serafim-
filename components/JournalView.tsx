@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import ru from 'date-fns/locale/ru';
 import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket, LayoutDashboard } from 'lucide-react';
 import CalendarView from './CalendarView';
 import { fixGrammar } from '../services/geminiService'; // Import fixGrammar manually if needed
@@ -52,7 +52,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = true; // Use continuous
+      rec.continuous = true; 
       rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.lang = 'ru-RU';
@@ -66,7 +66,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
         }
         
         if (final) { 
-            // Append immediately, do not wait for AI
             setContent(prev => (prev + ' ' + final).replace(/\s+/g, ' ').trim()); 
             setInterimText(''); 
         } else { 
@@ -113,17 +112,19 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
   return (
     <div className="flex flex-col h-full w-full relative">
       
-      {/* Scrollable Container */}
-      <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
+      {/* Scrollable Container with increased top padding for ergonomics */}
+      <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth pt-16">
         
-        {/* Sticky Header inside the scroll container must be top-0 */}
+        {/* Sticky Header Lowered */}
         <div className="sticky top-0 z-40 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] px-6 py-4 flex justify-between items-center transition-all duration-200">
             <div className="cursor-pointer group active:opacity-70 transition-opacity" onClick={() => setShowCalendar(!showCalendar)}>
-            <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">ДНЕВНИК</h2>
-                <ChevronDown size={18} className={`text-[var(--accent)] transition-transform duration-300 ${showCalendar ? 'rotate-180' : ''}`} />
+            <div className="flex items-center gap-3">
+                <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">ДНЕВНИК</h2>
+                <div className={`p-1.5 rounded-full bg-[var(--bg-item)] border border-[var(--border-color)] transition-transform duration-300 ${showCalendar ? 'rotate-180 bg-[var(--accent)] border-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}>
+                    <ChevronDown size={16} />
+                </div>
             </div>
-            <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">
+            <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1 pl-1">
                 {format(selectedDate, 'eeee, d MMMM', { locale: ru })}
             </p>
             </div>
@@ -134,7 +135,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
 
         {/* Calendar Dropdown */}
         {showCalendar && (
-            <div className="sticky top-[75px] z-30 px-6 pb-6 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] animate-in slide-in-from-top-5 fade-in duration-200">
+            <div className="sticky top-[75px] z-30 px-6 pb-6 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] animate-in slide-in-from-top-5 fade-in duration-200 shadow-xl">
             <CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} />
             </div>
         )}

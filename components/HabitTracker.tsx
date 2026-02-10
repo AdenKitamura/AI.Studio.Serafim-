@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Habit } from '../types';
 import { Plus, Check, X, Flame, Activity, TrendingUp } from 'lucide-react';
-import { format, subDays, isSameDay, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 interface HabitTrackerProps {
   habits: Habit[];
@@ -12,6 +13,13 @@ interface HabitTrackerProps {
 }
 
 const COLORS = ['#ef4444', '#f97316', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+
+// Helper to replace date-fns/subDays to avoid import issues
+const subDays = (date: Date, days: number): Date => {
+    const result = new Date(date);
+    result.setDate(result.getDate() - days);
+    return result;
+};
 
 const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onToggle, onAdd, onDelete }) => {
   const [isAdding, setIsAdding] = useState(false);

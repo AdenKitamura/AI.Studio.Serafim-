@@ -3,7 +3,7 @@ import { Task, Priority, Project, Habit, Thought } from '../types';
 import CalendarView from './CalendarView';
 import HabitTracker from './HabitTracker';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import ru from 'date-fns/locale/ru';
 import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save } from 'lucide-react';
 
 interface PlannerViewProps {
@@ -90,26 +90,27 @@ const PlannerView: React.FC<PlannerViewProps> = ({
   };
 
   return (
-    <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu">
-      {/* Sticky Header */}
-      <div className="px-6 py-6 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] flex justify-between items-start transition-all duration-300">
-        <div className="cursor-pointer group flex items-center gap-3" onClick={() => setShowCalendar(!showCalendar)}>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">
+    <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu pt-16">
+      
+      {/* Lowered Sticky Header for Ergonomics */}
+      <div className="px-6 py-4 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] transition-all duration-300">
+        <div className="cursor-pointer group" onClick={() => setShowCalendar(!showCalendar)}>
+            <div className="flex items-center gap-3">
+              <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">
                 {format(selectedDate, 'LLLL', { locale: ru })}
               </h2>
-              <ChevronDown size={20} className={`text-[var(--accent)] transition-transform duration-300 ${showCalendar ? 'rotate-180' : ''}`} />
+              <div className={`p-1.5 rounded-full bg-[var(--bg-item)] border border-[var(--border-color)] transition-transform duration-300 ${showCalendar ? 'rotate-180 bg-[var(--accent)] border-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}>
+                  <ChevronDown size={16} />
+              </div>
             </div>
-            <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1">
+            <p className="text-xs font-black uppercase text-[var(--text-muted)] tracking-widest mt-2 pl-1">
               {format(selectedDate, 'eeee, d MMMM', { locale: ru })}
             </p>
-          </div>
         </div>
       </div>
 
       {showCalendar && (
-        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)]/95 backdrop-blur-md border-b border-[var(--border-color)] sticky top-[75px] z-20">
+        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)]/95 backdrop-blur-md border-b border-[var(--border-color)] sticky top-[95px] z-20 shadow-xl">
           <CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} />
         </div>
       )}
@@ -120,11 +121,11 @@ const PlannerView: React.FC<PlannerViewProps> = ({
             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">
               {tasksForSelected.length} целей
             </span>
-            <button onClick={() => setIsAdding(true)} className="w-10 h-10 bg-[var(--accent)] text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
-              <Plus size={20} />
+            <button onClick={() => setIsAdding(true)} className="w-12 h-12 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
+              <Plus size={24} strokeWidth={3} />
             </button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {tasksForSelected.length === 0 ? (
               <div className="glass-panel py-12 rounded-[2rem] flex flex-col items-center justify-center opacity-70">
                 <Target size={32} className="text-[var(--text-muted)] mb-3 opacity-30" />
@@ -135,21 +136,21 @@ const PlannerView: React.FC<PlannerViewProps> = ({
                 <div 
                     key={task.id} 
                     onClick={() => openEditModal(task)}
-                    className={`glass-panel flex items-center gap-4 p-5 rounded-3xl active:scale-[0.99] transition-all cursor-pointer hover:border-[var(--accent)]/30 ${task.isCompleted ? 'opacity-40 grayscale' : ''}`}
+                    className={`glass-panel flex items-center gap-4 p-5 rounded-[2rem] active:scale-[0.99] transition-all cursor-pointer hover:border-[var(--accent)]/30 ${task.isCompleted ? 'opacity-40 grayscale' : ''}`}
                 >
                   <button 
                     onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, { isCompleted: !task.isCompleted }); }} 
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${task.isCompleted ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--border-color)] hover:border-[var(--accent)]'}`}
+                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${task.isCompleted ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--border-color)] hover:border-[var(--accent)]'}`}
                   >
                     {task.isCompleted && <Check size={14} strokeWidth={4} className="text-white" />}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-bold text-[var(--text-main)] truncate ${task.isCompleted ? 'line-through' : ''}`}>
+                    <p className={`text-base font-bold text-[var(--text-main)] truncate ${task.isCompleted ? 'line-through' : ''}`}>
                       {task.title}
                     </p>
                     {task.dueDate && (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] mt-1">
-                        {format(new Date(task.dueDate), 'HH:mm')}
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] mt-1.5 flex items-center gap-1">
+                        <Clock size={10} /> {format(new Date(task.dueDate), 'HH:mm')}
                       </p>
                     )}
                   </div>

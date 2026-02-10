@@ -256,8 +256,7 @@ const App = () => {
         className={`flex-1 h-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 relative ${isModalOpen ? 'scale-[0.99] opacity-80 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        {/* Adjusted padding: Removed top padding, added extra bottom padding for the Dock */}
-        <main className="flex-1 relative overflow-hidden z-10 pb-32 md:pb-0">
+        <main className="flex-1 relative overflow-hidden z-10 md:pb-0">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 
@@ -376,21 +375,21 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
-        {/* --- MOBILE COMMAND INTERFACE (TRANSPARENT, EXACT 10% REDUCTION) --- */}
+        {/* --- MOBILE COMMAND INTERFACE (ABSOLUTELY TRANSPARENT) --- */}
         {view !== 'journal' && (
-          <div className="md:hidden fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4">
+          <div className="md:hidden fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4 bg-transparent">
               
               <div className="flex items-center gap-6 pointer-events-auto">
                   
-                  {/* Left: Menu (50px = approx 10% less than 56px) */}
+                  {/* Left: Menu */}
                   <button 
                     onClick={() => setIsSidebarOpen(true)}
-                    className="w-[50px] h-[50px] rounded-[1.2rem] glass-panel text-[var(--text-main)] flex items-center justify-center border border-[var(--border-color)] active:scale-95 transition-all shadow-lg"
+                    className="w-[50px] h-[50px] rounded-[1.2rem] glass-panel text-[var(--text-main)] flex items-center justify-center border border-[var(--border-color)] active:scale-95 transition-all shadow-lg backdrop-blur-md"
                   >
                     <Menu size={20} />
                   </button>
 
-                  {/* Center: THE CORE (Mic) (72px = approx 10% less than 80px) */}
+                  {/* Center: THE CORE (Mic) */}
                   <button 
                     onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
                     className="w-[72px] h-[72px] rounded-[2rem] bg-[var(--accent)] text-white flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] border border-white/20 transition-all active:scale-90 hover:scale-105"
@@ -398,7 +397,7 @@ const App = () => {
                     <Mic size={28} />
                   </button>
 
-                  {/* Right: Placeholder for balance (invisible) */}
+                  {/* Right: Placeholder */}
                    <div className="w-[50px] h-[50px]" />
 
               </div>
