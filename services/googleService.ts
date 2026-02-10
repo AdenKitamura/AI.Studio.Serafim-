@@ -1,11 +1,37 @@
 import { logger } from './logger';
+import { supabase } from './supabaseClient';
 
-// Client Side Google Service (Integrated with Clerk)
+// Client Side Google Service (Integrated with Supabase Auth)
 
 export const initAndAuth = async () => {
-   // Legacy method stub. Now auth is handled by Clerk in the React layer.
-   console.warn("Auth is now handled by Clerk. Use the token provided by the React hook.");
+   // Legacy method stub. 
+   console.warn("Auth is handled via Supabase.");
    return null;
+};
+
+// --- INCREMENTAL AUTH ---
+// Вызывает повторную авторизацию с запросом расширенных прав (Tasks, Calendar)
+// Это нужно вызывать по кнопке в настройках, только для тех, кто хочет синхронизацию.
+export const connectGoogleServices = async () => {
+  const redirectUrl = window.location.origin;
+  
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: redirectUrl,
+      // Запрашиваем права только здесь, внутри приложения
+      scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
+      queryParams: {
+        access_type: 'offline', // Чтобы получить refresh token
+        prompt: 'consent', // Принудительно показать экран согласия
+      },
+    },
+  });
+
+  if (error) {
+    logger.log('Google', 'Auth upgrade failed', 'error', error.message);
+    throw error;
+  }
 };
 
 // --- DATA TYPES ---
@@ -16,15 +42,13 @@ export interface GoogleUserProfile {
 }
 
 export const checkSignInStatus = (): boolean => {
-    // We assume if the app is calling these functions, the token has been passed or verified
-    // This function is less relevant with the new architecture, but we keep it for safety
     return true; 
 };
 
 // Updated: Now accepts the accessToken explicitly
 export const createGoogleTask = async (accessToken: string, title: string, notes: string = '', dueDate?: string) => {
   if (!accessToken) {
-      logger.log('Task', 'No Google Token', 'warning');
+      // Silent warning to avoid spam if user hasn't connected services
       return;
   }
 
@@ -48,7 +72,12 @@ export const createGoogleTask = async (accessToken: string, title: string, notes
     } else {
         const err = await response.json();
         console.error(err);
-        logger.log('Task', 'Google API Error', 'error', err.error?.message);
+        // Don't log as error if it's just a permissions issue (friend's account)
+        if (err.error?.code === 401 || err.error?.code === 403) {
+            logger.log('Google', 'Sync skipped (No permission)', 'warning');
+        } else {
+            logger.log('Task', 'Google API Error', 'error', err.error?.message);
+        }
     }
   } catch (e: any) {
     logger.log('Task', 'Google Task Sync Failed', 'error', e.message);

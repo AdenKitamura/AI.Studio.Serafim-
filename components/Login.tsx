@@ -12,15 +12,14 @@ const Login = () => {
 
     console.log('Initiating Login. Redirect target:', redirectUrl);
 
+    // FIX: Removed specific scopes (Tasks, Calendar) and offline access.
+    // This allows any user to log in without the app needing Google Verification.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
-        // CRITICAL: Request access to Tasks and Calendar
-        scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
         queryParams: {
-          access_type: 'offline', // Request Refresh Token to keep connection alive
-          prompt: 'consent', // Force consent screen to ensure we get the token
+          prompt: 'select_account',
         },
       },
     });
@@ -84,7 +83,7 @@ const Login = () => {
         </button>
         
         <p className="mt-8 text-[9px] text-zinc-600 font-medium max-w-xs text-center leading-relaxed">
-          Serafim требует доступа к Google Tasks и Calendar для полной функциональности.
+          Безопасный вход через Google Identity Platform.
         </p>
 
       </div>

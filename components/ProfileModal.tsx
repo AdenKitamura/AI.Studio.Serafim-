@@ -3,10 +3,11 @@ import { AppState, ThemeKey, FontFamily, IconWeight, TextureType, GeminiModel } 
 import Settings from './Settings';
 import { 
   X, Settings as SettingsIcon, HardDrive, 
-  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity, Globe
+  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity, Globe, PlugZap
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { logger, SystemLog } from '../services/logger';
+import { connectGoogleServices } from '../services/googleService';
 
 interface ProfileModalProps {
   appState: AppState;
@@ -99,6 +100,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.reload();
+  };
+  
+  const handleConnectGoogle = async () => {
+      try {
+          await connectGoogleServices();
+      } catch (e) {
+          alert('Не удалось подключить сервисы Google');
+      }
   };
 
   const statusColor = (status: string) => {
@@ -279,9 +288,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                   <Globe size={14} className="text-blue-500" />
                                   <span className="text-[10px] font-bold text-[var(--text-main)]">Google Services</span>
                               </div>
-                              <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.google)}`}>
-                                  {connectionStatus.google} {statusIcon(connectionStatus.google)}
-                              </div>
+                              {connectionStatus.google === 'connected' ? (
+                                  <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.google)}`}>
+                                      {connectionStatus.google} {statusIcon(connectionStatus.google)}
+                                  </div>
+                              ) : (
+                                  <button onClick={handleConnectGoogle} className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent)] text-white rounded-lg text-[8px] font-bold uppercase hover:bg-[var(--accent-hover)] transition-all">
+                                      <PlugZap size={10} /> Подключить
+                                  </button>
+                              )}
                           </div>
                       </div>
                   </div>
