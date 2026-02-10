@@ -5,7 +5,6 @@ import { Quote as QuoteIcon, X, Download, Search, Sparkles, BookOpen, Calendar, 
 import { getQuotesByCategory, CATEGORIES, QuoteCategory, Quote, getAllQuotes } from '../services/quotesService';
 import { format } from 'date-fns';
 import ru from 'date-fns/locale/ru';
-import { ru as ruLocale } from 'date-fns/locale';
 
 interface QuotesLibraryProps {
   myQuotes: Thought[];
