@@ -237,7 +237,7 @@ const App = () => {
 
   return (
     // CHANGED: Flex row for desktop sidebar layout, column for mobile
-    <div className="h-[100dvh] w-full overflow-hidden bg-black relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
+    <div className="h-[100dvh] w-full overflow-hidden bg-[var(--bg-main)] relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
       
       {/* SIDEBAR (Responsive) */}
       <Sidebar 
@@ -257,7 +257,7 @@ const App = () => {
         style={{ transformOrigin: 'center center' }}
       >
         {/* Adjusted padding: Removed top padding, added extra bottom padding for the Dock */}
-        <main className="flex-1 relative overflow-hidden z-10 pt-safe-top pb-32 md:pb-0 md:pt-0">
+        <main className="flex-1 relative overflow-hidden z-10 pb-32 md:pb-0">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 
@@ -376,30 +376,30 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
-        {/* --- MOBILE COMMAND INTERFACE (GLASSPUNK STYLE) --- */}
+        {/* --- MOBILE COMMAND INTERFACE (TRANSPARENT GLOW) --- */}
         {view !== 'journal' && (
-          <div className="md:hidden fixed bottom-0 left-0 w-full h-32 z-[80] pointer-events-none flex items-end justify-center pb-8 px-8">
+          <div className="md:hidden fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4">
               
-              <div className="w-full flex items-end justify-between pointer-events-auto max-w-sm relative">
+              <div className="flex items-center gap-6 pointer-events-auto">
                   
                   {/* Left: Menu (Glass + Glow) */}
                   <button 
                     onClick={() => setIsSidebarOpen(true)}
-                    className="w-14 h-14 rounded-[1.5rem] glass-panel border border-[var(--accent)]/20 text-[var(--text-main)] flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_25px_var(--accent-glow)] hover:border-[var(--accent)]/50 transition-all active:scale-95"
+                    className="w-12 h-12 rounded-[1.2rem] glass-panel text-[var(--text-main)] flex items-center justify-center border border-[var(--border-color)] active:scale-95 transition-all shadow-lg"
                   >
-                    <Menu size={24} />
+                    <Menu size={20} />
                   </button>
 
                   {/* Center: THE CORE (Mic) - Floating & Luminescent */}
                   <button 
                     onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
-                    className="absolute left-1/2 -translate-x-1/2 bottom-0 w-20 h-20 rounded-[2.5rem] bg-[var(--accent)]/90 backdrop-blur-xl border border-white/20 text-white flex items-center justify-center shadow-[0_0_40px_var(--accent-glow)] transition-all active:scale-90 hover:scale-105 hover:shadow-[0_0_60px_var(--accent-glow)] z-10"
+                    className="w-18 h-18 rounded-[2rem] bg-[var(--accent)] text-white flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] border border-white/20 transition-all active:scale-90 hover:scale-105"
                   >
-                    <Mic size={32} />
+                    <Mic size={28} />
                   </button>
 
-                  {/* Right: Empty spacer to balance or allow future button */}
-                  <div className="w-14 h-14" /> 
+                  {/* Right: Placeholder for balance (invisible) */}
+                   <div className="w-12 h-12" />
 
               </div>
           </div>

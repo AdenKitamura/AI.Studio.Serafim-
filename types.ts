@@ -1,3 +1,4 @@
+
 // Enums and Basic Types first
 export enum Priority {
   LOW = 'Low',
@@ -8,7 +9,7 @@ export enum Priority {
 export type ChatCategory = 'general' | 'strategy' | 'productivity' | 'learning' | 'mental';
 export type LinkType = 'related' | 'cause' | 'effect' | 'hypothesis' | 'blocker';
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
-export type ThemeKey = 'emerald' | 'amber' | 'neon' | 'ocean';
+export type ThemeKey = 'emerald' | 'amber' | 'neon' | 'ocean' | 'obsidian' | 'crimson' | 'cloud' | 'paper';
 export type FontFamily = 'JetBrains Mono';
 export type IconWeight = '1px' | '1.5px' | '2px' | '2.5px' | '3px';
 export type TextureType = 'custom' | 'none';
