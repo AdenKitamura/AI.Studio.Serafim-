@@ -3,7 +3,7 @@ import { AppState, ThemeKey, FontFamily, IconWeight, TextureType, GeminiModel } 
 import Settings from './Settings';
 import { 
   X, Settings as SettingsIcon, HardDrive, 
-  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity
+  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity, Globe
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { logger, SystemLog } from '../services/logger';
@@ -271,6 +271,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                               </div>
                               <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.gemini)}`}>
                                   {connectionStatus.gemini} {statusIcon(connectionStatus.gemini)}
+                              </div>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]">
+                              <div className="flex items-center gap-3">
+                                  <Globe size={14} className="text-blue-500" />
+                                  <span className="text-[10px] font-bold text-[var(--text-main)]">Google Services</span>
+                              </div>
+                              <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.google)}`}>
+                                  {connectionStatus.google} {statusIcon(connectionStatus.google)}
                               </div>
                           </div>
                       </div>
