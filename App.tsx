@@ -310,6 +310,7 @@ const App = () => {
               <JournalView 
                   journal={journal} 
                   tasks={tasks} 
+                  onNavigate={navigateTo}
                   onSave={(d, c, n, m, r, t) => { 
                       const i = journal.findIndex(j => j.date === d); 
                       let newEntry;
@@ -376,35 +377,38 @@ const App = () => {
         </main>
         
         {/* --- MOBILE COMMAND DOCK (The "Thumb Zone") --- */}
-        <div className="md:hidden fixed bottom-6 left-6 right-6 z-[80] pointer-events-none">
-            <div className="pointer-events-auto flex items-end justify-between gap-4">
-                
-                {/* Left: Menu Trigger (The "Tab") */}
-                <button 
-                  onClick={() => setIsSidebarOpen(true)}
-                  className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
-                >
-                  <Menu size={24} />
-                </button>
+        {/* HIDE this dock when in Journal view to prevent collision */}
+        {view !== 'journal' && (
+          <div className="md:hidden fixed bottom-6 left-6 right-6 z-[80] pointer-events-none">
+              <div className="pointer-events-auto flex items-end justify-between gap-4">
+                  
+                  {/* Left: Menu Trigger (The "Tab") */}
+                  <button 
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
+                  >
+                    <Menu size={24} />
+                  </button>
 
-                {/* Center: THE CORE (Voice) */}
-                <button 
-                  onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
-                  className="w-20 h-20 bg-[var(--accent)] text-white rounded-3xl flex items-center justify-center shadow-[0_10px_40px_var(--accent-glow)] active:scale-95 transition-all relative -mb-2 border-4 border-black"
-                >
-                  <Mic size={32} />
-                </button>
+                  {/* Center: THE CORE (Voice) */}
+                  <button 
+                    onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
+                    className="w-20 h-20 bg-[var(--accent)] text-white rounded-3xl flex items-center justify-center shadow-[0_10px_40px_var(--accent-glow)] active:scale-95 transition-all relative -mb-2 border-4 border-black"
+                  >
+                    <Mic size={32} />
+                  </button>
 
-                {/* Right: Quick Settings/Timer */}
-                <button 
-                  onClick={() => setShowSettings(true)}
-                  className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
-                >
-                  <SettingsIcon size={24} />
-                </button>
+                  {/* Right: Quick Settings/Timer */}
+                  <button 
+                    onClick={() => setShowSettings(true)}
+                    className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
+                  >
+                    <SettingsIcon size={24} />
+                  </button>
 
-            </div>
-        </div>
+              </div>
+          </div>
+        )}
 
       </div>
 

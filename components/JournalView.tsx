@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket } from 'lucide-react';
+import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket, LayoutDashboard } from 'lucide-react';
 import CalendarView from './CalendarView';
 import { fixGrammar } from '../services/geminiService'; // Import fixGrammar manually if needed
 
@@ -10,9 +10,10 @@ interface JournalViewProps {
   journal: JournalEntry[];
   tasks?: Task[]; 
   onSave: (dateStr: string, content: string, notes: string, mood: string, reflection?: DailyReflection, tags?: string[]) => void;
+  onNavigate: (view: any) => void;
 }
 
-const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }) => {
+const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, onNavigate }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isRecording, setIsRecording] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
@@ -178,14 +179,45 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
         </div>
       </div>
 
-      {/* Floating Toolbar */}
-      <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/90 to-transparent z-50 pointer-events-none">
-         <div className="max-w-md mx-auto flex items-center justify-between pointer-events-auto">
-             <button onClick={toggleReflection} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all active:scale-95 ${showReflection ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-lg shadow-[var(--accent-glow)]' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-main)]'}`}><Target size={20} /></button>
+      {/* Floating Toolbar (Compact Pill) */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
+         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
              
-             <button onClick={toggleRecording} className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all cursor-pointer active:scale-90 ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110 shadow-rose-500/40' : 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--border-color)] hover:bg-[var(--bg-card)]'}`}>{isRecording ? <MicOff size={28} /> : <Mic size={28} />}</button>
+             {/* Home/Exit Button */}
+             <button 
+                onClick={() => onNavigate('dashboard')} 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95"
+             >
+                <LayoutDashboard size={20} />
+             </button>
+
+             <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
+
+             {/* Reflection Toggle */}
+             <button 
+                onClick={toggleReflection} 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${showReflection ? 'bg-[var(--accent)] text-white shadow-lg' : 'bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-main)]'}`}
+             >
+                <Target size={20} />
+             </button>
              
-             <button onClick={handleMagicFix} disabled={isFixing} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all active:scale-95 bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-main)] ${isFixing ? 'animate-spin text-[var(--accent)]' : ''}`}><Sparkles size={20} /></button>
+             {/* Mic Toggle */}
+             <button 
+                onClick={toggleRecording} 
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110 shadow-rose-500/40' : 'bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)]'}`}
+             >
+                {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
+             </button>
+             
+             {/* Grammar Fix */}
+             <button 
+                onClick={handleMagicFix} 
+                disabled={isFixing} 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-main)] ${isFixing ? 'animate-spin text-[var(--accent)]' : ''}`}
+             >
+                <Sparkles size={20} />
+             </button>
+
          </div>
       </div>
     </div>
