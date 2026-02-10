@@ -10,10 +10,8 @@ const Login = () => {
     
     const redirectUrl = window.location.origin;
 
-    console.log('Initiating Login. Redirect target:', redirectUrl);
-
-    // FIX: Removed specific scopes (Tasks, Calendar) and offline access.
-    // This allows any user to log in without the app needing Google Verification.
+    // FIX: Removed "scopes" and "access_type: offline".
+    // This allows basic profile login for ANYONE without Google Verification blocks.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -27,7 +25,7 @@ const Login = () => {
     if (error) {
       console.error('Login Error:', error.message);
       setLoading(false);
-      alert('Ошибка системы безопасности: ' + error.message);
+      alert('Ошибка входа: ' + error.message);
     }
   };
 
@@ -57,10 +55,10 @@ const Login = () => {
             </h1>
             <div className="flex items-center justify-center gap-3 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
                 <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-zinc-900 border border-zinc-800">
-                   <Cpu size={10} /> Neural Core
+                   <Cpu size={10} /> Public Core
                 </span>
                 <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-zinc-900 border border-zinc-800">
-                   <ShieldCheck size={10} /> Encrypted
+                   <ShieldCheck size={10} /> Secured
                 </span>
             </div>
         </div>
@@ -83,7 +81,7 @@ const Login = () => {
         </button>
         
         <p className="mt-8 text-[9px] text-zinc-600 font-medium max-w-xs text-center leading-relaxed">
-          Безопасный вход через Google Identity Platform.
+          Безопасный вход. Синхронизация задач подключается в настройках.
         </p>
 
       </div>
