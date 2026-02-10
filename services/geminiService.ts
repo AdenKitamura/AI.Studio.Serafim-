@@ -176,13 +176,17 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
 
 export const fixGrammar = async (text: string) => {
   const apiKey = getApiKey();
-  if (!apiKey) return text;
+  if (!apiKey || text.length < 3) return text;
 
   const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Исправь пунктуацию, грамматику и регистр в этом тексте. Это транскрипция голоса. Если есть английские слова, написанные кириллицей (например "хэлоу"), исправь их на английский (Hello). Верни ТОЛЬКО исправленный текст без комментариев: "${text}"`,
+      contents: `Исправь текст (пунктуация, заглавные буквы). Верни ТОЛЬКО исправленный текст: "${text}"`,
+      config: {
+          temperature: 0.1, // Low temp for speed and accuracy
+          maxOutputTokens: 200,
+      }
     });
     return response.text?.trim() || text;
   } catch (e) {

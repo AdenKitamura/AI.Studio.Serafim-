@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket } from 'lucide-react';
 import CalendarView from './CalendarView';
+import { fixGrammar } from '../services/geminiService'; // Import fixGrammar manually if needed
 
 interface JournalViewProps {
   journal: JournalEntry[];
@@ -17,6 +18,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
   const [showReflection, setShowReflection] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [interimText, setInterimText] = useState('');
+  const [isFixing, setIsFixing] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const autoSaveTimeoutRef = useRef<any>(null);
@@ -44,33 +46,60 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
   }, [content, mood, reflection, dateStr, onSave]);
 
-  // Voice Recognition
+  // Voice Recognition (Optimized)
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const rec = new SpeechRecognition();
-      rec.continuous = false; 
+      rec.continuous = true; // Use continuous
       rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.lang = 'ru-RU';
+      
       rec.onresult = (event: any) => {
-        let interim = ''; let final = '';
+        let interim = ''; 
+        let final = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           if (result.isFinal) final += result[0].transcript; else interim = result[0].transcript;
         }
-        if (final) { setContent(prev => (prev + ' ' + final).replace(/\s+/g, ' ').trim()); setInterimText(''); } else setInterimText(interim);
+        
+        if (final) { 
+            // Append immediately, do not wait for AI
+            setContent(prev => (prev + ' ' + final).replace(/\s+/g, ' ').trim()); 
+            setInterimText(''); 
+        } else { 
+            setInterimText(interim);
+        }
       };
+      
       rec.onstart = () => { setIsRecording(true); };
-      rec.onend = async () => { setIsRecording(false); setInterimText(''); };
+      rec.onend = async () => { 
+          setIsRecording(false); 
+          setInterimText(''); 
+      };
       rec.onerror = () => setIsRecording(false);
       recognitionRef.current = rec;
     }
-  }, [content]);
+  }, []);
 
   const toggleRecording = () => {
     if (!recognitionRef.current) return;
-    if (isRecording) recognitionRef.current.stop(); else { setInterimText(''); recognitionRef.current.lang = 'ru-RU'; recognitionRef.current.start(); }
+    if (isRecording) {
+        recognitionRef.current.stop(); 
+    } else { 
+        setInterimText(''); 
+        recognitionRef.current.lang = 'ru-RU'; 
+        recognitionRef.current.start(); 
+    }
+  };
+
+  const handleMagicFix = async () => {
+      if (isFixing || !content.trim()) return;
+      setIsFixing(true);
+      const fixed = await fixGrammar(content);
+      setContent(fixed);
+      setIsFixing(false);
   };
 
   const toggleReflection = () => { 
@@ -152,9 +181,11 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave }
       {/* Floating Toolbar */}
       <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/90 to-transparent z-50 pointer-events-none">
          <div className="max-w-md mx-auto flex items-center justify-between pointer-events-auto">
-             <button onClick={toggleReflection} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all active:scale-95 ${showReflection ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-lg shadow-[var(--accent-glow)]' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-main)]'}`}><Sparkles size={20} /></button>
+             <button onClick={toggleReflection} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all active:scale-95 ${showReflection ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-lg shadow-[var(--accent-glow)]' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-main)]'}`}><Target size={20} /></button>
+             
              <button onClick={toggleRecording} className={`w-16 h-16 rounded-full shadow-2xl flex items-center justify-center transition-all cursor-pointer active:scale-90 ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110 shadow-rose-500/40' : 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--border-color)] hover:bg-[var(--bg-card)]'}`}>{isRecording ? <MicOff size={28} /> : <Mic size={28} />}</button>
-             <div className="w-12 h-12"></div> {/* Spacer to balance layout since we removed the Wand */}
+             
+             <button onClick={handleMagicFix} disabled={isFixing} className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all active:scale-95 bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-main)] ${isFixing ? 'animate-spin text-[var(--accent)]' : ''}`}><Sparkles size={20} /></button>
          </div>
       </div>
     </div>

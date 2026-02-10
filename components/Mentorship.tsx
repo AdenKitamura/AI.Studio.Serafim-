@@ -107,7 +107,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const stopSpeaking = () => { if (typeof window !== 'undefined' && window.speechSynthesis) { window.speechSynthesis.cancel(); setSpeakingMessageId(null); } };
 
-  // --- SPEECH RECOGNITION ---
+  // --- SPEECH RECOGNITION (OPTIMIZED) ---
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -115,27 +115,55 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
         const rec = new SpeechRecognition();
-        rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1; rec.lang = 'ru-RU';
-        rec.onresult = async (event: any) => {
-          let finalStr = ''; let interimStr = '';
+        rec.continuous = true; // CHANGED: True implies stream, less stopping/starting
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        rec.lang = 'ru-RU';
+        
+        rec.onresult = (event: any) => {
+          let finalStr = ''; 
+          let interimStr = '';
+          
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) finalStr += event.results[i][0].transcript; else interimStr = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalStr += event.results[i][0].transcript; 
+            } else {
+                interimStr = event.results[i][0].transcript;
+            }
           }
+
           if (finalStr) {
-              stopSpeaking(); 
-              setInterimText('✨ Улучшаю...'); setIsFixingGrammar(true);
-              try {
-                  const fixed = await fixGrammar(finalStr);
-                  setInput(prev => { const s = prev.length > 0 ? ' ' : ''; return prev + s + fixed; });
-              } catch (e) { setInput(prev => (prev + ' ' + finalStr).trim()); } 
-              finally { setIsFixingGrammar(false); setInterimText(''); }
-          } else { setInterimText(interimStr); }
+              // INSTANT UPDATE. No awaiting AI fix here.
+              // Logic: raw speed first. User can click "sparkles" to fix.
+              setInput(prev => { 
+                  const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+                  // Basic client-side capitalization
+                  const trimmed = finalStr.trim();
+                  const cap = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                  return prev + space + cap; 
+              });
+              setInterimText('');
+          } else {
+              setInterimText(interimStr);
+          }
         };
-        rec.onstart = () => { setIsRecording(true); stopSpeaking(); };
-        rec.onend = () => { setIsRecording(false); if(!isFixingGrammar) setInterimText(''); };
-        rec.onerror = () => { setIsRecording(false); setInterimText(''); };
+
+        rec.onend = () => { 
+            // Only auto-restart if we think we should be recording, 
+            // but for now let's let the user toggle.
+            setIsRecording(false); 
+            setInterimText('');
+        };
+        
+        rec.onerror = (e: any) => { 
+            console.error(e);
+            setIsRecording(false); 
+            setInterimText(''); 
+        };
+        
         recognitionRef.current = rec;
     } catch (e) { setIsSpeechSupported(false); }
+    
     return () => { stopSpeaking(); };
   }, []);
 
@@ -144,7 +172,17 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
-    if (isRecording) recognitionRef.current.stop(); else { try { recognitionRef.current.lang = 'ru-RU'; recognitionRef.current.start(); } catch(e){} }
+    if (isRecording) {
+        recognitionRef.current.stop(); 
+    } else { 
+        try { 
+            recognitionRef.current.lang = 'ru-RU'; 
+            recognitionRef.current.start(); 
+            setIsRecording(true);
+        } catch(e){
+            setIsRecording(false);
+        } 
+    }
   };
 
   const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,7 +193,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const handleSmartFix = async () => {
     if (!input.trim() || isFixingGrammar) return;
     setIsFixingGrammar(true);
-    setInterimText('✨ Улучшаю...');
+    // Visual indicator inside input usually handles this, but we can set interim text
+    setInterimText('✨ Магия...'); 
     try {
       const fixed = await fixGrammar(input);
       setInput(fixed);
@@ -174,6 +213,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopSpeaking(); 
+    if (recognitionRef.current) recognitionRef.current.stop();
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
     const currentHistory = activeSession ? activeSession.messages : [];
@@ -230,7 +270,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
                         logger.log('Google', 'Sync Exception', 'error', syncError.message);
                     }
                 } else {
-                    // Explicitly warn the user why it failed
                     logger.log('Google', 'Token missing. Re-connect in Settings.', 'warning');
                 }
               }
@@ -335,8 +374,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
           <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)] ${isThinking ? 'opacity-70 pointer-events-none' : ''}`}>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"><ImageIcon size={20} /></button>
-            {input.length > 2 && <button onClick={handleSmartFix} className={`p-2 transition-colors ${isFixingGrammar ? 'text-[var(--accent)] animate-spin' : 'text-[var(--text-muted)] hover:text-[var(--accent)]'}`} title="Исправить грамматику"><Sparkles size={18} /></button>}
-            <textarea rows={1} value={input} onChange={e => { setInput(e.target.value); stopSpeaking(); }} onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} placeholder={isThinking ? "Ожидание ответа..." : "Сообщение..."} disabled={isThinking} className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" />
+            {input.length > 2 && <button onClick={handleSmartFix} className={`p-2 transition-colors ${isFixingGrammar ? 'text-[var(--accent)] animate-spin' : 'text-[var(--text-muted)] hover:text-[var(--accent)]'}`} title="Улучшить текст (ИИ)"><Sparkles size={18} /></button>}
+            <textarea rows={1} value={input} onChange={e => { setInput(e.target.value); }} onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} placeholder={isThinking ? "Ожидание ответа..." : "Сообщение..."} disabled={isThinking} className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" />
             <button onClick={toggleVoice} className={`p-3 transition-colors ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>{!isSpeechSupported ? <AlertTriangle size={20} className="text-amber-500 opacity-50" /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}</button>
             <button type="button" onClick={handleSend} disabled={!input.trim() && !attachedImage} className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${(!input.trim() && !attachedImage) ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
           </div>
