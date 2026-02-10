@@ -84,7 +84,7 @@ const Login = () => {
         </button>
         
         <p className="mt-8 text-[9px] text-zinc-600 font-medium max-w-xs text-center leading-relaxed">
-          Включает синхронизацию Google Tasks и Calendar. Если увидите предупреждение безопасности — нажмите "Advanced" -> "Proceed".
+          Включает синхронизацию Google Tasks и Calendar. Если увидите предупреждение безопасности — нажмите "Advanced" &rarr; "Proceed".
         </p>
 
       </div>
