@@ -219,17 +219,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 onAddTask(newTask);
                 logger.log('System', 'Task created locally', 'success');
 
-                // 2. Google Sync
+                // 2. Google Sync Debug
                 const googleToken = session?.provider_token;
+                
                 if (googleToken) {
-                    logger.log('Google', 'Syncing task...', 'info');
-                    await googleService.createGoogleTask(googleToken, newTask.title, 'Created by Serafim AI', newTask.dueDate || undefined);
-                    if (newTask.dueDate) {
-                         // Optional: Sync to Calendar if it has time
-                         // await googleService.createCalendarEvent(googleToken, newTask.title, ...);
+                    logger.log('Google', 'Attempting Sync...', 'info');
+                    try {
+                        await googleService.createGoogleTask(googleToken, newTask.title, 'Created by Serafim AI', newTask.dueDate || undefined);
+                    } catch (syncError: any) {
+                        logger.log('Google', 'Sync Exception', 'error', syncError.message);
                     }
                 } else {
-                    logger.log('Google', 'Sync skipped: No Google Token', 'warning');
+                    // Explicitly warn the user why it failed
+                    logger.log('Google', 'Token missing. Re-connect in Settings.', 'warning');
                 }
               }
               break;
