@@ -14,6 +14,7 @@ import Fab from './components/Fab';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import Login from './components/Login'; 
+import Sidebar from './components/Sidebar'; // New Sidebar Component
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
@@ -235,13 +236,24 @@ const App = () => {
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-black relative selection:bg-[var(--accent)]/30">
+    // CHANGED: Flex row for desktop sidebar layout, column for mobile
+    <div className="h-[100dvh] w-full overflow-hidden bg-black relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
       
-      {/* MINIMAL HEADER */}
-      <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
-        <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto h-[60px] flex items-center px-5 justify-between max-w-7xl mx-auto w-full transition-all">
+      {/* DESKTOP SIDEBAR */}
+      <Sidebar 
+        currentView={view} 
+        onNavigate={navigateTo} 
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenHistory={() => setShowChatHistory(true)}
+        onVoiceChat={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
+        userName={userName}
+      />
+
+      {/* MOBILE HEADER (Visible only on md and below) */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 pointer-events-none">
+        <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto h-[60px] flex items-center px-5 justify-between w-full transition-all">
             
-            {/* Brand (Home) */}
+            {/* Brand (Mobile) */}
             <button 
               onClick={() => navigateTo('dashboard')}
               className="flex items-center gap-2 group active:opacity-70 transition-opacity"
@@ -254,7 +266,7 @@ const App = () => {
               </h1>
             </button>
 
-            {/* Quick Actions */}
+            {/* Quick Actions (Mobile) */}
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setShowChatHistory(true)} 
@@ -282,10 +294,10 @@ const App = () => {
 
       {/* MAIN CONTENT AREA */}
       <div 
-        className={`h-full w-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 ${isModalOpen ? 'scale-[0.95] opacity-50 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
+        className={`flex-1 h-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 relative ${isModalOpen ? 'scale-[0.99] opacity-80 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        <main className="flex-1 relative overflow-hidden z-10 pt-[60px] pb-[100px]">
+        <main className="flex-1 relative overflow-hidden z-10 pt-[60px] md:pt-0 pb-[100px] md:pb-0">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 
@@ -403,6 +415,7 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
+        {/* FAB only for Mobile */}
         <Fab 
           onNavigate={navigateTo}
           currentView={view}

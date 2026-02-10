@@ -32,7 +32,7 @@ const Fab: React.FC<FabProps> = ({
   `;
 
   return (
-    <div className="fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4">
+    <div className="md:hidden fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4">
         
         {/* Floating Island Container */}
         <div className="pointer-events-auto bg-[#121212]/90 backdrop-blur-xl border border-white/10 rounded-[2rem] p-2 flex items-center shadow-2xl shadow-black/50 relative">
