@@ -63,6 +63,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const silenceTimerRef = useRef<any>(null);
+  const lastResultIndexRef = useRef(0);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
@@ -122,33 +123,31 @@ const Mentorship: React.FC<MentorshipProps> = ({
         rec.lang = 'ru-RU';
         
         rec.onresult = (event: any) => {
-          // Reset silence timer
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
           
-          let finalTranscript = '';
           let currentInterim = '';
 
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            } else {
-              currentInterim += event.results[i][0].transcript;
-            }
-          }
+            // Ignore results we've already processed
+            if (i < lastResultIndexRef.current) continue;
 
-          if (finalTranscript) {
-             // Append to state immediately to avoid history duplication bugs
-             setInput(prev => {
+            const result = event.results[i];
+            if (result.isFinal) {
+              const transcript = result[0].transcript;
+              setInput(prev => {
                  const cleanPrev = prev.trim();
-                 return cleanPrev ? `${cleanPrev} ${finalTranscript.trim()}` : finalTranscript.trim();
-             });
+                 return cleanPrev ? `${cleanPrev} ${transcript.trim()}` : transcript.trim();
+              });
+              lastResultIndexRef.current = i + 1; // Mark as processed
+            } else {
+              currentInterim += result[0].transcript;
+            }
           }
           
           setInterimText(currentInterim);
 
-          // Silence Detection: 2000ms pause triggers "soft stop" visual
+          // Silence Detection
           silenceTimerRef.current = setTimeout(() => {
-              // We don't auto-send, just clear visual clutter or maybe hint user
               setInterimText(''); 
           }, 2000);
         };
@@ -189,6 +188,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } else { 
         try { 
             setInterimText('');
+            lastResultIndexRef.current = 0; // Reset index on new session
             recognitionRef.current.start(); 
             setIsRecording(true);
         } catch(e){

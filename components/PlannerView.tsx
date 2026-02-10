@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Task, Priority, Project, Habit, Thought } from '../types';
 import CalendarView from './CalendarView';
@@ -90,10 +91,10 @@ const PlannerView: React.FC<PlannerViewProps> = ({
   };
 
   return (
-    <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu pt-16">
+    <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu pt-12">
       
       {/* Lowered Sticky Header for Ergonomics */}
-      <div className="px-6 py-4 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] transition-all duration-300">
+      <div className="px-6 py-4 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] transition-all duration-300 mt-2">
         <div className="cursor-pointer group" onClick={() => setShowCalendar(!showCalendar)}>
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
@@ -24,6 +25,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
   const recognitionRef = useRef<any>(null);
   const autoSaveTimeoutRef = useRef<any>(null);
   const reflectionRef = useRef<HTMLDivElement>(null);
+  const lastResultIndexRef = useRef(0);
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
@@ -58,22 +60,24 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
       rec.lang = 'ru-RU';
       
       rec.onresult = (event: any) => {
-        let interim = ''; 
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          if (result.isFinal) final += result[0].transcript; else interim = result[0].transcript;
-        }
+        let currentInterim = ''; 
         
-        if (final) { 
-            setContent(prev => (prev + ' ' + final).replace(/\s+/g, ' ').trim()); 
-            setInterimText(''); 
-        } else { 
-            setInterimText(interim);
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (i < lastResultIndexRef.current) continue;
+
+          const result = event.results[i];
+          if (result.isFinal) {
+             const transcript = result[0].transcript;
+             setContent(prev => (prev + ' ' + transcript).replace(/\s+/g, ' ').trim());
+             lastResultIndexRef.current = i + 1;
+          } else { 
+             currentInterim += result[0].transcript;
+          }
         }
+        setInterimText(currentInterim);
       };
       
-      rec.onstart = () => { setIsRecording(true); };
+      rec.onstart = () => { setIsRecording(true); lastResultIndexRef.current = 0; };
       rec.onend = async () => { 
           setIsRecording(false); 
           setInterimText(''); 
@@ -89,6 +93,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
         recognitionRef.current.stop(); 
     } else { 
         setInterimText(''); 
+        lastResultIndexRef.current = 0;
         recognitionRef.current.lang = 'ru-RU'; 
         recognitionRef.current.start(); 
     }
@@ -116,7 +121,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
       <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth pt-16">
         
         {/* Sticky Header Lowered */}
-        <div className="sticky top-0 z-40 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] px-6 py-4 flex justify-between items-center transition-all duration-200">
+        <div className="sticky top-0 z-40 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] px-6 py-4 flex justify-between items-center transition-all duration-200 mt-2">
             <div className="cursor-pointer group active:opacity-70 transition-opacity" onClick={() => setShowCalendar(!showCalendar)}>
             <div className="flex items-center gap-3">
                 <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">ДНЕВНИК</h2>
