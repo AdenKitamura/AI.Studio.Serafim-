@@ -286,12 +286,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                           <button onClick={() => logger.clear()} className="text-[9px] font-bold uppercase text-[var(--text-muted)] hover:text-white bg-white/5 px-2 py-1 rounded">Clear</button>
                       </div>
                       <div className="flex-1 overflow-y-auto p-4 space-y-1.5 font-mono text-[10px] bg-black/80 rounded-b-xl scrollbar-thin scrollbar-thumb-white/20">
-                          {logs.length === 0 && <span className="text-[var(--text-muted)] opacity-50 italic">&gt;&gt; System initialized. Waiting for input...</span>}
+                          {logs.length === 0 && <span className="text-[var(--text-muted)] opacity-50 italic">{'>'}{'>'} System initialized. Waiting for input...</span>}
                           {logs.map(log => (
                               <div key={log.id} className="flex gap-2 break-all animate-in fade-in slide-in-from-left-1 duration-100">
                                   <span className="text-[var(--text-muted)] opacity-40 shrink-0">[{log.timestamp}]</span>
                                   <span className={`${log.type === 'error' ? 'text-red-400 font-bold' : log.type === 'success' ? 'text-emerald-400' : log.type === 'warning' ? 'text-amber-400' : 'text-emerald-500/80'}`}>
-                                      <span className="opacity-50 mr-2">&gt;</span>{log.message}
+                                      <span className="opacity-50 mr-2">{'>'}</span>{log.message}
                                   </span>
                               </div>
                           ))}

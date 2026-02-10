@@ -47,19 +47,21 @@ class DBService {
     const itemWithUser = { ...item, user_id: this.userId };
     const mappedItem = this.mapToSnakeCase(storeName, itemWithUser);
     
-    logger.log('Cloud', `Pushing to ${storeName}...`, 'info');
+    // Silenced success logs to prevent spam
+    // logger.log('Cloud', `Pushing to ${storeName}...`, 'info');
+    
     const { error } = await supabase.from(storeName).upsert(mappedItem);
     if (error) {
         console.error(`Sync error [${storeName}]:`, error);
         logger.log('Cloud', `Sync Error: ${error.message}`, 'error');
     } else {
-        logger.log('Cloud', `Synced ${storeName} item`, 'success');
+        // logger.log('Cloud', `Synced ${storeName} item`, 'success');
     }
   }
 
   private async deleteFromCloud(storeName: string, id: string) {
     if (!this.userId) return;
-    logger.log('Cloud', `Deleting from ${storeName}...`, 'info');
+    // logger.log('Cloud', `Deleting from ${storeName}...`, 'info');
     await supabase.from(storeName).delete().eq('id', id);
   }
 
@@ -106,6 +108,7 @@ class DBService {
   public async syncAllTables() {
     if (!this.userId) return;
 
+    // Initial sync log is fine, it happens once
     logger.log('Sync', 'Starting full synchronization...', 'info');
     const tables = ['tasks', 'thoughts', 'journal', 'projects', 'habits', 'chat_sessions', 'memories'];
     

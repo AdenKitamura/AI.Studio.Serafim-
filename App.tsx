@@ -194,7 +194,11 @@ const App = () => {
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
   const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };
 
-  const handleAddTask = (task: Task) => { setTasks(prev => [task, ...prev]); persist('tasks', task); };
+  const handleAddTask = (task: Task) => { 
+      setTasks(prev => [task, ...prev]); 
+      persist('tasks', task); 
+      logger.log('User', `Created task: ${task.title}`, 'success');
+  };
   
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
     setTasks(prev => {
@@ -203,6 +207,11 @@ const App = () => {
         
         const updatedTask = { ...prev[taskIndex], ...updates };
         persist('tasks', updatedTask);
+        
+        // Semantic Logging for meaningful updates
+        if (updates.isCompleted !== undefined) {
+            logger.log('User', updates.isCompleted ? 'Task completed' : 'Task restored', 'info');
+        }
         
         const newTasks = [...prev];
         newTasks[taskIndex] = updatedTask;
@@ -213,6 +222,7 @@ const App = () => {
   const handleDeleteTask = (id: string) => {
       setTasks(prev => prev.filter(t => t.id !== id));
       remove('tasks', id);
+      logger.log('User', 'Task deleted', 'warning');
   };
 
   const handleUpdateProject = (id: string, updates: Partial<Project>) => {
@@ -223,12 +233,12 @@ const App = () => {
     const updatedThought = thoughts.find(t => t.id === id);
     if (updatedThought) { const newThought = { ...updatedThought, ...updates }; setThoughts(prev => prev.map(t => t.id === id ? newThought : t)); persist('thoughts', newThought); }
   };
-  const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); };
+  const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); logger.log('User', `Habit added: ${habit.title}`, 'success'); };
   const handleToggleHabit = (id: string, date: string) => {
     const habit = habits.find(h => h.id === id);
     if (habit) { const exists = habit.completedDates.includes(date); const newHabit = { ...habit, completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date] }; setHabits(prev => prev.map(h => h.id === id ? newHabit : h)); persist('habits', newHabit); }
   };
-  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); };
+  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); logger.log('User', 'Habit deleted', 'warning'); };
   const handleStartFocus = (mins: number) => { setShowTimer(true); };
   
   const hasAiKey = useMemo(() => {
@@ -297,8 +307,8 @@ const App = () => {
                   projects={projects} 
                   habits={habits} 
                   onAddTask={handleAddTask} 
-                  onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
-                  onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }} 
+                  onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); logger.log('User', 'Project created', 'success'); }} 
+                  onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); logger.log('User', 'Thought added', 'success'); }} 
                   onNavigate={navigateTo} 
                   onToggleTask={(id, updates) => handleUpdateTask(id, updates || { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })}
                   onDeleteTask={handleDeleteTask}
@@ -324,14 +334,14 @@ const App = () => {
                   setSessions(newSessions);
                   persist('chat_sessions', updatedSession);
               }}
-              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); }}
-              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
+              onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); logger.log('User', 'New chat session started', 'info'); }}
+              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); logger.log('User', 'Chat session deleted', 'warning'); }}
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
               onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
               onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
               onAddHabit={handleAddHabit}
-              onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
+              onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); logger.log('Memory', 'Fact memorized', 'success'); }}
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
@@ -368,9 +378,10 @@ const App = () => {
                   const newItem = {id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata};
                   setThoughts([newItem, ...thoughts]); 
                   persist('thoughts', newItem);
+                  logger.log('User', 'Thought created', 'success');
               }} 
               onUpdate={handleUpdateThought}
-              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
+              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); logger.log('User', 'Thought deleted', 'warning'); }} 
             />
           )}
           {view === 'planner' && (
@@ -395,9 +406,9 @@ const App = () => {
               projects={projects} 
               tasks={tasks} 
               thoughts={thoughts} 
-              onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
+              onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); logger.log('User', 'Project created', 'success'); }} 
               onUpdateProject={handleUpdateProject}
-              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); remove('projects', id); }} 
+              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); remove('projects', id); logger.log('User', 'Project deleted', 'warning'); }} 
               onAddTask={handleAddTask} 
               onUpdateTask={handleUpdateTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
@@ -453,9 +464,9 @@ const App = () => {
           onSelectSession={(id) => { setActiveSessionId(id); navigateTo('chat'); setShowChatHistory(false); }}
           onNewSession={(title, projectId) => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false);
+             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false); logger.log('User', 'New chat created', 'info');
           }}
-          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
+          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); logger.log('User', 'Chat deleted', 'warning'); }}
           onClose={() => setShowChatHistory(false)}
         />
       )}
