@@ -376,35 +376,30 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
-        {/* --- MOBILE COMMAND DOCK (The "Thumb Zone") --- */}
-        {/* HIDE this dock when in Journal view to prevent collision */}
+        {/* --- MOBILE COMMAND INTERFACE (GLASSPUNK STYLE) --- */}
         {view !== 'journal' && (
-          <div className="md:hidden fixed bottom-6 left-6 right-6 z-[80] pointer-events-none">
-              <div className="pointer-events-auto flex items-end justify-between gap-4">
+          <div className="md:hidden fixed bottom-0 left-0 w-full h-32 z-[80] pointer-events-none flex items-end justify-center pb-8 px-8">
+              
+              <div className="w-full flex items-end justify-between pointer-events-auto max-w-sm relative">
                   
-                  {/* Left: Menu Trigger (The "Tab") */}
+                  {/* Left: Menu (Glass + Glow) */}
                   <button 
                     onClick={() => setIsSidebarOpen(true)}
-                    className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
+                    className="w-14 h-14 rounded-[1.5rem] glass-panel border border-[var(--accent)]/20 text-[var(--text-main)] flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.2)] hover:shadow-[0_0_25px_var(--accent-glow)] hover:border-[var(--accent)]/50 transition-all active:scale-95"
                   >
                     <Menu size={24} />
                   </button>
 
-                  {/* Center: THE CORE (Voice) */}
+                  {/* Center: THE CORE (Mic) - Floating & Luminescent */}
                   <button 
                     onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
-                    className="w-20 h-20 bg-[var(--accent)] text-white rounded-3xl flex items-center justify-center shadow-[0_10px_40px_var(--accent-glow)] active:scale-95 transition-all relative -mb-2 border-4 border-black"
+                    className="absolute left-1/2 -translate-x-1/2 bottom-0 w-20 h-20 rounded-[2.5rem] bg-[var(--accent)]/90 backdrop-blur-xl border border-white/20 text-white flex items-center justify-center shadow-[0_0_40px_var(--accent-glow)] transition-all active:scale-90 hover:scale-105 hover:shadow-[0_0_60px_var(--accent-glow)] z-10"
                   >
                     <Mic size={32} />
                   </button>
 
-                  {/* Right: Quick Settings/Timer */}
-                  <button 
-                    onClick={() => setShowSettings(true)}
-                    className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
-                  >
-                    <SettingsIcon size={24} />
-                  </button>
+                  {/* Right: Empty spacer to balance or allow future button */}
+                  <div className="w-14 h-14" /> 
 
               </div>
           </div>
