@@ -20,7 +20,7 @@ import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
 import { logger } from './services/logger';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, History
+  Zap, Loader2, Settings as SettingsIcon, History, Menu
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
@@ -37,6 +37,7 @@ const App = () => {
 
   const [isDataReady, setIsDataReady] = useState(false);
   const [view, setView] = useState<ViewState>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Sidebar State
   
   // Customization State
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'emerald') as ThemeKey);
@@ -239,7 +240,7 @@ const App = () => {
     // CHANGED: Flex row for desktop sidebar layout, column for mobile
     <div className="h-[100dvh] w-full overflow-hidden bg-black relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
       
-      {/* DESKTOP SIDEBAR */}
+      {/* SIDEBAR (Responsive) */}
       <Sidebar 
         currentView={view} 
         onNavigate={navigateTo} 
@@ -247,34 +248,38 @@ const App = () => {
         onOpenHistory={() => setShowChatHistory(true)}
         onVoiceChat={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
         userName={userName}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {/* MOBILE HEADER (Visible only on md and below) */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 pointer-events-none">
         <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto h-[60px] flex items-center px-5 justify-between w-full transition-all">
             
-            {/* Brand (Mobile) */}
-            <button 
-              onClick={() => navigateTo('dashboard')}
-              className="flex items-center gap-2 group active:opacity-70 transition-opacity"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-white shadow-lg">
-                 <span className="font-black text-xs">S</span>
-              </div>
-              <h1 className="font-bold text-lg tracking-tight text-[var(--text-main)]">
-                Serafim
-              </h1>
-            </button>
+            {/* Left: Menu & Brand */}
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-main)] transition-colors active:scale-95"
+              >
+                <Menu size={24} />
+              </button>
+
+              <button 
+                onClick={() => navigateTo('dashboard')}
+                className="flex items-center gap-2 group active:opacity-70 transition-opacity"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-white shadow-lg">
+                   <span className="font-black text-xs">S</span>
+                </div>
+                <h1 className="font-bold text-lg tracking-tight text-[var(--text-main)]">
+                  Serafim
+                </h1>
+              </button>
+            </div>
 
             {/* Quick Actions (Mobile) */}
             <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setShowChatHistory(true)} 
-                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
-              >
-                <History size={18} />
-              </button>
-
               <button 
                 onClick={() => setShowTimer(!showTimer)} 
                 className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
