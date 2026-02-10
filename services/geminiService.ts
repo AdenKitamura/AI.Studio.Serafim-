@@ -176,16 +176,16 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
 
 export const fixGrammar = async (text: string) => {
   const apiKey = getApiKey();
-  if (!apiKey || text.length < 3) return text;
+  if (!apiKey || text.length < 2) return text;
 
   const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Исправь текст (пунктуация, заглавные буквы). Верни ТОЛЬКО исправленный текст: "${text}"`,
+      model: 'gemini-2.5-flash-latest', // Fastest model for micro-tasks
+      contents: `Fix grammar, punctuation, and capitalization. Return ONLY the fixed text, nothing else. Text: "${text}"`,
       config: {
-          temperature: 0.1, // Low temp for speed and accuracy
-          maxOutputTokens: 200,
+          temperature: 0, 
+          maxOutputTokens: 500,
       }
     });
     return response.text?.trim() || text;

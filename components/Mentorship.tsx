@@ -5,7 +5,7 @@ import * as googleService from '../services/googleService';
 import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -41,7 +41,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
     onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onSetTheme, onStartFocus,
-    hasAiKey, onConnectAI, userName, session
+    hasAiKey, onConnectAI, userName, voiceTrigger, session
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -62,6 +62,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const silenceTimerRef = useRef<any>(null);
+  const rawBufferRef = useRef<string>('');
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
@@ -107,7 +109,29 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const stopSpeaking = () => { if (typeof window !== 'undefined' && window.speechSynthesis) { window.speechSynthesis.cancel(); setSpeakingMessageId(null); } };
 
-  // --- SPEECH RECOGNITION (OPTIMIZED) ---
+  // --- SPEECH RECOGNITION (ADVANCED) ---
+  const processSpeechBuffer = async () => {
+      if (!rawBufferRef.current.trim()) return;
+      
+      const rawText = rawBufferRef.current.trim();
+      rawBufferRef.current = ''; // Clear buffer immediately to avoid dupes
+      setInterimText(''); 
+      setIsFixingGrammar(true);
+
+      try {
+          const fixedText = await fixGrammar(rawText);
+          setInput(prev => {
+              const needsSpace = prev.length > 0 && !prev.endsWith(' ');
+              return prev + (needsSpace ? ' ' : '') + fixedText;
+          });
+      } catch (e) {
+          // Fallback to raw text if AI fails
+          setInput(prev => prev + ' ' + rawText);
+      } finally {
+          setIsFixingGrammar(false);
+      }
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -115,57 +139,59 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
         const rec = new SpeechRecognition();
-        rec.continuous = true; // CHANGED: True implies stream, less stopping/starting
+        rec.continuous = true; 
         rec.interimResults = true;
         rec.maxAlternatives = 1;
         rec.lang = 'ru-RU';
         
         rec.onresult = (event: any) => {
-          let finalStr = ''; 
-          let interimStr = '';
+          // Clear silence timer on every result, we are still talking
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
           
+          let hasFinal = false;
+
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                finalStr += event.results[i][0].transcript; 
+                rawBufferRef.current += ' ' + event.results[i][0].transcript;
+                hasFinal = true;
             } else {
-                interimStr = event.results[i][0].transcript;
+                setInterimText(event.results[i][0].transcript);
             }
           }
 
-          if (finalStr) {
-              // INSTANT UPDATE. No awaiting AI fix here.
-              // Logic: raw speed first. User can click "sparkles" to fix.
-              setInput(prev => { 
-                  const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
-                  // Basic client-side capitalization
-                  const trimmed = finalStr.trim();
-                  const cap = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-                  return prev + space + cap; 
-              });
-              setInterimText('');
-          } else {
-              setInterimText(interimStr);
-          }
+          // If we got a final result, or even if we just paused interim, set the timer
+          // Silence Detection: 1500ms
+          silenceTimerRef.current = setTimeout(() => {
+              processSpeechBuffer();
+          }, 1500);
         };
 
         rec.onend = () => { 
-            // Only auto-restart if we think we should be recording, 
-            // but for now let's let the user toggle.
+            // If mic cuts out, try to process what we have
+            if (rawBufferRef.current) processSpeechBuffer();
             setIsRecording(false); 
-            setInterimText('');
         };
         
         rec.onerror = (e: any) => { 
             console.error(e);
             setIsRecording(false); 
-            setInterimText(''); 
         };
         
         recognitionRef.current = rec;
     } catch (e) { setIsSpeechSupported(false); }
     
-    return () => { stopSpeaking(); };
+    return () => { 
+        stopSpeaking(); 
+        if(silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    };
   }, []);
+
+  // Listen for Voice Trigger from App.tsx
+  useEffect(() => {
+     if (voiceTrigger && voiceTrigger > 0) {
+         if (!isRecording) toggleVoice();
+     }
+  }, [voiceTrigger]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeSession?.messages, isThinking]);
   useEffect(() => { chatSessionRef.current = null; stopSpeaking(); }, [activeSessionId]);
@@ -174,9 +200,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!recognitionRef.current) return;
     if (isRecording) {
         recognitionRef.current.stop(); 
+        processSpeechBuffer(); // Force process remaining
     } else { 
         try { 
-            recognitionRef.current.lang = 'ru-RU'; 
+            rawBufferRef.current = '';
+            setInterimText('');
             recognitionRef.current.start(); 
             setIsRecording(true);
         } catch(e){
@@ -188,22 +216,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) { const reader = new FileReader(); reader.onload = (ev) => setAttachedImage(ev.target?.result as string); reader.readAsDataURL(file); }
-  };
-
-  const handleSmartFix = async () => {
-    if (!input.trim() || isFixingGrammar) return;
-    setIsFixingGrammar(true);
-    // Visual indicator inside input usually handles this, but we can set interim text
-    setInterimText('✨ Магия...'); 
-    try {
-      const fixed = await fixGrammar(input);
-      setInput(fixed);
-    } catch (e) {
-      // ignore
-    } finally {
-      setIsFixingGrammar(false);
-      setInterimText('');
-    }
   };
 
   const handleSend = async () => {
@@ -260,18 +272,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 logger.log('System', 'Task created locally', 'success');
 
                 // 2. Google Sync Debug
-                // Try session token first, then cached token
                 const googleToken = session?.provider_token || localStorage.getItem('google_access_token');
-                
                 if (googleToken) {
-                    logger.log('Google', 'Attempting Sync...', 'info');
                     try {
                         await googleService.createGoogleTask(googleToken, newTask.title, 'Created by Serafim AI', newTask.dueDate || undefined);
                     } catch (syncError: any) {
                         logger.log('Google', 'Sync Exception', 'error', syncError.message);
                     }
-                } else {
-                    logger.log('Google', 'Token missing. Please re-login for sync.', 'warning');
                 }
               }
               break;
@@ -372,15 +379,28 @@ const Mentorship: React.FC<MentorshipProps> = ({
       <div className="flex-none p-6 pb-24 relative z-50">
         <div className="max-w-2xl mx-auto space-y-4">
           {attachedImage && <div className="relative inline-block animate-in zoom-in"><img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" /><button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><X size={12}/></button></div>}
+          
+          {/* Status Indicator for Voice */}
+          {(isFixingGrammar || (isRecording && !interimText)) && (
+             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-4 py-1 rounded-full text-[10px] text-[var(--accent)] font-black uppercase tracking-widest border border-[var(--accent)]/30 animate-pulse flex items-center gap-2">
+                <Sparkles size={12} /> {isFixingGrammar ? 'Осмысление...' : 'Слушаю...'}
+             </div>
+          )}
+
           <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)] ${isThinking ? 'opacity-70 pointer-events-none' : ''}`}>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"><ImageIcon size={20} /></button>
-            {input.length > 2 && <button onClick={handleSmartFix} className={`p-2 transition-colors ${isFixingGrammar ? 'text-[var(--accent)] animate-spin' : 'text-[var(--text-muted)] hover:text-[var(--accent)]'}`} title="Улучшить текст (ИИ)"><Sparkles size={18} /></button>}
-            <textarea rows={1} value={input} onChange={e => { setInput(e.target.value); }} onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} placeholder={isThinking ? "Ожидание ответа..." : "Сообщение..."} disabled={isThinking} className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" />
-            <button onClick={toggleVoice} className={`p-3 transition-colors ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>{!isSpeechSupported ? <AlertTriangle size={20} className="text-amber-500 opacity-50" /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}</button>
+            
+            <textarea rows={1} value={input} onChange={e => { setInput(e.target.value); }} onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} placeholder={isThinking ? "Ожидание ответа..." : isRecording ? interimText || "Говорите..." : "Сообщение..."} disabled={isThinking} className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" />
+            
+            {/* Manual Mic Toggle for Desktop mainly, as Mobile has global button */}
+            <button onClick={toggleVoice} className={`p-3 transition-colors md:flex hidden ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+            </button>
+            
             <button type="button" onClick={handleSend} disabled={!input.trim() && !attachedImage} className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${(!input.trim() && !attachedImage) ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
           </div>
-          {interimText && <div className="text-center text-[9px] font-black text-[var(--accent)] animate-pulse uppercase tracking-widest">{interimText}</div>}
+          {interimText && <div className="text-center text-[9px] font-black text-[var(--text-muted)] opacity-50 uppercase tracking-widest truncate px-4">{interimText}</div>}
         </div>
       </div>
     </div>

@@ -10,17 +10,16 @@ import FocusTimer from './components/FocusTimer';
 import Dashboard from './components/Dashboard';
 import AnalyticsView from './components/AnalyticsView';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
-import Fab from './components/Fab';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import Login from './components/Login'; 
-import Sidebar from './components/Sidebar'; // New Sidebar Component
+import Sidebar from './components/Sidebar'; 
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
 import { logger } from './services/logger';
 import { 
-  Zap, Loader2, Settings as SettingsIcon, History, Menu
+  Zap, Loader2, Settings as SettingsIcon, History, Menu, Mic
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
@@ -252,57 +251,13 @@ const App = () => {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      {/* MOBILE HEADER (Visible only on md and below) */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 pointer-events-none">
-        <div className="bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-color)] pointer-events-auto h-[60px] flex items-center px-5 justify-between w-full transition-all">
-            
-            {/* Left: Menu & Brand */}
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)}
-                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-main)] transition-colors active:scale-95"
-              >
-                <Menu size={24} />
-              </button>
-
-              <button 
-                onClick={() => navigateTo('dashboard')}
-                className="flex items-center gap-2 group active:opacity-70 transition-opacity"
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-white shadow-lg">
-                   <span className="font-black text-xs">S</span>
-                </div>
-                <h1 className="font-bold text-lg tracking-tight text-[var(--text-main)]">
-                  Serafim
-                </h1>
-              </button>
-            </div>
-
-            {/* Quick Actions (Mobile) */}
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setShowTimer(!showTimer)} 
-                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
-              >
-                <Zap size={18} />
-              </button>
-              
-              <button 
-                onClick={() => setShowSettings(true)} 
-                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors border border-transparent hover:border-[var(--border-color)]"
-              >
-                <SettingsIcon size={18} />
-              </button>
-            </div>
-        </div>
-      </div>
-
       {/* MAIN CONTENT AREA */}
       <div 
         className={`flex-1 h-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 relative ${isModalOpen ? 'scale-[0.99] opacity-80 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
-        <main className="flex-1 relative overflow-hidden z-10 pt-[60px] md:pt-0 pb-[100px] md:pb-0">
+        {/* Adjusted padding: Removed top padding, added extra bottom padding for the Dock */}
+        <main className="flex-1 relative overflow-hidden z-10 pt-safe-top pb-32 md:pb-0 md:pt-0">
           {view === 'dashboard' && (
               <Dashboard 
                   tasks={tasks} 
@@ -420,16 +375,37 @@ const App = () => {
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
         
-        {/* FAB only for Mobile */}
-        <Fab 
-          onNavigate={navigateTo}
-          currentView={view}
-          onAddTask={() => { navigateTo('planner'); }} 
-          onAddThought={(type) => { navigateTo('thoughts'); }}
-          onAddJournal={() => { navigateTo('journal'); }}
-          onOpenQuotes={() => setShowQuotes(true)}
-          onVoiceChat={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
-        />
+        {/* --- MOBILE COMMAND DOCK (The "Thumb Zone") --- */}
+        <div className="md:hidden fixed bottom-6 left-6 right-6 z-[80] pointer-events-none">
+            <div className="pointer-events-auto flex items-end justify-between gap-4">
+                
+                {/* Left: Menu Trigger (The "Tab") */}
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
+                >
+                  <Menu size={24} />
+                </button>
+
+                {/* Center: THE CORE (Voice) */}
+                <button 
+                  onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
+                  className="w-20 h-20 bg-[var(--accent)] text-white rounded-3xl flex items-center justify-center shadow-[0_10px_40px_var(--accent-glow)] active:scale-95 transition-all relative -mb-2 border-4 border-black"
+                >
+                  <Mic size={32} />
+                </button>
+
+                {/* Right: Quick Settings/Timer */}
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="w-14 h-14 bg-[var(--bg-item)]/90 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--text-main)] shadow-xl active:scale-95 transition-all"
+                >
+                  <SettingsIcon size={24} />
+                </button>
+
+            </div>
+        </div>
+
       </div>
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
