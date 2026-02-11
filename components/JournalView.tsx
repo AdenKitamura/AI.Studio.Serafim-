@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket, LayoutDashboard } from 'lucide-react';
 import CalendarView from './CalendarView';
 import { fixGrammar } from '../services/geminiService'; // Import fixGrammar manually if needed

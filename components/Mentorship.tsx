@@ -5,7 +5,7 @@ import * as googleService from '../services/googleService';
 import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -35,18 +35,18 @@ interface MentorshipProps {
   userName: string;
   voiceTrigger?: number;
   session: any; // Supabase Session
+  onNavigate?: (view: any) => void; // Added for Pill
 }
 
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
     onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onSetTheme, onStartFocus,
-    hasAiKey, onConnectAI, userName, voiceTrigger, session
+    hasAiKey, onConnectAI, userName, voiceTrigger, session, onNavigate
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isFixingGrammar, setIsFixingGrammar] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [interimText, setInterimText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
@@ -62,7 +62,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const silenceTimerRef = useRef<any>(null);
+  
+  // Ref to track processed results to avoid duplicates
   const lastResultIndexRef = useRef(0);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
@@ -109,7 +110,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const stopSpeaking = () => { if (typeof window !== 'undefined' && window.speechSynthesis) { window.speechSynthesis.cancel(); setSpeakingMessageId(null); } };
 
-  // --- SPEECH RECOGNITION (FIXED) ---
+  // --- SPEECH RECOGNITION (FIXED FOR STUTTER) ---
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -123,33 +124,29 @@ const Mentorship: React.FC<MentorshipProps> = ({
         rec.lang = 'ru-RU';
         
         rec.onresult = (event: any) => {
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          let finalTranscript = '';
+          let interimTranscript = '';
+
+          // Iterate through results starting from where we left off (or just process the current buffer)
+          // Actually, resultIndex tells us where the *new* results start.
+          // BUT, we need to iterate from resultIndex to length.
           
-          let currentInterim = '';
-
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            // Ignore results we've already processed
-            if (i < lastResultIndexRef.current) continue;
-
-            const result = event.results[i];
-            if (result.isFinal) {
-              const transcript = result[0].transcript;
-              setInput(prev => {
-                 const cleanPrev = prev.trim();
-                 return cleanPrev ? `${cleanPrev} ${transcript.trim()}` : transcript.trim();
-              });
-              lastResultIndexRef.current = i + 1; // Mark as processed
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
             } else {
-              currentInterim += result[0].transcript;
+              interimTranscript += event.results[i][0].transcript;
             }
           }
-          
-          setInterimText(currentInterim);
 
-          // Silence Detection
-          silenceTimerRef.current = setTimeout(() => {
-              setInterimText(''); 
-          }, 2000);
+          if (finalTranscript) {
+             setInput(prev => {
+                 const cleanPrev = prev.trim();
+                 return cleanPrev ? `${cleanPrev} ${finalTranscript.trim()}` : finalTranscript.trim();
+             });
+          }
+          
+          setInterimText(interimTranscript);
         };
 
         rec.onend = () => { 
@@ -167,7 +164,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     
     return () => { 
         stopSpeaking(); 
-        if(silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
   }, []);
 
@@ -188,7 +184,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } else { 
         try { 
             setInterimText('');
-            lastResultIndexRef.current = 0; // Reset index on new session
             recognitionRef.current.start(); 
             setIsRecording(true);
         } catch(e){
@@ -360,33 +355,60 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* Input Area: Decreased padding to lower it. pb-24 ensures it clears the floating buttons. */}
-      <div className="flex-none p-4 pb-24 relative z-50">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {attachedImage && <div className="relative inline-block animate-in zoom-in"><img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" /><button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><X size={12}/></button></div>}
-          
-          {/* Status Indicator for Voice */}
-          {(isFixingGrammar || (isRecording && !interimText)) && (
-             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-4 py-1 rounded-full text-[10px] text-[var(--accent)] font-black uppercase tracking-widest border border-[var(--accent)]/30 animate-pulse flex items-center gap-2">
-                <Sparkles size={12} /> {isFixingGrammar ? 'Осмысление...' : 'Слушаю...'}
-             </div>
-          )}
+      {/* FLOATING ACTION PILL (Chat Input Variant) */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4 flex justify-center">
+         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5 w-full">
+             
+             {/* Home/Dashboard Button */}
+             <button 
+                onClick={() => onNavigate && onNavigate('dashboard')} 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 shrink-0"
+             >
+                <LayoutDashboard size={20} />
+             </button>
 
-          <div className={`flex items-center gap-2 glass-panel rounded-[2rem] p-2 transition-all group focus-within:border-[var(--accent)]/50 focus-within:shadow-[var(--accent-glow)] ${isThinking ? 'opacity-70 pointer-events-none' : ''}`}>
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
-            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"><ImageIcon size={20} /></button>
-            
-            <textarea rows={1} value={input} onChange={e => { setInput(e.target.value); }} onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} placeholder={isThinking ? "Ожидание ответа..." : isRecording ? interimText || "Говорите..." : "Сообщение..."} disabled={isThinking} className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-4 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold" />
-            
-            {/* Manual Mic Toggle for Desktop mainly, as Mobile has global button */}
-            <button onClick={toggleVoice} className={`p-3 transition-colors md:flex hidden ${isRecording ? 'text-rose-500 animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+             {/* Divider */}
+             <div className="w-px h-6 bg-[var(--border-color)] shrink-0"></div>
+
+             {/* Image Attach */}
+             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
+             <button 
+                onClick={() => fileInputRef.current?.click()} 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 shrink-0"
+             >
+                <ImageIcon size={20} />
+             </button>
+
+             {/* Input Field */}
+             <textarea 
+                rows={1} 
+                value={input} 
+                onChange={e => { setInput(e.target.value); }} 
+                onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
+                placeholder={isThinking ? "Думаю..." : isRecording ? interimText || "Слушаю..." : "Сообщение..."} 
+                disabled={isThinking} 
+                className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-3 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold min-h-[44px] max-h-[120px]" 
+             />
+
+             {/* Mic Toggle */}
+             <button 
+                onClick={toggleVoice} 
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+             >
                 {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-            
-            <button type="button" onClick={handleSend} disabled={!input.trim() && !attachedImage} className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${(!input.trim() && !attachedImage) ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
-          </div>
-          {interimText && <div className="text-center text-[9px] font-black text-[var(--text-muted)] opacity-50 uppercase tracking-widest truncate px-4">{interimText}</div>}
-        </div>
+             </button>
+
+             {/* Send Button */}
+             <button 
+                onClick={handleSend} 
+                disabled={!input.trim() && !attachedImage} 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0 ${(!input.trim() && !attachedImage) ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}
+             >
+                {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
+             </button>
+
+         </div>
+         {attachedImage && <div className="absolute -top-20 right-8 animate-in zoom-in"><img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" /><button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><X size={12}/></button></div>}
       </div>
     </div>
   );

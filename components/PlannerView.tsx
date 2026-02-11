@@ -4,8 +4,8 @@ import { Task, Priority, Project, Habit, Thought } from '../types';
 import CalendarView from './CalendarView';
 import HabitTracker from './HabitTracker';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
-import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save } from 'lucide-react';
+import { ru } from 'date-fns/locale';
+import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save, LayoutDashboard, Zap as ZapIcon } from 'lucide-react';
 
 interface PlannerViewProps {
   tasks: Task[];
@@ -21,12 +21,13 @@ interface PlannerViewProps {
   onAddThought: (thought: Thought) => void;
   onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   onDeleteThought: (id: string) => void;
+  onNavigate?: (view: any) => void; // Added for Pill navigation
 }
 
 const PlannerView: React.FC<PlannerViewProps> = ({ 
     tasks, projects, habits = [], thoughts,
     onAddTask, onToggleTask, onDeleteTask,
-    onAddHabit, onToggleHabit, onDeleteHabit
+    onAddHabit, onToggleHabit, onDeleteHabit, onNavigate
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isAdding, setIsAdding] = useState(false);
@@ -93,7 +94,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({
   return (
     <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu pt-12">
       
-      {/* Lowered Sticky Header for Ergonomics */}
+      {/* Header */}
       <div className="px-6 py-4 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] transition-all duration-300 mt-2">
         <div className="cursor-pointer group" onClick={() => setShowCalendar(!showCalendar)}>
             <div className="flex items-center gap-3">
@@ -122,9 +123,6 @@ const PlannerView: React.FC<PlannerViewProps> = ({
             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">
               {tasksForSelected.length} целей
             </span>
-            <button onClick={() => setIsAdding(true)} className="w-12 h-12 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
-              <Plus size={24} strokeWidth={3} />
-            </button>
           </div>
           <div className="space-y-3">
             {tasksForSelected.length === 0 ? (
@@ -167,6 +165,39 @@ const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
           <HabitTracker habits={habits} selectedDate={selectedDate} onAdd={onAddHabit!} onToggle={onToggleHabit!} onDelete={onDeleteHabit!} />
         </section>
+      </div>
+
+      {/* FLOATING ACTION PILL */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
+         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
+             
+             {/* Home/Dashboard */}
+             <button 
+                onClick={() => onNavigate && onNavigate('dashboard')} 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95"
+             >
+                <LayoutDashboard size={20} />
+             </button>
+
+             <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
+
+             {/* Toggle Calendar */}
+             <button 
+                onClick={() => setShowCalendar(!showCalendar)}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${showCalendar ? 'bg-[var(--accent)] text-white shadow-lg' : 'bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-main)]'}`}
+             >
+                <CalendarIcon size={20} />
+             </button>
+             
+             {/* Add Task */}
+             <button 
+                onClick={() => setIsAdding(true)} 
+                className="w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] hover:scale-105"
+             >
+                <Plus size={24} />
+             </button>
+
+         </div>
       </div>
 
       {/* CREATE MODAL */}

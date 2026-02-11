@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel } from './types';
 import Mentorship from './components/Mentorship';
@@ -239,6 +240,9 @@ const App = () => {
     // CHANGED: Flex row for desktop sidebar layout, column for mobile
     <div className="h-[100dvh] w-full overflow-hidden bg-[var(--bg-main)] relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
       
+      {/* Hidden button for programmatic trigger from Dashboard */}
+      <button id="sidebar-trigger" className="hidden" onClick={() => setIsSidebarOpen(true)}></button>
+
       {/* SIDEBAR (Responsive) */}
       <Sidebar 
         currentView={view} 
@@ -336,6 +340,7 @@ const App = () => {
               }} 
               onUpdate={handleUpdateThought}
               onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
+              onNavigate={navigateTo}
             />
           )}
           {view === 'planner' && (
@@ -353,6 +358,7 @@ const App = () => {
               onAddHabit={handleAddHabit}
               onToggleHabit={handleToggleHabit}
               onDeleteHabit={handleDeleteHabit}
+              onNavigate={navigateTo}
             />
           )}
           {view === 'projects' && (
@@ -370,40 +376,11 @@ const App = () => {
               onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
               onUpdateThought={handleUpdateThought}
               onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}
+              onNavigate={navigateTo}
             />
           )}
           {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
         </main>
-        
-        {/* --- MOBILE COMMAND INTERFACE (ABSOLUTELY TRANSPARENT) --- */}
-        {view !== 'journal' && (
-          <div className="md:hidden fixed bottom-6 left-0 w-full z-[90] pointer-events-none flex justify-center px-4 bg-transparent">
-              
-              <div className="flex items-center gap-6 pointer-events-auto">
-                  
-                  {/* Left: Menu */}
-                  <button 
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="w-[50px] h-[50px] rounded-[1.2rem] glass-panel text-[var(--text-main)] flex items-center justify-center border border-[var(--border-color)] active:scale-95 transition-all shadow-lg backdrop-blur-md"
-                  >
-                    <Menu size={20} />
-                  </button>
-
-                  {/* Center: THE CORE (Mic) */}
-                  <button 
-                    onClick={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
-                    className="w-[72px] h-[72px] rounded-[2rem] bg-[var(--accent)] text-white flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] border border-white/20 transition-all active:scale-90 hover:scale-105"
-                  >
-                    <Mic size={28} />
-                  </button>
-
-                  {/* Right: Placeholder */}
-                   <div className="w-[50px] h-[50px]" />
-
-              </div>
-          </div>
-        )}
-
       </div>
 
       {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}

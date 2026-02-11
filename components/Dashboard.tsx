@@ -1,6 +1,7 @@
+
 import React, { useMemo, useState } from 'react';
 import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types';
-import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, X, Trash2, ArrowRight } from 'lucide-react';
+import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, X, Trash2, ArrowRight, Menu, Plus, Mic, MessageSquare } from 'lucide-react';
 import { format, isToday, isFuture, differenceInMinutes } from 'date-fns';
 import HabitTracker from './HabitTracker';
 import Ticker from './Ticker';
@@ -247,6 +248,50 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
         </section>
+      </div>
+
+      {/* FLOATING ACTION PILL (MAIN NAVIGATION) */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
+         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
+             
+             {/* Open Menu (Mobile) */}
+             <button 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 md:hidden"
+                onClick={() => { 
+                    // This is a hacky way to trigger sidebar, ideally pass a prop
+                    const menuBtn = document.getElementById('sidebar-trigger');
+                    if(menuBtn) menuBtn.click();
+                }}
+             >
+                <Menu size={20} />
+             </button>
+
+             {/* Divider */}
+             <div className="w-px h-6 bg-[var(--border-color)] mx-1 md:hidden"></div>
+
+             {/* Tools */}
+             <button 
+                onClick={() => onNavigate('planner')}
+                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all bg-[var(--bg-main)] border border-[var(--border-color)]"
+             >
+                <Plus size={20} />
+             </button>
+
+             <button 
+                onClick={() => onNavigate('chat')}
+                className="w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] hover:scale-105"
+             >
+                <Mic size={24} />
+             </button>
+
+             <button 
+                onClick={() => onNavigate('thoughts')}
+                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all bg-[var(--bg-main)] border border-[var(--border-color)]"
+             >
+                <Sparkles size={20} />
+             </button>
+
+         </div>
       </div>
 
       {/* EDIT TASK MODAL (Refined Glass) */}

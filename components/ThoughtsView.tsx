@@ -4,19 +4,20 @@ import { Thought, Attachment } from '../types';
 import { 
   Brain, Lightbulb, Plus, Trash2, Quote as QuoteIcon, Library, Download, X, User, 
   Link as LinkIcon, File as FileIcon, Globe, Paperclip, Network, BookOpen, Save,
-  Image as ImageIcon, FileText
+  Image as ImageIcon, FileText, LayoutDashboard
 } from 'lucide-react';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 
 interface ThoughtsViewProps {
   thoughts: Thought[];
   onAdd: (content: string, type: 'thought' | 'idea' | 'quote' | 'link' | 'file', tags: string[], metadata?: any) => void;
   onUpdate?: (id: string, updates: Partial<Thought>) => void; 
   onDelete: (id: string) => void;
+  onNavigate?: (view: any) => void; // Added for Pill
 }
 
-const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, onDelete }) => {
+const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, onDelete, onNavigate }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'thought' | 'link' | 'file'>('all');
   const [isAdding, setIsAdding] = useState(false);
   const [addType, setAddType] = useState<'thought' | 'link' | 'file'>('thought');
@@ -165,8 +166,37 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         </div>
       </div>
 
-      <div className="fixed bottom-28 right-6 z-40">
-        <button onClick={() => setIsAdding(true)} className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"><Plus size={24}/></button>
+      {/* FLOATING ACTION PILL */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
+         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
+             
+             {/* Home/Dashboard */}
+             <button 
+                onClick={() => onNavigate && onNavigate('dashboard')} 
+                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95"
+             >
+                <LayoutDashboard size={20} />
+             </button>
+
+             <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
+
+             {/* Link */}
+             <button 
+                onClick={() => { setAddType('link'); setIsAdding(true); }}
+                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all bg-[var(--bg-main)] border border-[var(--border-color)]"
+             >
+                <LinkIcon size={20} />
+             </button>
+             
+             {/* Add Note (Primary) */}
+             <button 
+                onClick={() => { setAddType('thought'); setIsAdding(true); }}
+                className="w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] hover:scale-105"
+             >
+                <Plus size={24} />
+             </button>
+
+         </div>
       </div>
 
       {/* --- ADD MODAL --- */}

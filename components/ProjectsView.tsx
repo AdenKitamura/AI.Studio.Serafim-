@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, Task, Thought, Priority, Attachment } from '../types';
-import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, X, Eye, FileText, GripVertical } from 'lucide-react';
+import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, X, Eye, FileText, GripVertical, LayoutDashboard } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ExtendedProjectsViewProps {
@@ -17,13 +18,14 @@ interface ExtendedProjectsViewProps {
   onAddThought: (thought: Thought) => void;
   onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   onDeleteThought: (id: string) => void;
+  onNavigate?: (view: any) => void; // Added for Pill
 }
 
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#808080'];
 
 const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({ 
   projects, tasks, onAddProject, onUpdateProject, onDeleteProject, 
-  onAddTask, onUpdateTask, onDeleteTask
+  onAddTask, onUpdateTask, onDeleteTask, onNavigate
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -301,12 +303,6 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                     <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter mb-1">Проекты</h2>
                     <p className="text-[var(--text-muted)] text-sm font-bold opacity-60">Центр управления задачами</p>
                 </div>
-                <button 
-                    onClick={() => setIsCreatingProject(true)}
-                    className="w-12 h-12 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center shadow-lg shadow-[var(--accent-glow)] hover:scale-105 transition-all active:scale-95"
-                >
-                    <Plus size={24} strokeWidth={3} />
-                </button>
             </div>
 
             {projects.length === 0 ? (
@@ -356,6 +352,31 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
                     })}
                 </div>
             )}
+        </div>
+
+        {/* FLOATING ACTION PILL */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
+            <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
+                
+                {/* Home/Dashboard */}
+                <button 
+                    onClick={() => onNavigate && onNavigate('dashboard')} 
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95"
+                >
+                    <LayoutDashboard size={20} />
+                </button>
+
+                <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
+
+                {/* Add Project (Primary) */}
+                <button 
+                    onClick={() => setIsCreatingProject(true)} 
+                    className="w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] hover:scale-105"
+                >
+                    <Plus size={24} />
+                </button>
+
+            </div>
         </div>
 
         {/* Create Modal */}

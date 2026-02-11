@@ -4,7 +4,7 @@ import { Thought } from '../types';
 import { Quote as QuoteIcon, X, Download, Search, Sparkles, BookOpen, Calendar, RefreshCw } from 'lucide-react';
 import { getQuotesByCategory, CATEGORIES, QuoteCategory, Quote, getAllQuotes } from '../services/quotesService';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 
 interface QuotesLibraryProps {
   myQuotes: Thought[];
