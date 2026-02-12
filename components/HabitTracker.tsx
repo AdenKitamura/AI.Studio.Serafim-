@@ -64,7 +64,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
 
   return (
     <>
-      <div className="flex gap-4 overflow-x-auto no-scrollbar py-2 px-1">
+      <div className="grid grid-cols-2 gap-3 pb-2 px-1">
         {habits.map(habit => {
           const isDone = habit.completedDates.includes(dateStr);
           const streak = getStreak(habit.completedDates);
@@ -75,22 +75,23 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
               onClick={() => onToggle(habit.id, dateStr)}
               onContextMenu={(e) => { e.preventDefault(); onDelete(habit.id); }}
               className={`
-                group relative flex-none w-36 p-4 rounded-[1.5rem] border transition-all duration-300 cursor-pointer overflow-hidden
+                group relative p-4 rounded-[1.5rem] transition-all duration-300 cursor-pointer overflow-hidden
+                backdrop-blur-xl border
                 ${isDone 
-                  ? 'bg-[var(--bg-item)] border-[var(--accent)]/30 shadow-[0_0_20px_rgba(0,0,0,0.2)]' 
-                  : 'bg-[var(--bg-main)] border-[var(--border-color)] hover:border-[var(--text-muted)] hover:bg-[var(--bg-item)]'}
+                  ? 'bg-[var(--accent)]/20 border-[var(--accent)]/50 shadow-[0_0_20px_rgba(0,0,0,0.2)]' 
+                  : 'bg-white/5 border-white/5 hover:border-white/20 hover:bg-white/10'}
               `}
             >
               {/* Background Progress Effect */}
               <div 
-                className={`absolute inset-0 opacity-10 transition-all duration-500 ${isDone ? 'translate-y-0' : 'translate-y-full'}`} 
+                className={`absolute inset-0 opacity-20 transition-all duration-500 ${isDone ? 'translate-y-0' : 'translate-y-full'}`} 
                 style={{ backgroundColor: habit.color }}
               ></div>
 
               {/* Header: Title & Check */}
               <div className="flex justify-between items-start mb-3 relative z-10">
-                 <div className="w-6 h-6 rounded-full border border-[var(--border-color)] flex items-center justify-center transition-all bg-black/20"
-                      style={{ borderColor: isDone ? habit.color : 'var(--border-color)', backgroundColor: isDone ? habit.color : 'transparent' }}>
+                 <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${isDone ? 'border-transparent bg-[var(--accent)]' : 'border-white/20 bg-black/20'}`}
+                      style={isDone ? { backgroundColor: habit.color } : {}}>
                     {isDone && <Check size={14} strokeWidth={4} className="text-white scale-110" />}
                  </div>
                  {streak > 2 && (
@@ -133,9 +134,9 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
         {/* Add Button */}
         <button 
           onClick={() => setIsAdding(true)}
-          className="group flex-none w-16 rounded-[1.5rem] bg-[var(--bg-main)] border border-dashed border-[var(--border-color)] flex flex-col items-center justify-center gap-2 text-[var(--text-muted)] hover:text-white hover:border-[var(--accent)] transition-all hover:bg-[var(--bg-item)]"
+          className="group h-[116px] rounded-[1.5rem] bg-white/5 border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)] hover:text-white hover:border-[var(--accent)] transition-all hover:bg-white/10 backdrop-blur-md"
         >
-          <div className="p-2 bg-[var(--bg-item)] rounded-full group-hover:scale-110 transition-transform">
+          <div className="p-2 bg-black/20 rounded-full group-hover:scale-110 transition-transform">
              <Plus size={18} />
           </div>
           <span className="text-[8px] font-black uppercase">New</span>
@@ -144,7 +145,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
 
       {isAdding && (
         <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div className="w-full max-w-xs glass-card rounded-[2.5rem] p-8 shadow-2xl relative border border-white/10">
+          <div className="w-full max-w-xs glass-card rounded-[2.5rem] p-8 shadow-2xl relative border border-white/10 bg-[#121212]/90">
             <div className="flex justify-between items-center mb-6">
               <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Новый ритуал</span>
               <button onClick={() => setIsAdding(false)}><X size={18} className="text-white/20 hover:text-white" /></button>

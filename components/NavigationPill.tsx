@@ -27,7 +27,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
 }) => {
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-6 flex justify-center pointer-events-none">
-      <div className="pointer-events-auto relative flex items-center justify-between gap-1 p-2 rounded-[2.5rem] bg-[#121212]/85 backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] transition-all duration-300">
+      <div className="pointer-events-auto relative flex items-center justify-between gap-1 p-2 rounded-[2.5rem] bg-[#020202]/95 backdrop-blur-3xl border border-white/10 shadow-[0_8px_40px_0_rgba(0,0,0,0.6)] transition-all duration-300">
         
         {/* 1. Menu (Fixed Left) */}
         <button 
@@ -53,7 +53,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
         {/* 3. Mic (Fixed Center) - Main Action */}
         <button 
           onClick={() => onNavigate('chat')}
-          className="w-16 h-16 rounded-full flex items-center justify-center bg-amber-500 text-black shadow-[0_0_40px_-10px_rgba(245,158,11,0.6)] hover:scale-105 active:scale-95 transition-all mx-1 border-4 border-[#121212]/50 relative z-10"
+          className="w-16 h-16 rounded-full flex items-center justify-center bg-[var(--accent)] text-black shadow-[0_0_40px_-10px_rgba(var(--accent),0.6)] hover:scale-105 active:scale-95 transition-all mx-1 border-4 border-[#020202]/50 relative z-10"
         >
           <Mic size={28} strokeWidth={2.5} />
         </button>
@@ -74,7 +74,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
         {/* 5. Navigation Anchor (Right) */}
         <button 
           onClick={() => onNavigate(currentView === 'dashboard' ? 'projects' : 'dashboard')}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 hover:bg-white/5 ${currentView === 'projects' ? 'text-amber-500' : 'text-white/50 hover:text-white'}`}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 hover:bg-white/5 ${currentView === 'projects' ? 'text-[var(--accent)]' : 'text-white/50 hover:text-white'}`}
         >
           {currentView === 'dashboard' ? <Folder size={22} strokeWidth={2.5} /> : <LayoutGrid size={22} strokeWidth={2.5} />}
         </button>

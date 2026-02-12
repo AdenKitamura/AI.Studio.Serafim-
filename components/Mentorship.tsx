@@ -520,23 +520,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       >
                          <Paperclip size={20} strokeWidth={2} />
                       </button>
-     
-                      {/* Link (Appends https://) */}
-                      <button 
-                         onClick={() => {
-                             const newInput = input + (input.length > 0 && !input.endsWith(' ') ? ' ' : '') + 'https://';
-                             setInput(newInput);
-                             const textarea = document.querySelector('textarea');
-                             if(textarea) {
-                               // @ts-ignore
-                               textarea.focus();
-                             }
-                         }}
-                         className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"
-                         title="Ссылка"
-                      >
-                         <LinkIcon size={20} strokeWidth={2} />
-                      </button>
                  </div>
      
                  <div className="flex items-center gap-2">
