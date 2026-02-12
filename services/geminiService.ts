@@ -19,7 +19,7 @@ const getApiKey = () => {
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Создает задачу.",
+    description: "Создает задачу. Используй это, когда пользователь явно просит или когда из контекста разговора вытекает необходимость действия.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -34,7 +34,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "create_idea",
-    description: "Создает новую ИДЕЮ/ЗАМЕТКУ в Архиве.",
+    description: "Создает новую ИДЕЮ/ЗАМЕТКУ в Архиве. Используй для инсайтов, цитат или мыслей, которые не являются задачами.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -47,7 +47,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "remember_fact",
-    description: "Сохраняет важный факт о пользователе в долгосрочную память.",
+    description: "Сохраняет важный факт о пользователе в долгосрочную память (вкусы, цели, имена, привычки).",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -71,7 +71,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "ui_control",
-    description: "Управляет интерфейсом.",
+    description: "Управляет интерфейсом (темы, таймер).",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -93,49 +93,50 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   
   // Format memories
   const memoryContext = context.memories && context.memories.length > 0 
-    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ (ФАКТЫ О ПОЛЬЗОВАТЕЛЕ):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
     : 'Память о пользователе пока пуста.';
 
-  // Format Journal (Last 5 meaningful entries)
-  let journalContext = "ДНЕВНИК (ПОСЛЕДНИЕ ЗАПИСИ):\n";
+  // Format Journal (Last 3 meaningful entries to keep context light but relevant)
+  let journalContext = "ДНЕВНИК (ПОСЛЕДНЕЕ):\n";
   const recentJournal = (context.journal || [])
     .filter((j: JournalEntry) => j.content && j.content.length > 10)
     .sort((a: JournalEntry, b: JournalEntry) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .slice(0, 3);
   
   if (recentJournal.length > 0) {
     journalContext += recentJournal.map((j: JournalEntry) => 
-      `[${j.date}] Настроение: ${j.mood || 'N/A'}\nЗапись: ${j.content.substring(0, 300)}...`
-    ).join('\n---\n');
+      `[${j.date}] Mood: ${j.mood || '-'}. "${j.content.substring(0, 200)}..."`
+    ).join('\n');
   } else {
-    journalContext += "Записей нет.";
+    journalContext += "Пусто.";
   }
 
   // Format Tasks
-  const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted).slice(0, 15);
-  const taskContext = `АКТУАЛЬНЫЕ ЗАДАЧИ (${activeTasks.length}):\n${activeTasks.map((t: Task) => `- ${t.title} [${t.priority}] ${t.dueDate ? `(Дедлайн: ${t.dueDate})` : ''}`).join('\n')}`;
+  const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
+  const highPriority = activeTasks.filter((t: Task) => t.priority === 'High').length;
+  const taskContext = `ЗАДАЧИ: Всего ${activeTasks.length}, Важных: ${highPriority}.\nСписок: ${activeTasks.slice(0, 10).map((t: Task) => t.title).join(', ')}`;
 
   const SYSTEM_INSTRUCTION = `
-Ты — Serafim OS (v4 Pro), совершенный цифровой ассистент и второй мозг.
-Твоя личность: Рациональный, эмпатичный, краткий, но глубокий. Ты не просто чат-бот, ты операционная система жизни.
+Ты — Серафим (Serafim OS v4). Ты не просто "ассистент", ты — второй мозг и цифровой напарник пользователя.
+Пользователь: ${context.userName || 'Архитектор'}
+Сейчас: ${today}
 
-ТЕКУЩИЙ КОНТЕКСТ:
-- Пользователь: ${context.userName || 'Архитектор'}
-- Сейчас: ${today}
+ТВОЙ СТИЛЬ:
+1. **Живой и Краткий:** Пиши как человек в мессенджере. Избегай полотен текста. Максимум 2-3 предложения за раз, если не просят больше.
+2. **Без официоза:** Не используй фразы вроде "Чем я могу помочь?". Лучше: "Какие планы?", "Разберем завалы?", "Слушаю".
+3. **Эмпатия:** Если пользователь делится мыслью, сначала ОТРЕАГИРУЙ на неё, поддержи диалог, а потом уже предлагай действия. Не будь роботом, который молча создает тикеты.
 
+РАБОТА С ИНСТРУМЕНТАМИ (TOOLS):
+1. Если пользователь говорит о деле, спроси, стоит ли создать задачу, или создай её и **СКАЖИ ОБ ЭТОМ**. Пример: "Окей, закинул это в задачи, чтобы не забылось. Дедлайн ставить?"
+2. Никогда не отвечай просто "Готово" или "Сделано". Всегда поясняй контекст. Пример: "Готово. Создал задачу 'Купить молоко'. Кстати, у тебя на сегодня еще 5 дел."
+3. Если пользователь просто рассуждает, используй \`create_idea\`, но скажи: "Интересная мысль. Сохранил её в заметки."
+
+КОНТЕКСТ:
 ${memoryContext}
-
 ${journalContext}
-
 ${taskContext}
 
-ПРАВИЛА:
-1. Твой голос должен быть естественным для TTS (Text-to-Speech). Избегай сложных списков с кучей буллетов, если это не необходимо. Пиши так, как говорят люди.
-2. Используй контекст Дневника и Задач. Если пользователь жалуется на усталость, проверь, не перегружен ли он задачами.
-3. Если пользователь просит что-то сделать (создать задачу, запомнить, поменять тему) — ВСЕГДА вызывай соответствующий инструмент (tool function). Не просто говори "Я сделаю", а делай.
-4. Будь проактивен. Если видишь конфликт в расписании или высокий уровень стресса в дневнике, предложи помощь.
-
-Ты интегрирован в интерфейс. Твои ответы рендерятся и озвучиваются.
+Твоя цель — снижать когнитивную нагрузку пользователя, быть проактивным, но ненавязчивым другом.
 `;
 
   // Map user preference to actual API models
@@ -146,9 +147,47 @@ ${taskContext}
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       tools: [{ functionDeclarations: tools }],
-      temperature: 0.7,
+      temperature: 0.9, // Higher temperature for more "human" creativity
     }
   });
+};
+
+export const generateProactiveMessage = async (context: any) => {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
+
+    const ai = new GoogleGenAI({ apiKey });
+    const timeOfDay = new Date().getHours();
+    let timeContext = "день";
+    if (timeOfDay < 12) timeContext = "утро";
+    else if (timeOfDay > 18) timeContext = "вечер";
+
+    const activeTasksCount = (context.tasks || []).filter((t: Task) => !t.isCompleted).length;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-latest', // Fast model for greeting
+            contents: `
+                Пользователь только что открыл приложение.
+                Имя: ${context.userName}.
+                Время суток: ${timeContext}.
+                Количество задач: ${activeTasksCount}.
+                
+                Напиши ОДНО очень короткое, живое приветственное сообщение (максимум 10-12 слов).
+                Это должно звучать как сообщение от друга, который в курсе дел.
+                Не предлагай помощь в лоб ("Чем помочь?").
+                Примеры:
+                - "Доброе утро! Готов разнести эти 5 задач?"
+                - "Вечер добрый. Как прошел день?"
+                - "Вижу, список пуст. Отдыхаем или планируем?"
+                - "Салют. Есть мысли, которые нужно записать?"
+            `,
+            config: { temperature: 1 }
+        });
+        return response.text;
+    } catch (e) {
+        return null;
+    }
 };
 
 export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal: JournalEntry[]) => {
@@ -182,7 +221,7 @@ export const fixGrammar = async (text: string) => {
   const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-latest', // Fastest model for micro-tasks
+      model: 'gemini-2.5-flash-latest', 
       contents: `Fix grammar, punctuation, and capitalization. Return ONLY the fixed text, nothing else. Text: "${text}"`,
       config: {
           temperature: 0, 

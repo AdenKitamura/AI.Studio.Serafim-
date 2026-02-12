@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
-import { createMentorChat, fixGrammar } from '../services/geminiService';
+import { createMentorChat, fixGrammar, generateProactiveMessage } from '../services/geminiService';
 import * as googleService from '../services/googleService'; 
 import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard, Menu
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard, Menu, Cpu
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -50,6 +50,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [interimText, setInterimText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [isProcessingTool, setIsProcessingTool] = useState(false);
   
   // Terminal State
   const [showTerminal, setShowTerminal] = useState(false);
@@ -62,6 +63,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const didGreetRef = useRef<boolean>(false);
   
   // Ref to track processed results to avoid duplicates
   const lastResultIndexRef = useRef(0);
@@ -126,10 +128,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         rec.onresult = (event: any) => {
           let finalTranscript = '';
           let interimTranscript = '';
-
-          // Iterate through results starting from where we left off (or just process the current buffer)
-          // Actually, resultIndex tells us where the *new* results start.
-          // BUT, we need to iterate from resultIndex to length.
           
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
@@ -176,7 +174,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   // --- SCROLL HANDLING FIXED ---
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-      // Use setTimeout to ensure DOM has updated
       setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior });
       }, 100);
@@ -187,6 +184,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
       scrollToBottom('auto');
       chatSessionRef.current = null; 
       stopSpeaking();
+      
+      // Proactive Greeting Logic
+      if (activeSessionId && sessions.length > 0) {
+          const sess = sessions.find(s => s.id === activeSessionId);
+          // If session is empty or user hasn't been greeted in this session view yet
+          if (sess && sess.messages.length === 0 && !isThinking && !didGreetRef.current) {
+              initProactiveGreeting();
+          }
+      }
+      // Reset ref on ID change
+      didGreetRef.current = false;
+
   }, [activeSessionId]);
 
   // 2. Scroll smoothly when new messages appear or thinking
@@ -194,6 +203,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
       scrollToBottom('smooth'); 
   }, [activeSession?.messages, isThinking]);
 
+  const initProactiveGreeting = async () => {
+      if (!hasAiKey) return;
+      didGreetRef.current = true; // prevent double firing
+      setIsThinking(true);
+      const greeting = await generateProactiveMessage({ userName, tasks });
+      setIsThinking(false);
+      
+      if (greeting) {
+          const modelMsg: ChatMessage = { id: Date.now().toString(), role: 'model', content: greeting, timestamp: Date.now() };
+          const currentHistory = activeSession ? activeSession.messages : [];
+          onUpdateMessages([...currentHistory, modelMsg]);
+      }
+  };
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
@@ -241,14 +263,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
         contents = { parts: [{ text: cleanInput + timeContext || "Проанализируй это изображение." }, { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }] };
       }
 
-      logger.log('Gemini', 'Sending request...', 'info');
+      logger.log('Gemini', 'Thinking...', 'info');
       const response = await chatSessionRef.current.sendMessage({ message: contents });
 
       // --- HANDLE TOOLS & GOOGLE SYNC ---
       if (response.functionCalls) {
+        setIsProcessingTool(true); // Terminal Animation Trigger
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
-          logger.log('Tool', `Executing ${fc.name}`, 'info', args);
+          logger.log('Kernel', `Executing [${fc.name}]`, 'warning', args);
 
           switch (fc.name) {
             case 'manage_task':
@@ -266,7 +289,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 
                 // 1. Local Add
                 onAddTask(newTask);
-                logger.log('System', 'Task created locally', 'success');
+                logger.log('System', `Task created: ${newTask.title}`, 'success');
 
                 // 2. Google Sync Debug
                 const googleToken = session?.provider_token || localStorage.getItem('google_access_token');
@@ -281,21 +304,23 @@ const Mentorship: React.FC<MentorshipProps> = ({
               break;
             case 'create_idea':
               onAddThought({ id: Date.now().toString(), content: args.title, notes: args.content, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
-              logger.log('System', 'Idea saved', 'success');
+              logger.log('System', `Idea saved: ${args.title}`, 'success');
               break;
             case 'remember_fact':
-              if (args.fact) { onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() }); logger.log('Memory', 'Fact saved', 'success'); }
+              if (args.fact) { onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() }); logger.log('Memory', 'Core memory updated', 'success'); }
               break;
             case 'manage_project':
               onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
-              logger.log('System', 'Project created', 'success');
+              logger.log('System', `Project initialized: ${args.title}`, 'success');
               break;
             case 'ui_control':
               if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
               if (args.command === 'start_focus') onStartFocus(args.duration || 25);
+              logger.log('Interface', `UI Command executed`, 'success');
               break;
           }
         }
+        setIsProcessingTool(false);
       }
 
       const responseText = response.text || "Готово.";
@@ -306,10 +331,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
       console.error(e);
       logger.log('Gemini', 'API Error', 'error', e.message);
       chatSessionRef.current = null;
-      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Произошла ошибка соединения. Я сбросил сессию.", timestamp: Date.now() };
+      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Сбой нейросвязи. Я перезагрузил контекст.", timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
     } finally {
       setIsThinking(false);
+      setIsProcessingTool(false);
     }
   };
 
@@ -323,7 +349,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       
       {/* --- REAL-TIME TERMINAL OVERLAY --- */}
       {showTerminal && (
-          <div className="absolute top-0 left-0 w-full h-[60%] z-[60] bg-black/90 backdrop-blur-xl border-b border-[var(--border-color)] animate-in slide-in-from-top-10 flex flex-col font-mono text-xs">
+          <div className="absolute top-0 left-0 w-full h-[60%] z-[60] bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-[var(--border-color)] animate-in slide-in-from-top-10 flex flex-col font-mono text-xs shadow-2xl">
               <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-white/5">
                   <div className="flex items-center gap-2 text-emerald-500">
                       <Terminal size={14} />
@@ -344,6 +370,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
                           </span>
                       </div>
                   ))}
+                  
+                  {/* Processing Animation inside Terminal */}
+                  {isThinking && (
+                      <div className="flex gap-2 animate-pulse text-purple-400 mt-2">
+                          <span className="text-white/30">{`[${new Date().toLocaleTimeString()}]`}</span>
+                          <span>{isProcessingTool ? 'EXECUTING KERNEL FUNCTION...' : 'NEURAL PROCESSING...'}</span>
+                      </div>
+                  )}
                   <div ref={terminalEndRef} />
               </div>
           </div>
@@ -354,7 +388,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
         onClick={() => setShowTerminal(!showTerminal)}
         className={`absolute top-20 right-4 z-50 p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}
       >
-        <Terminal size={16} />
+        <div className="relative">
+            <Terminal size={16} />
+            {isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}
+        </div>
       </button>
 
       <div className="flex-1 relative overflow-hidden z-10">
@@ -373,7 +410,24 @@ const Mentorship: React.FC<MentorshipProps> = ({
               </div>
             </div>
           ))}
-          {isThinking && <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2"><div className="glass-panel px-4 py-3 rounded-t-3xl rounded-br-3xl border border-[var(--border-color)] flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]"></div><div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]"></div><div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce"></div></div></div>}
+          {isThinking && (
+              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
+                  <div className="glass-panel px-4 py-3 rounded-t-3xl rounded-br-3xl border border-[var(--border-color)] flex items-center gap-3">
+                      {isProcessingTool ? (
+                          <>
+                             <Cpu size={16} className="text-[var(--accent)] animate-spin" />
+                             <span className="text-xs font-mono text-[var(--text-muted)]">SYSTEM ACTION...</span>
+                          </>
+                      ) : (
+                          <>
+                             <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                             <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                             <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce"></div>
+                          </>
+                      )}
+                  </div>
+              </div>
+          )}
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>
