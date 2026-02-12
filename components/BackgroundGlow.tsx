@@ -41,16 +41,13 @@ const BackgroundGlow = () => {
       className="fixed inset-0 z-0 pointer-events-none overflow-hidden"
       style={{ backgroundColor: 'var(--bg-main)' }}
     >
-      {/* Base Grid */}
+      {/* Base Dots Pattern */}
       <div 
         className="absolute inset-0"
         style={{
-          backgroundImage: `
-            linear-gradient(to right, var(--border-color) 1px, transparent 1px),
-            linear-gradient(to bottom, var(--border-color) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-          opacity: 0.3,
+          backgroundImage: `radial-gradient(var(--border-color) 1px, transparent 1px)`,
+          backgroundSize: '24px 24px',
+          opacity: 0.4,
           maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, #000 40%, transparent 100%)'
         }}
       />
@@ -64,7 +61,7 @@ const BackgroundGlow = () => {
             var(--accent-glow), 
             transparent 40%
           )`,
-          opacity: 0.5,
+          opacity: 0.4,
         }}
       />
       
@@ -77,7 +74,7 @@ const BackgroundGlow = () => {
                 var(--accent-glow),
                 transparent 60%
             )`,
-            opacity: 0.1
+            opacity: 0.05
          }}
       />
     </div>

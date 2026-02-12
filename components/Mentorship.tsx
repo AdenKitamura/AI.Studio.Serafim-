@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
 import { createMentorChat, fixGrammar, generateProactiveMessage } from '../services/geminiService';
@@ -5,7 +6,8 @@ import * as googleService from '../services/googleService';
 import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard, Menu, Cpu
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard, Menu, Cpu,
+  Paperclip, Link as LinkIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -426,8 +428,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </button>
 
       <div className="flex-1 relative overflow-hidden z-10">
-        {/* Adjusted padding: pb-36 allows scroll to clear input bar */}
-        <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-36">
+        {/* Adjusted padding: pb-40 allows scroll to clear input bar */}
+        <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-40">
           {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
@@ -463,58 +465,101 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* FLOATING ACTION PILL (Chat Input Variant) - UPDATED STYLE: Ice Frosted */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-6 flex justify-center">
-         <div className="pointer-events-auto bg-[#121212]/85 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-2 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] flex items-center gap-2 animate-in slide-in-from-bottom-5 w-full transition-all duration-300">
+      {/* AI PROMPT BOX - REPLACEMENT FOR PILL */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 flex justify-center">
+         <div className="w-full bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-5 shadow-[0_8px_40px_0_rgba(0,0,0,0.45)] animate-in slide-in-from-bottom-5 transition-all duration-300 relative group hover:border-[var(--accent)]/30 ring-1 ring-white/5">
              
-             {/* 1. Menu (Fixed) */}
-             <button 
-                onClick={openMenu}
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors active:scale-95 shrink-0 hover:bg-white/5"
-             >
-                <Menu size={22} strokeWidth={2.5} />
-             </button>
-
-             {/* Image Attach */}
-             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
-             <button 
-                onClick={() => fileInputRef.current?.click()} 
-                className="w-10 h-10 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors active:scale-95 shrink-0 hover:bg-white/5"
-             >
-                <ImageIcon size={20} strokeWidth={2.5} />
-             </button>
-
-             {/* Input Field */}
+             {/* Attached Image Preview */}
+             {attachedImage && (
+                 <div className="mb-4 relative inline-block animate-in zoom-in slide-in-from-bottom-2">
+                     <img src={attachedImage} className="h-16 w-16 rounded-xl object-cover border border-white/10 shadow-lg" alt="attachment" />
+                     <button 
+                         onClick={() => setAttachedImage(null)} 
+                         className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1.5 shadow-md hover:bg-rose-600 transition-colors"
+                     >
+                         <X size={10} strokeWidth={3} />
+                     </button>
+                 </div>
+             )}
+     
+             {/* Text Area */}
              <textarea 
-                rows={1} 
-                value={input} 
-                onFocus={handleInputFocus}
-                onChange={e => { setInput(e.target.value); }} 
-                onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
-                placeholder={isThinking ? "Думаю..." : isRecording ? interimText || "Слушаю..." : "Сообщение..."} 
-                disabled={isThinking} 
-                className="flex-1 bg-transparent text-sm text-white px-2 py-3 outline-none resize-none no-scrollbar placeholder:text-white/30 font-bold min-h-[44px] max-h-[120px]" 
+                 rows={1}
+                 value={input} 
+                 onFocus={handleInputFocus}
+                 onChange={e => { 
+                    setInput(e.target.value); 
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+                 }} 
+                 onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
+                 placeholder={isThinking ? "Серафим думает..." : isRecording ? interimText || "Говорите..." : "Задай вопрос..."} 
+                 disabled={isThinking} 
+                 className="w-full bg-transparent text-[15px] text-white placeholder:text-zinc-500 font-medium outline-none resize-none no-scrollbar min-h-[24px] max-h-[160px] leading-relaxed"
+                 style={{ height: input ? 'auto' : '24px' }}
              />
-
-             {/* Mic Toggle */}
-             <button 
-                onClick={toggleVoice} 
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-             >
-                {isRecording ? <MicOff size={20} strokeWidth={2.5} /> : <Mic size={20} strokeWidth={2.5} />}
-             </button>
-
-             {/* Send Button - Styled like the Main Mic in Nav */}
-             <button 
-                onClick={handleSend} 
-                disabled={!input.trim() && !attachedImage} 
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0 ${(!input.trim() && !attachedImage) ? 'opacity-30 bg-white/10 cursor-not-allowed' : 'bg-amber-500 text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] active:scale-90 cursor-pointer hover:scale-105'}`}
-             >
-                {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={24} strokeWidth={3} />}
-             </button>
-
+     
+             {/* Toolbar */}
+             <div className="flex items-center justify-between mt-4 pt-2">
+                 <div className="flex items-center gap-1">
+                      {/* Menu */}
+                      <button 
+                         onClick={openMenu}
+                         className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"
+                         title="Меню"
+                      >
+                         <Menu size={20} strokeWidth={2} />
+                      </button>
+     
+                      {/* File (Image for now) */}
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
+                      <button 
+                         onClick={() => fileInputRef.current?.click()} 
+                         className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"
+                         title="Файл"
+                      >
+                         <Paperclip size={20} strokeWidth={2} />
+                      </button>
+     
+                      {/* Link (Appends https://) */}
+                      <button 
+                         onClick={() => {
+                             const newInput = input + (input.length > 0 && !input.endsWith(' ') ? ' ' : '') + 'https://';
+                             setInput(newInput);
+                             const textarea = document.querySelector('textarea');
+                             if(textarea) {
+                               // @ts-ignore
+                               textarea.focus();
+                             }
+                         }}
+                         className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"
+                         title="Ссылка"
+                      >
+                         <LinkIcon size={20} strokeWidth={2} />
+                      </button>
+                 </div>
+     
+                 <div className="flex items-center gap-2">
+                      {/* Audio */}
+                      <button 
+                         onClick={toggleVoice} 
+                         className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500/20 text-rose-500 animate-pulse' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+                         title="Голосовой ввод"
+                      >
+                         {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                      </button>
+     
+                      {/* Send */}
+                      <button 
+                         onClick={handleSend} 
+                         disabled={!input.trim() && !attachedImage} 
+                         className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}
+                      >
+                         {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
+                      </button>
+                 </div>
+             </div>
          </div>
-         {attachedImage && <div className="absolute -top-20 right-8 animate-in zoom-in"><img src={attachedImage} className="w-16 h-16 rounded-xl object-cover border-2 border-[var(--accent)] shadow-lg" /><button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg"><X size={12}/></button></div>}
       </div>
     </div>
   );
