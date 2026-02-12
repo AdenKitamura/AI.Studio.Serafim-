@@ -1,19 +1,22 @@
+
 import React, { useState } from 'react';
-import { Task, Habit, JournalEntry, ThemeKey } from '../types';
+import { Task, Habit, JournalEntry, ThemeKey, ViewState } from '../types';
 import { themes } from '../themes';
-import { PieChart, Activity, Zap, Brain, CheckCircle, Sparkles, RefreshCw, Target } from 'lucide-react';
+import { PieChart, Activity, Zap, Brain, CheckCircle, Sparkles, RefreshCw, Target, LayoutDashboard } from 'lucide-react';
 import { format, eachDayOfInterval, addDays } from 'date-fns';
 import { getSystemAnalysis } from '../services/geminiService';
+import NavigationPill from './NavigationPill';
 
 interface AnalyticsViewProps {
   tasks: Task[];
   habits: Habit[];
   journal: JournalEntry[];
   currentTheme: ThemeKey;
-  onClose: () => void;
+  onNavigate: (view: ViewState) => void;
+  onClose?: () => void; // Kept for compatibility but unused
 }
 
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, currentTheme, onClose }) => {
+const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, currentTheme, onNavigate }) => {
   const themeColors = themes[currentTheme].colors;
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiInsight, setAiInsight] = useState<{status: string, insight: string, focusArea: string} | null>(null);
@@ -44,8 +47,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, c
       );
   };
 
+  const openMenu = () => {
+      const menuBtn = document.getElementById('sidebar-trigger');
+      if(menuBtn) menuBtn.click();
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-main)] animate-in fade-in duration-300 overflow-y-auto no-scrollbar pb-24">
+    <div className="flex flex-col h-full bg-[var(--bg-main)] animate-in fade-in duration-300 overflow-y-auto no-scrollbar pb-32">
       <div className="p-6 pb-2"><h2 className="text-2xl font-bold text-[var(--text-main)] mb-1">Сводка</h2><p className="text-sm text-[var(--text-muted)]">Анализ вашей продуктивности</p></div>
       <div className="p-4 space-y-6">
           <div className="relative group p-[1px] rounded-3xl overflow-hidden bg-gradient-to-br from-[var(--accent)] to-purple-600 shadow-xl"><div className="glass-panel rounded-[23px] p-5 relative z-10 h-full"><div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><div className="p-2 bg-[var(--accent)]/10 rounded-lg text-[var(--accent)]"><Sparkles size={20} className={isAnalyzing ? 'animate-pulse' : ''} /></div><span className="text-xs font-bold uppercase tracking-widest text-[var(--text-main)]">Интеллект Серафима</span></div><button onClick={runAiAnalysis} disabled={isAnalyzing} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors disabled:opacity-50"><RefreshCw size={18} className={isAnalyzing ? 'animate-spin' : ''} /></button></div>{!aiInsight && !isAnalyzing ? (<div className="py-4 text-center"><p className="text-sm text-[var(--text-muted)] mb-4">Нажмите на иконку обновления, чтобы Серафим проанализировал ваши данные.</p><button onClick={runAiAnalysis} className="px-4 py-2 bg-[var(--accent)] text-white rounded-xl text-xs font-bold shadow-lg shadow-[var(--accent)]/20 active:scale-95 transition-all">Запустить анализ</button></div>) : isAnalyzing ? (<div className="py-8 flex flex-col items-center gap-3"><div className="flex gap-1"><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:-0.3s]"></div><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:-0.15s]"></div><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce"></div></div><p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Синхронизация нейронов...</p></div>) : (<div className="animate-in fade-in slide-in-from-bottom-2"><div className="inline-block px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] text-[10px] font-bold uppercase mb-2">{aiInsight?.status}</div><p className="text-sm text-[var(--text-main)] leading-relaxed mb-4 italic">"{aiInsight?.insight}"</p><div className="flex items-center gap-2 p-3 bg-[var(--bg-main)] rounded-xl border border-[var(--border-color)]"><Target size={16} className="text-orange-500" /><div className="flex-1"><p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Фокус завтра</p><p className="text-xs text-[var(--text-main)] font-medium">{aiInsight?.focusArea}</p></div></div></div>)}</div></div>
@@ -53,6 +61,14 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, habits, journal, c
           <div className="glass-panel rounded-2xl p-5"><div className="flex items-center justify-between mb-6"><div className="flex items-center gap-2 text-pink-500"><Brain size={20} /><span className="text-xs font-bold uppercase tracking-wider">Настроение (7 дней)</span></div></div><div className="h-24 w-full px-2">{renderMoodChart()}</div><div className="flex justify-between mt-2 text-[10px] text-[var(--text-muted)] font-mono uppercase">{last7Days.map((d, i) => <span key={i}>{format(d, 'dd')}</span>)}</div></div>
           <div className="glass-panel rounded-2xl p-5"><div className="flex items-center gap-2 text-yellow-500 mb-5"><Zap size={20} /><span className="text-xs font-bold uppercase tracking-wider">Дисциплина (30 дней)</span></div><div className="space-y-4">{habitStats.length === 0 ? <p className="text-center text-sm text-[var(--text-muted)] py-4">Нет активных привычек</p> : habitStats.map(habit => (<div key={habit.id}><div className="flex justify-between text-xs font-bold text-[var(--text-main)] mb-1"><span>{habit.title}</span><span>{habit.rate}%</span></div><div className="w-full h-2 bg-[var(--bg-card)] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${habit.rate}%`, backgroundColor: habit.color }}></div></div></div>))}</div></div>
       </div>
+
+      <NavigationPill 
+        currentView="analytics"
+        onNavigate={onNavigate}
+        onOpenMenu={openMenu}
+        toolL={{ icon: <LayoutDashboard size={22} />, onClick: () => onNavigate('dashboard') }}
+        toolR={{ icon: <RefreshCw size={22} />, onClick: runAiAnalysis, active: isAnalyzing }}
+      />
     </div>
   );
 };

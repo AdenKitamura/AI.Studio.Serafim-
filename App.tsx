@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel } from './types';
 import Mentorship from './components/Mentorship';
@@ -381,7 +382,7 @@ const App = () => {
               onNavigate={navigateTo}
             />
           )}
-          {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onClose={() => navigateTo('dashboard')} />}
+          {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onNavigate={navigateTo} />}
         </main>
       </div>
 

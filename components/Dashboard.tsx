@@ -1,6 +1,7 @@
+
 import React, { useMemo, useState } from 'react';
 import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types';
-import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, ArrowRight, Plus } from 'lucide-react';
+import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, ArrowRight, Plus, Lightbulb } from 'lucide-react';
 import { format, isToday, isFuture, differenceInMinutes } from 'date-fns';
 import HabitTracker from './HabitTracker';
 import Ticker from './Ticker';
@@ -21,7 +22,7 @@ interface DashboardProps {
   onAddHabit: (habit: Habit) => void;
   onToggleHabit: (id: string, date: string) => void;
   onDeleteHabit: (id: string) => void;
-  onOpenQuotes: () => void; // Added Prop
+  onOpenQuotes: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -32,7 +33,20 @@ const Dashboard: React.FC<DashboardProps> = ({
   const upcomingReminders = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(new Date(t.dueDate))).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 2), [tasks]);
   const todayTasks = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isToday(new Date(t.dueDate))).sort((a, b) => (a.priority === Priority.HIGH ? 0 : 1) - (b.priority === Priority.HIGH ? 0 : 1)).slice(0, 3), [tasks]);
   const activeProjects = useMemo(() => projects.slice(0, 6), [projects]);
-  const recentThoughts = useMemo(() => thoughts.filter(t => !t.isArchived).slice(0, 5), [thoughts]);
+  
+  // Logic for Journal Insight
+  const latestJournalEntry = useMemo(() => {
+      return [...journal].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  }, [journal]);
+
+  const insightText = useMemo(() => {
+      if (!latestJournalEntry) return null;
+      // Priority: Main Focus -> Tomorrow Goal -> Content Snippet
+      if (latestJournalEntry.reflection?.mainFocus) return latestJournalEntry.reflection.mainFocus;
+      if (latestJournalEntry.reflection?.tomorrowGoal) return `Цель: ${latestJournalEntry.reflection.tomorrowGoal}`;
+      if (latestJournalEntry.content) return latestJournalEntry.content;
+      return null;
+  }, [latestJournalEntry]);
 
   // Edit Task State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -109,7 +123,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
         </section>
 
-        {/* Focus & Thoughts (Grid) */}
+        {/* Focus & Insights (Grid) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
           {/* Priority Card */}
@@ -149,33 +163,41 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </section>
 
-          {/* Thoughts Card (Themed) */}
+          {/* Journal Insight Card (Replaces "Flow") */}
           <section>
             <div className="glass-panel rounded-[2.5rem] p-6 h-full flex flex-col relative overflow-hidden group bg-gradient-to-br from-[var(--bg-item)] to-transparent border border-[var(--border-color)]">
               <div className="absolute top-0 right-0 w-40 h-40 bg-[var(--accent)] blur-[80px] opacity-[0.1] rounded-full pointer-events-none"></div>
               
               <div className="flex items-center gap-3 mb-6 relative z-10">
-                  <div className="w-10 h-10 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-[var(--accent)]">
-                      <Sparkles size={18} />
+                  <div className="w-10 h-10 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-2xl flex items-center justify-center text-amber-400">
+                      <Lightbulb size={18} />
                   </div>
-                  <h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Поток</h3>
+                  <h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Инсайт</h3>
               </div>
               
-              {recentThoughts.length > 0 ? (
+              {insightText ? (
                 <div className="flex flex-col flex-1 relative z-10">
                     <div className="relative">
-                        <div className="absolute -left-3 top-0 bottom-0 w-1 bg-[var(--accent)] opacity-30 rounded-full"></div>
-                        <p className="text-sm text-[var(--text-main)] font-serif italic line-clamp-3 opacity-90 leading-relaxed pl-4">
-                            "{recentThoughts[0].content}"
+                        <div className="absolute -left-3 top-0 bottom-0 w-1 bg-amber-400 opacity-50 rounded-full"></div>
+                        <p className="text-sm text-[var(--text-main)] font-medium line-clamp-4 leading-relaxed pl-4">
+                            "{insightText}"
                         </p>
                     </div>
-                    <button onClick={() => onNavigate('chat')} className="mt-auto pt-6 text-[10px] font-black uppercase tracking-widest text-[var(--accent)] hover:text-[var(--text-main)] transition-colors flex items-center gap-2">
-                        Обсудить <ArrowRight size={12} />
-                    </button>
+                    <div className="mt-auto pt-4 flex items-center justify-between">
+                        <span className="text-[9px] font-black uppercase text-[var(--text-muted)] opacity-60">
+                            {format(new Date(latestJournalEntry.date), 'd MMM')}
+                        </span>
+                        <button onClick={() => onNavigate('journal')} className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] hover:text-[var(--text-main)] transition-colors flex items-center gap-2">
+                            В дневник <ArrowRight size={12} />
+                        </button>
+                    </div>
                 </div>
               ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center py-6 text-[var(--text-muted)] opacity-30">
-                      <span className="text-[9px] font-black uppercase">Пусто</span>
+                  <div className="flex-1 flex flex-col items-center justify-center py-6 text-[var(--text-muted)] opacity-50">
+                      <p className="text-[10px] font-black uppercase mb-4 text-center">Дневник пуст</p>
+                      <button onClick={() => onNavigate('journal')} className="px-4 py-2 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-xl text-xs font-bold hover:bg-[var(--accent)] hover:text-white transition-all">
+                          Записать мысли
+                      </button>
                   </div>
               )}
             </div>
