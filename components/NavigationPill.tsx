@@ -26,13 +26,13 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
   toolR 
 }) => {
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-6 flex justify-center pointer-events-none">
-      <div className="pointer-events-auto relative flex items-center justify-between gap-1 p-2 rounded-[2.5rem] bg-[#020202]/95 backdrop-blur-3xl border border-white/10 shadow-[0_8px_40px_0_rgba(0,0,0,0.6)] transition-all duration-300">
+    <div className="fixed bottom-6 left-0 w-full z-50 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)]">
+      <div className="pointer-events-auto relative flex items-center justify-between gap-1 p-2 rounded-[2.5rem] bg-black/90 backdrop-blur-[40px] border border-white/5 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)] transition-all duration-300 w-[90%] max-w-sm">
         
         {/* 1. Menu (Fixed Left) */}
         <button 
           onClick={onOpenMenu}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors active:scale-95 hover:bg-white/5"
+          className="w-12 h-12 rounded-full flex items-center justify-center text-white/40 hover:text-white transition-colors active:scale-95 hover:bg-white/5"
         >
           <Menu size={22} strokeWidth={2.5} />
         </button>
@@ -53,7 +53,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
         {/* 3. Mic (Fixed Center) - Main Action */}
         <button 
           onClick={() => onNavigate('chat')}
-          className="w-16 h-16 rounded-full flex items-center justify-center bg-[var(--accent)] text-black shadow-[0_0_40px_-10px_rgba(var(--accent),0.6)] hover:scale-105 active:scale-95 transition-all mx-1 border-4 border-[#020202]/50 relative z-10"
+          className="w-16 h-16 rounded-full flex items-center justify-center bg-[var(--accent)] text-black shadow-[0_0_50px_-10px_rgba(var(--accent),0.5)] hover:scale-105 active:scale-95 transition-all mx-1 border-[6px] border-black/50 relative z-10"
         >
           <Mic size={28} strokeWidth={2.5} />
         </button>
@@ -74,7 +74,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
         {/* 5. Navigation Anchor (Right) */}
         <button 
           onClick={() => onNavigate(currentView === 'dashboard' ? 'projects' : 'dashboard')}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 hover:bg-white/5 ${currentView === 'projects' ? 'text-[var(--accent)]' : 'text-white/50 hover:text-white'}`}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 hover:bg-white/5 ${currentView === 'projects' ? 'text-[var(--accent)]' : 'text-white/40 hover:text-white'}`}
         >
           {currentView === 'dashboard' ? <Folder size={22} strokeWidth={2.5} /> : <LayoutGrid size={22} strokeWidth={2.5} />}
         </button>

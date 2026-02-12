@@ -14,7 +14,6 @@ interface HabitTrackerProps {
 
 const COLORS = ['#ef4444', '#f97316', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
 
-// Helper to replace date-fns/subDays to avoid import issues
 const subDays = (date: Date, days: number): Date => {
     const result = new Date(date);
     result.setDate(result.getDate() - days);
@@ -28,18 +27,13 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-  // --- LOGIC: Calculate Streak ---
   const getStreak = (completedDates: string[]) => {
     let streak = 0;
     const today = new Date();
-    // Sort dates descending
     const sorted = [...completedDates].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    
-    // Check if done today to start counting, otherwise start from yesterday
     const isDoneToday = sorted.includes(format(today, 'yyyy-MM-dd'));
     let checkDate = isDoneToday ? today : subDays(today, 1);
 
-    // Loop backwards
     while (true) {
       const checkStr = format(checkDate, 'yyyy-MM-dd');
       if (completedDates.includes(checkStr)) {
@@ -52,10 +46,9 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
     return streak;
   };
 
-  // --- LOGIC: Get Last 5 Days History ---
   const getLast5Days = () => {
     return Array.from({ length: 5 }, (_, i) => {
-      const d = subDays(new Date(), 4 - i); // 4 days ago to today
+      const d = subDays(new Date(), 4 - i);
       return format(d, 'yyyy-MM-dd');
     });
   };
@@ -63,8 +56,9 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
   const last5Days = getLast5Days();
 
   return (
-    <>
-      <div className="grid grid-cols-2 gap-3 pb-2 px-1">
+    <div className="flex flex-col gap-4">
+      {/* Grid Layout: 2 columns, tightly packed */}
+      <div className="grid grid-cols-2 gap-3">
         {habits.map(habit => {
           const isDone = habit.completedDates.includes(dateStr);
           const streak = getStreak(habit.completedDates);
@@ -75,51 +69,49 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
               onClick={() => onToggle(habit.id, dateStr)}
               onContextMenu={(e) => { e.preventDefault(); onDelete(habit.id); }}
               className={`
-                group relative p-4 rounded-[1.5rem] transition-all duration-300 cursor-pointer overflow-hidden
-                backdrop-blur-xl border
+                group relative p-4 rounded-3xl transition-all duration-300 cursor-pointer overflow-hidden
+                border backdrop-blur-2xl
                 ${isDone 
-                  ? 'bg-[var(--accent)]/20 border-[var(--accent)]/50 shadow-[0_0_20px_rgba(0,0,0,0.2)]' 
-                  : 'bg-white/5 border-white/5 hover:border-white/20 hover:bg-white/10'}
+                  ? 'bg-[var(--accent)]/10 border-[var(--accent)]/30 shadow-[0_0_30px_rgba(0,0,0,0.3)]' 
+                  : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06] hover:border-white/10'}
               `}
             >
-              {/* Background Progress Effect */}
-              <div 
-                className={`absolute inset-0 opacity-20 transition-all duration-500 ${isDone ? 'translate-y-0' : 'translate-y-full'}`} 
-                style={{ backgroundColor: habit.color }}
-              ></div>
+              {/* Matte Glass Gradient Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none"></div>
 
               {/* Header: Title & Check */}
-              <div className="flex justify-between items-start mb-3 relative z-10">
-                 <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${isDone ? 'border-transparent bg-[var(--accent)]' : 'border-white/20 bg-black/20'}`}
-                      style={isDone ? { backgroundColor: habit.color } : {}}>
-                    {isDone && <Check size={14} strokeWidth={4} className="text-white scale-110" />}
+              <div className="flex justify-between items-start mb-4 relative z-10">
+                 <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all shadow-lg ${isDone ? 'border-transparent text-white scale-110' : 'border-white/10 bg-black/20 text-transparent'}`}
+                      style={isDone ? { backgroundColor: habit.color, boxShadow: `0 0 15px ${habit.color}60` } : {}}>
+                    <Check size={16} strokeWidth={4} />
                  </div>
                  {streak > 2 && (
-                   <div className="flex items-center gap-1 text-[9px] font-black text-orange-500 animate-pulse">
-                      <Flame size={12} fill="currentColor" /> {streak}
+                   <div className="flex items-center gap-1 text-[10px] font-black text-orange-400 animate-pulse bg-orange-500/10 px-2 py-1 rounded-full border border-orange-500/20">
+                      <Flame size={10} fill="currentColor" /> {streak}
                    </div>
                  )}
               </div>
 
               {/* Content */}
               <div className="relative z-10">
-                <h4 className={`text-xs font-black uppercase tracking-wider mb-3 truncate transition-colors ${isDone ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                <h4 className={`text-sm font-bold mb-3 truncate transition-colors ${isDone ? 'text-white' : 'text-[var(--text-muted)] group-hover:text-[var(--text-main)]'}`}>
                   {habit.title}
                 </h4>
                 
-                {/* Mini History Heatmap */}
+                {/* Micro-Interaction Dots */}
                 <div className="flex justify-between items-end">
-                   <div className="flex gap-1">
-                      {last5Days.map((dayStr, idx) => {
+                   <div className="flex gap-1.5">
+                      {last5Days.map((dayStr) => {
                         const dayDone = habit.completedDates.includes(dayStr);
                         const isToday = dayStr === dateStr;
                         return (
                           <div 
                             key={dayStr}
-                            className={`w-1.5 h-1.5 rounded-full transition-all ${dayDone ? '' : 'opacity-20'}`}
+                            className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${dayDone ? '' : 'bg-white/10'}`}
                             style={{ 
-                              backgroundColor: dayDone ? habit.color : 'var(--text-muted)',
-                              transform: isToday && dayDone ? 'scale(1.2)' : 'scale(1)'
+                              backgroundColor: dayDone ? habit.color : undefined,
+                              boxShadow: dayDone ? `0 0 8px ${habit.color}` : 'none',
+                              transform: isToday && dayDone ? 'scale(1.5)' : 'scale(1)'
                             }}
                           />
                         );
@@ -134,43 +126,43 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
         {/* Add Button */}
         <button 
           onClick={() => setIsAdding(true)}
-          className="group h-[116px] rounded-[1.5rem] bg-white/5 border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-[var(--text-muted)] hover:text-white hover:border-[var(--accent)] transition-all hover:bg-white/10 backdrop-blur-md"
+          className="group min-h-[120px] rounded-3xl bg-white/[0.02] border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 text-[var(--text-muted)] hover:text-white hover:border-[var(--accent)] transition-all hover:bg-white/[0.05] backdrop-blur-sm"
         >
-          <div className="p-2 bg-black/20 rounded-full group-hover:scale-110 transition-transform">
-             <Plus size={18} />
+          <div className="w-10 h-10 bg-black/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform border border-white/5">
+             <Plus size={20} />
           </div>
-          <span className="text-[8px] font-black uppercase">New</span>
+          <span className="text-[9px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100">Новый трек</span>
         </button>
       </div>
 
       {isAdding && (
-        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div className="w-full max-w-xs glass-card rounded-[2.5rem] p-8 shadow-2xl relative border border-white/10 bg-[#121212]/90">
-            <div className="flex justify-between items-center mb-6">
-              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Новый ритуал</span>
-              <button onClick={() => setIsAdding(false)}><X size={18} className="text-white/20 hover:text-white" /></button>
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="w-full max-w-xs bg-[#0c0c0c] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative">
+            <div className="flex justify-between items-center mb-8">
+              <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-widest">Создание привычки</span>
+              <button onClick={() => setIsAdding(false)} className="p-2 bg-white/5 rounded-full hover:bg-white/10"><X size={16} className="text-white/50 hover:text-white" /></button>
             </div>
             
-            <div className="mb-6 text-center">
-                <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg transition-colors" style={{ backgroundColor: newColor }}>
-                    <Activity size={32} className="text-white" />
+            <div className="mb-8 text-center">
+                <div className="w-20 h-20 rounded-[2rem] mx-auto mb-6 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-colors border border-white/5" style={{ backgroundColor: newColor }}>
+                    <Activity size={32} className="text-white drop-shadow-md" />
                 </div>
                 <input 
                   autoFocus
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Название..."
-                  className="w-full bg-transparent text-xl font-bold text-center text-white outline-none placeholder:text-white/10 border-b border-white/10 pb-2"
+                  className="w-full bg-transparent text-2xl font-bold text-center text-white outline-none placeholder:text-white/10 border-b border-white/10 pb-4 focus:border-[var(--accent)] transition-colors"
                 />
             </div>
 
-            <div className="flex gap-3 mb-8 justify-center flex-wrap">
+            <div className="flex gap-3 mb-10 justify-center flex-wrap">
               {COLORS.map(c => (
                 <button 
                   key={c} 
                   onClick={() => setNewColor(c)} 
-                  className={`w-8 h-8 rounded-full transition-all ${newColor === c ? 'scale-125 ring-2 ring-white shadow-lg' : 'opacity-40 hover:opacity-100'}`} 
-                  style={{ backgroundColor: c }} 
+                  className={`w-8 h-8 rounded-full transition-all duration-300 ${newColor === c ? 'scale-125 ring-2 ring-white shadow-[0_0_15px_currentColor]' : 'opacity-30 hover:opacity-100 scale-90'}`} 
+                  style={{ backgroundColor: c, color: c }} 
                 />
               ))}
             </div>
@@ -182,15 +174,15 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
                   setNewTitle(''); setIsAdding(false);
                 }
               }}
-              className="w-full py-4 bg-white text-black rounded-2xl font-black uppercase tracking-widest active:scale-95 transition-all hover:bg-gray-200 shadow-xl flex items-center justify-center gap-2"
+              className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest active:scale-95 transition-all hover:bg-gray-200 shadow-xl flex items-center justify-center gap-2"
             >
               <TrendingUp size={16} />
-              Начать трек
+              Запустить
             </button>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
