@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel } from './types';
 import Mentorship from './components/Mentorship';
@@ -277,6 +276,7 @@ const App = () => {
                   onAddHabit={handleAddHabit}
                   onToggleHabit={handleToggleHabit}
                   onDeleteHabit={handleDeleteHabit}
+                  onOpenQuotes={() => setShowQuotes(true)}
               />
           )}
           {view === 'chat' && (

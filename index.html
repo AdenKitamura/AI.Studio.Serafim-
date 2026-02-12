@@ -1,8 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#000000" />
     
     <meta name="mobile-web-app-capable" content="yes">
@@ -27,6 +28,8 @@
         --app-font: 'JetBrains Mono', monospace;
         --sat: env(safe-area-inset-top);
         --sab: env(safe-area-inset-bottom);
+        /* Default fallback */
+        --bg-glass: rgba(255, 255, 255, 0.03); 
       }
 
       html {
@@ -79,28 +82,28 @@
       /* --- GLASS UI (Clean, Thin, Modern) --- */
       
       .glass-panel {
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--bg-glass);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
       }
 
       .glass-card {
-        background: #09090b;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.5);
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.1);
       }
 
       .glass-btn {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: var(--bg-item);
+        border: 1px solid var(--border-color);
         transition: all 0.2s ease;
         cursor: pointer;
       }
       
       .glass-btn:active {
-        background: rgba(255, 255, 255, 0.08);
+        opacity: 0.8;
         transform: scale(0.96);
       }
 

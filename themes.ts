@@ -13,6 +13,7 @@ export interface ThemeColors {
   '--border-color': string;
   '--glass-opacity': string;
   '--shadow-sm': string;
+  '--bg-glass': string; // New variable for dynamic glass background
 }
 
 export interface Theme {
@@ -37,6 +38,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(16,185,129,0.2)',
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.03)',
     },
   },
   neon: {
@@ -54,6 +56,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(217, 70, 239, 0.3)',
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 0 20px rgba(217, 70, 239, 0.2)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.03)',
     }
   },
   obsidian: {
@@ -71,6 +74,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(255,255,255,0.15)',
       '--glass-opacity': '0.95',
       '--shadow-sm': '0 4px 6px rgba(0,0,0,0.9)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.03)',
     }
   },
   crimson: {
@@ -88,6 +92,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(244, 63, 94, 0.25)',
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.6)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.03)',
     }
   },
   ocean: {
@@ -105,6 +110,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(56,189,248,0.2)',
       '--glass-opacity': '0.85',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.03)',
     },
   },
   amber: {
@@ -122,6 +128,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(245,158,11,0.2)',
       '--glass-opacity': '0.85',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.03)',
     },
   },
   cloud: {
@@ -139,23 +146,25 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': 'rgba(148, 163, 184, 0.3)',
       '--glass-opacity': '0.7',
       '--shadow-sm': '0 4px 6px rgba(0,0,0,0.05)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.6)',
     }
   },
   paper: {
-    name: 'Бумага (Light)',
+    name: 'Моно (Light)',
     type: 'light',
     colors: {
-      '--bg-main': '#f5f5f4',
-      '--bg-card': '#ffffff',
-      '--bg-item': '#e7e5e4',
-      '--text-main': '#1c1917',
-      '--text-muted': '#57534e',
-      '--accent': '#d97706',
-      '--accent-hover': '#b45309',
-      '--accent-glow': 'rgba(217, 119, 6, 0.3)',
-      '--border-color': 'rgba(120, 113, 108, 0.2)',
-      '--glass-opacity': '0.6',
-      '--shadow-sm': '0 2px 4px rgba(0,0,0,0.05)',
+      '--bg-main': '#ffffff', // Pure white background
+      '--bg-card': '#fafafa', // Almost white card
+      '--bg-item': '#f4f4f5', // Zinc 100 - Visible grey for buttons
+      '--text-main': '#09090b', // Zinc 950 - Sharp Black
+      '--text-muted': '#52525b', // Zinc 600 - Readable Grey
+      '--accent': '#18181b', // Zinc 900 - Black Accent (High Contrast)
+      '--accent-hover': '#27272a',
+      '--accent-glow': 'rgba(0, 0, 0, 0.1)',
+      '--border-color': '#e4e4e7', // Zinc 200 - Visible border
+      '--glass-opacity': '0.9',
+      '--shadow-sm': '0 1px 2px rgba(0,0,0,0.05)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.8)', // White glass
     }
   }
 };

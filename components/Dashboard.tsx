@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types';
 import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, ArrowRight, Plus } from 'lucide-react';
@@ -22,12 +21,13 @@ interface DashboardProps {
   onAddHabit: (habit: Habit) => void;
   onToggleHabit: (id: string, date: string) => void;
   onDeleteHabit: (id: string) => void;
+  onOpenQuotes: () => void; // Added Prop
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     tasks, thoughts, journal, projects, habits = [],
     onAddTask, onAddThought, onNavigate, onToggleTask, onDeleteTask,
-    onAddHabit, onToggleHabit, onDeleteHabit
+    onAddHabit, onToggleHabit, onDeleteHabit, onOpenQuotes
 }) => {
   const upcomingReminders = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(new Date(t.dueDate))).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 2), [tasks]);
   const todayTasks = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isToday(new Date(t.dueDate))).sort((a, b) => (a.priority === Priority.HIGH ? 0 : 1) - (b.priority === Priority.HIGH ? 0 : 1)).slice(0, 3), [tasks]);
@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       {/* Ticker Section - Clean top */}
       <div className="pt-2 px-0 mb-4 opacity-50 hover:opacity-100 transition-opacity">
-          <Ticker />
+          <Ticker onClick={onOpenQuotes} />
       </div>
 
       <div className="px-6 space-y-6">

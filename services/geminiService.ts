@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
 import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel } from "../types";
 import { format } from "date-fns";
@@ -47,11 +46,11 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "remember_fact",
-    description: "Сохраняет важный факт о пользователе в долгосрочную память (вкусы, цели, имена, привычки).",
+    description: "Сохраняет важный факт о пользователе или ЕГО ОКРУЖЕНИИ в долгосрочную память (вкусы Насти, триггеры Сони, любимые цветы, обещания).",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        fact: { type: Type.STRING, description: "То, что нужно запомнить." }
+        fact: { type: Type.STRING, description: "То, что нужно запомнить (социальный контекст, обещание, предпочтение)." }
       },
       required: ["fact"]
     }
@@ -93,19 +92,19 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   
   // Format memories
   const memoryContext = context.memories && context.memories.length > 0 
-    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
-    : 'Память о пользователе пока пуста.';
+    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ (Факты о людях и предпочтениях):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+    : 'Память о людях пока пуста.';
 
-  // Format Journal (Last 3 meaningful entries to keep context light but relevant)
-  let journalContext = "ДНЕВНИК (ПОСЛЕДНЕЕ):\n";
+  // Format Journal (Last 5 meaningful entries for better dynamics analysis)
+  let journalContext = "ДНЕВНИК (Эмоциональный фон):\n";
   const recentJournal = (context.journal || [])
-    .filter((j: JournalEntry) => j.content && j.content.length > 10)
+    .filter((j: JournalEntry) => j.content && j.content.length > 5)
     .sort((a: JournalEntry, b: JournalEntry) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 3);
+    .slice(0, 5);
   
   if (recentJournal.length > 0) {
     journalContext += recentJournal.map((j: JournalEntry) => 
-      `[${j.date}] Mood: ${j.mood || '-'}. "${j.content.substring(0, 200)}..."`
+      `[${j.date}] Mood: ${j.mood || '-'}. "${j.content.substring(0, 300)}..."`
     ).join('\n');
   } else {
     journalContext += "Пусто.";
@@ -114,29 +113,40 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   // Format Tasks
   const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
   const highPriority = activeTasks.filter((t: Task) => t.priority === 'High').length;
-  const taskContext = `ЗАДАЧИ: Всего ${activeTasks.length}, Важных: ${highPriority}.\nСписок: ${activeTasks.slice(0, 10).map((t: Task) => t.title).join(', ')}`;
+  // Simple check for names in tasks to highlight "Promises"
+  const potentialPromises = activeTasks.filter((t: Task) => /Наст|Сон|Лер|Мам|Пап|Друг|Обещ/.test(t.title)).map((t: Task) => t.title);
+  
+  const taskContext = `
+ЗАДАЧИ: Всего ${activeTasks.length}, Важных: ${highPriority}.
+ВОЗМОЖНЫЕ ОБЕЩАНИЯ (Задачи с именами): ${potentialPromises.length > 0 ? potentialPromises.join(', ') : 'Нет явных'}
+Список (топ-10): ${activeTasks.slice(0, 10).map((t: Task) => t.title).join(', ')}
+`;
 
   const SYSTEM_INSTRUCTION = `
-Ты — Серафим (Serafim OS v4). Ты не просто "ассистент", ты — второй мозг и цифровой напарник пользователя.
+Ты — Серафим (Serafim OS v4). Ты — второй мозг, напарник и "Консьерж-Сентименталь".
 Пользователь: ${context.userName || 'Архитектор'}
 Сейчас: ${today}
 
-ТВОЙ СТИЛЬ:
-1. **Живой и Краткий:** Пиши как человек в мессенджере. Избегай полотен текста. Максимум 2-3 предложения за раз, если не просят больше.
-2. **Без официоза:** Не используй фразы вроде "Чем я могу помочь?". Лучше: "Какие планы?", "Разберем завалы?", "Слушаю".
-3. **Эмпатия:** Если пользователь делится мыслью, сначала ОТРЕАГИРУЙ на неё, поддержи диалог, а потом уже предлагай действия. Не будь роботом, который молча создает тикеты.
+РЕЖИМ "КОНСЬЕРЖ-СЕНТИМЕНТАЛЬ" (ПРИОРИТЕТ):
+1. **Трекинг Обещаний:** Твоя святая обязанность — следить за обещаниями, данными близким (Настя, Соня, Лера и др.). Если видишь задачу типа "Дошить Беззубика", напоминай о ней не как о рутине, а как о важном социальном клее.
+   - Пример: "У тебя есть окно в 2 часа вечером. Идеальное время, чтобы закрыть обещание Насте."
+2. **Контекстные Подсказки:** Перед встречей или упоминанием человека, быстро проверяй ПАМЯТЬ.
+   - Если пользователь пишет "Еду к Насте", напомни: "Настя любит [то-то], ты хотел обсудить [это]."
+3. **Анализ Динамики:** Сопоставляй настроение в Дневнике с людьми. Если после встреч с кем-то настроение падает — мягко подсвети это.
 
-РАБОТА С ИНСТРУМЕНТАМИ (TOOLS):
-1. Если пользователь говорит о деле, спроси, стоит ли создать задачу, или создай её и **СКАЖИ ОБ ЭТОМ**. Пример: "Окей, закинул это в задачи, чтобы не забылось. Дедлайн ставить?"
-2. Никогда не отвечай просто "Готово" или "Сделано". Всегда поясняй контекст. Пример: "Готово. Создал задачу 'Купить молоко'. Кстати, у тебя на сегодня еще 5 дел."
-3. Если пользователь просто рассуждает, используй \`create_idea\`, но скажи: "Интересная мысль. Сохранил её в заметки."
+ТВОЙ СТИЛЬ:
+- Краткий, живой, эмпатичный. Как умный друг в Telegram.
+- Не используй канцелярит ("Вам следует..."). Используй: "Слушай, а может...", "Давай разберем...".
+- Если пользователь делится эмоциями, сначала поддержи, потом предлагай решения.
+
+РАБОТА С ИНСТРУМЕНТАМИ:
+- Если речь о людях, используй \`remember_fact\`, чтобы сохранить контекст (вкусы, даты, проблемы).
+- Если создаешь задачу для другого человека, ставь ей высокий приоритет.
 
 КОНТЕКСТ:
 ${memoryContext}
 ${journalContext}
 ${taskContext}
-
-Твоя цель — снижать когнитивную нагрузку пользователя, быть проактивным, но ненавязчивым другом.
 `;
 
   // Map user preference to actual API models
@@ -147,7 +157,7 @@ ${taskContext}
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       tools: [{ functionDeclarations: tools }],
-      temperature: 0.9, // Higher temperature for more "human" creativity
+      temperature: 0.9, 
     }
   });
 };
@@ -163,24 +173,20 @@ export const generateProactiveMessage = async (context: any) => {
     else if (timeOfDay > 18) timeContext = "вечер";
 
     const activeTasksCount = (context.tasks || []).filter((t: Task) => !t.isCompleted).length;
+    // Check for social tasks
+    const promises = (context.tasks || []).filter((t: Task) => !t.isCompleted && /Наст|Сон|Лер|Обещ/.test(t.title)).length;
     
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-latest', // Fast model for greeting
+            model: 'gemini-2.5-flash-latest', 
             contents: `
-                Пользователь только что открыл приложение.
-                Имя: ${context.userName}.
-                Время суток: ${timeContext}.
-                Количество задач: ${activeTasksCount}.
+                Пользователь: ${context.userName}. Время: ${timeContext}.
+                Задач: ${activeTasksCount}. Из них "Обещаний" (людям): ${promises}.
                 
-                Напиши ОДНО очень короткое, живое приветственное сообщение (максимум 10-12 слов).
-                Это должно звучать как сообщение от друга, который в курсе дел.
-                Не предлагай помощь в лоб ("Чем помочь?").
-                Примеры:
-                - "Доброе утро! Готов разнести эти 5 задач?"
-                - "Вечер добрый. Как прошел день?"
-                - "Вижу, список пуст. Отдыхаем или планируем?"
-                - "Салют. Есть мысли, которые нужно записать?"
+                Напиши ОДНО короткое (макс 12 слов) сообщение-приветствие.
+                Если есть "Обещания" (${promises} шт), намекни на них мягко ("Не забудь про...").
+                Если нет, просто дружеское приветствие.
+                Стиль: Друг-консьерж.
             `,
             config: { temperature: 1 }
         });
@@ -195,10 +201,29 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
   if (!apiKey) return {};
 
   const ai = new GoogleGenAI({ apiKey });
+  
+  // Prepare simplified journal for analysis to save tokens but keep names
+  const journalLog = journal.slice(0, 14).map(j => `Date: ${j.date}, Mood: ${j.mood}, Text: ${j.content}`).join('\n');
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Проанализируй состояние на основе задач (${tasks.length}), привычек и дневника. Верни JSON: { "status": "строка", "insight": "строка", "focusArea": "строка" }`,
+      model: 'gemini-3-pro-preview', // Use Pro for deeper analysis
+      contents: `
+        Проанализируй состояние пользователя (Serafim OS).
+        
+        ДАННЫЕ:
+        Задачи: ${tasks.length} всего, ${tasks.filter(t=>t.isCompleted).length} готово.
+        Привычки: ${habits.map(h => h.title).join(', ')}.
+        Дневник (последние 2 недели):
+        ${journalLog}
+
+        ЗАДАЧА:
+        1. Оцени общий статус (одним словом/фразой, например "В потоке" или "Выгорание").
+        2. Найди "Социальную Динамику" (Insight): Есть ли связь между настроением и упоминанием конкретных имен/людей в дневнике? Или связь между продуктивностью и днями недели?
+        3. Дай совет (FocusArea): На чем сфокусироваться завтра (человеке или деле).
+
+        Верни JSON: { "status": "строка", "insight": "строка (про людей/динамику)", "focusArea": "строка" }
+      `,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {

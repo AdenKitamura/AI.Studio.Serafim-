@@ -237,6 +237,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (file) { const reader = new FileReader(); reader.onload = (ev) => setAttachedImage(ev.target?.result as string); reader.readAsDataURL(file); }
   };
 
+  const handleInputFocus = () => {
+      // Small delay to allow keyboard to finish opening animation
+      setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 400);
+  };
+
   const handleSend = async () => {
     if (isThinking) return;
     const cleanInput = input.trim();
@@ -264,7 +271,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
       }
 
       logger.log('Gemini', 'Thinking...', 'info');
-      const response = await chatSessionRef.current.sendMessage({ message: contents });
+
+      // ----------------------------------------------------
+      // FIX: TIMEOUT PROTECTION AGAINST FREEZING
+      // ----------------------------------------------------
+      const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout: Server took too long to respond")), 30000)
+      );
+
+      const response: any = await Promise.race([
+          chatSessionRef.current.sendMessage({ message: contents }),
+          timeoutPromise
+      ]);
+      // ----------------------------------------------------
 
       // --- HANDLE TOOLS & GOOGLE SYNC ---
       if (response.functionCalls) {
@@ -329,13 +348,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     } catch (e: any) {
       console.error(e);
-      logger.log('Gemini', 'API Error', 'error', e.message);
+      // Explicitly check for timeout
+      const isTimeout = e.message && (e.message.includes("Timeout") || e.message.includes("Timed out"));
+      const userMessage = isTimeout 
+          ? "Сервер не отвечает слишком долго. Я сбросил соединение. Попробуй еще раз." 
+          : "Сбой нейросвязи. Я перезагрузил контекст.";
+      
+      logger.log('Gemini', isTimeout ? 'API Timeout' : 'API Error', 'error', e.message);
+      
+      // Force reset session on error to avoid "pending promise" issues in SDK
       chatSessionRef.current = null;
-      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Сбой нейросвязи. Я перезагрузил контекст.", timestamp: Date.now() };
+      
+      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: userMessage, timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
     } finally {
+      // FORCE UI UNLOCK
       setIsThinking(false);
       setIsProcessingTool(false);
+      // Ensure we scroll to bottom to see the error message
+      scrollToBottom('smooth');
     }
   };
 
@@ -457,6 +488,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
              <textarea 
                 rows={1} 
                 value={input} 
+                onFocus={handleInputFocus}
                 onChange={e => { setInput(e.target.value); }} 
                 onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
                 placeholder={isThinking ? "Думаю..." : isRecording ? interimText || "Слушаю..." : "Сообщение..."} 
