@@ -55,7 +55,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
           onClick={() => onNavigate('chat')}
           className="w-16 h-16 rounded-full flex items-center justify-center bg-amber-500 text-black shadow-[0_0_40px_-10px_rgba(245,158,11,0.6)] hover:scale-105 active:scale-95 transition-all mx-1 border-4 border-[#121212]/50 relative z-10"
         >
-          <Mic size={28} fill="currentColor" strokeWidth={2.5} />
+          <Mic size={28} strokeWidth={2.5} />
         </button>
 
         {/* 4. Dynamic Tool R */}

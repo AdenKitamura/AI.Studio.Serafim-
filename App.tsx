@@ -14,6 +14,7 @@ import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import Login from './components/Login'; 
 import Sidebar from './components/Sidebar'; 
+import BackgroundGlow from './components/BackgroundGlow';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
@@ -237,7 +238,8 @@ const App = () => {
 
   return (
     // CHANGED: Flex row for desktop sidebar layout, column for mobile
-    <div className="h-[100dvh] w-full overflow-hidden bg-[var(--bg-main)] relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
+    <div className="h-[100dvh] w-full overflow-hidden bg-transparent relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
+      <BackgroundGlow />
       
       {/* Hidden button for programmatic trigger from Dashboard */}
       <button id="sidebar-trigger" className="hidden" onClick={() => setIsSidebarOpen(true)}></button>
@@ -256,7 +258,7 @@ const App = () => {
 
       {/* MAIN CONTENT AREA */}
       <div 
-        className={`flex-1 h-full flex flex-col bg-[var(--bg-main)] transition-all duration-300 relative ${isModalOpen ? 'scale-[0.99] opacity-80 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
+        className={`flex-1 h-full flex flex-col bg-transparent transition-all duration-300 relative ${isModalOpen ? 'scale-[0.99] opacity-80 rounded-[2rem] overflow-hidden pointer-events-none brightness-50' : ''}`}
         style={{ transformOrigin: 'center center' }}
       >
         <main className="flex-1 relative overflow-hidden z-10 md:pb-0">
