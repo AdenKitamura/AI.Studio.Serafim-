@@ -5,7 +5,8 @@ import CalendarView from './CalendarView';
 import HabitTracker from './HabitTracker';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save, LayoutDashboard, Zap as ZapIcon } from 'lucide-react';
+import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save } from 'lucide-react';
+import NavigationPill from './NavigationPill';
 
 interface PlannerViewProps {
   tasks: Task[];
@@ -21,7 +22,7 @@ interface PlannerViewProps {
   onAddThought: (thought: Thought) => void;
   onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   onDeleteThought: (id: string) => void;
-  onNavigate?: (view: any) => void; // Added for Pill navigation
+  onNavigate?: (view: any) => void; 
 }
 
 const PlannerView: React.FC<PlannerViewProps> = ({ 
@@ -33,11 +34,8 @@ const PlannerView: React.FC<PlannerViewProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   
-  // Creation State
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskTime, setNewTaskTime] = useState('');
-  
-  // Edit State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editTime, setEditTime] = useState('');
@@ -64,24 +62,13 @@ const PlannerView: React.FC<PlannerViewProps> = ({
 
   const handleSaveEdit = () => {
     if (!editingTask) return;
-    
     let newIsoDate = editingTask.dueDate;
-
     if (editDate) {
         const d = new Date(editDate);
-        if (editTime) {
-            const [h, m] = editTime.split(':').map(Number);
-            d.setHours(h, m);
-        } else {
-            d.setHours(23, 59);
-        }
+        if (editTime) { const [h, m] = editTime.split(':').map(Number); d.setHours(h, m); } else { d.setHours(23, 59); }
         newIsoDate = d.toISOString();
     }
-
-    onToggleTask(editingTask.id, { 
-        title: editTitle, 
-        dueDate: newIsoDate 
-    });
+    onToggleTask(editingTask.id, { title: editTitle, dueDate: newIsoDate });
     setEditingTask(null);
   };
 
@@ -91,10 +78,13 @@ const PlannerView: React.FC<PlannerViewProps> = ({
       setEditingTask(null);
   };
 
+  const openMenu = () => {
+      const menuBtn = document.getElementById('sidebar-trigger');
+      if(menuBtn) menuBtn.click();
+  };
+
   return (
     <div className="h-full overflow-y-auto no-scrollbar bg-transparent flex flex-col will-change-transform transform-gpu pt-12">
-      
-      {/* Header */}
       <div className="px-6 py-4 sticky top-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] transition-all duration-300 mt-2">
         <div className="cursor-pointer group" onClick={() => setShowCalendar(!showCalendar)}>
             <div className="flex items-center gap-3">
@@ -119,11 +109,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({
 
       <div className="px-6 py-6 pb-48 flex-1">
         <section className="mb-10">
-          <div className="flex items-baseline justify-between mb-6">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">
-              {tasksForSelected.length} целей
-            </span>
-          </div>
+          <div className="flex items-baseline justify-between mb-6"><span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">{tasksForSelected.length} целей</span></div>
           <div className="space-y-3">
             {tasksForSelected.length === 0 ? (
               <div className="glass-panel py-12 rounded-[2rem] flex flex-col items-center justify-center opacity-70">
@@ -132,26 +118,11 @@ const PlannerView: React.FC<PlannerViewProps> = ({
               </div>
             ) : (
               tasksForSelected.map((task) => (
-                <div 
-                    key={task.id} 
-                    onClick={() => openEditModal(task)}
-                    className={`glass-panel flex items-center gap-4 p-5 rounded-[2rem] active:scale-[0.99] transition-all cursor-pointer hover:border-[var(--accent)]/30 ${task.isCompleted ? 'opacity-40 grayscale' : ''}`}
-                >
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, { isCompleted: !task.isCompleted }); }} 
-                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${task.isCompleted ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--border-color)] hover:border-[var(--accent)]'}`}
-                  >
-                    {task.isCompleted && <Check size={14} strokeWidth={4} className="text-white" />}
-                  </button>
+                <div key={task.id} onClick={() => openEditModal(task)} className={`glass-panel flex items-center gap-4 p-5 rounded-[2rem] active:scale-[0.99] transition-all cursor-pointer hover:border-[var(--accent)]/30 ${task.isCompleted ? 'opacity-40 grayscale' : ''}`}>
+                  <button onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, { isCompleted: !task.isCompleted }); }} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${task.isCompleted ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--border-color)] hover:border-[var(--accent)]'}`}>{task.isCompleted && <Check size={14} strokeWidth={4} className="text-white" />}</button>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-base font-bold text-[var(--text-main)] truncate ${task.isCompleted ? 'line-through' : ''}`}>
-                      {task.title}
-                    </p>
-                    {task.dueDate && (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] mt-1.5 flex items-center gap-1">
-                        <Clock size={10} /> {format(new Date(task.dueDate), 'HH:mm')}
-                      </p>
-                    )}
+                    <p className={`text-base font-bold text-[var(--text-main)] truncate ${task.isCompleted ? 'line-through' : ''}`}>{task.title}</p>
+                    {task.dueDate && (<p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] mt-1.5 flex items-center gap-1"><Clock size={10} /> {format(new Date(task.dueDate), 'HH:mm')}</p>)}
                   </div>
                 </div>
               ))
@@ -159,116 +130,39 @@ const PlannerView: React.FC<PlannerViewProps> = ({
           </div>
         </section>
         <section className="mb-12">
-          <div className="flex items-center gap-3 mb-5 px-1">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500"><Zap size={16} /></div>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Привычки</h4>
-          </div>
+          <div className="flex items-center gap-3 mb-5 px-1"><div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500"><Zap size={16} /></div><h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Привычки</h4></div>
           <HabitTracker habits={habits} selectedDate={selectedDate} onAdd={onAddHabit!} onToggle={onToggleHabit!} onDelete={onDeleteHabit!} />
         </section>
       </div>
 
-      {/* FLOATING ACTION PILL */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
-         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
-             
-             {/* Home/Dashboard */}
-             <button 
-                onClick={() => onNavigate && onNavigate('dashboard')} 
-                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95"
-             >
-                <LayoutDashboard size={20} />
-             </button>
+      <NavigationPill 
+        currentView="planner"
+        onNavigate={onNavigate!}
+        onOpenMenu={openMenu}
+        toolL={{ icon: <Plus size={22} />, onClick: () => setIsAdding(true) }}
+        toolR={{ icon: <CalendarIcon size={22} />, onClick: () => setShowCalendar(!showCalendar), active: showCalendar }}
+      />
 
-             <div className="w-px h-6 bg-[var(--border-color)] mx-1"></div>
-
-             {/* Toggle Calendar */}
-             <button 
-                onClick={() => setShowCalendar(!showCalendar)}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${showCalendar ? 'bg-[var(--accent)] text-white shadow-lg' : 'bg-[var(--bg-main)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-main)]'}`}
-             >
-                <CalendarIcon size={20} />
-             </button>
-             
-             {/* Add Task */}
-             <button 
-                onClick={() => setIsAdding(true)} 
-                className="w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] hover:scale-105"
-             >
-                <Plus size={24} />
-             </button>
-
-         </div>
-      </div>
-
-      {/* CREATE MODAL */}
       {isAdding && (
         <div className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
           <div className="w-full max-w-sm glass-card rounded-[3rem] p-8 shadow-2xl border border-white/10">
-            <div className="flex justify-between items-center mb-8">
-              <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Новая задача</span>
-              <button onClick={() => setIsAdding(false)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]"><X size={24} /></button>
-            </div>
+            <div className="flex justify-between items-center mb-8"><span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Новая задача</span><button onClick={() => setIsAdding(false)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]"><X size={24} /></button></div>
             <input autoFocus value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="Что запланируем?" className="w-full bg-transparent text-2xl font-black text-[var(--text-main)] outline-none placeholder:text-[var(--text-muted)]/20 mb-8" />
-            <div className="flex gap-4 mb-10">
-              <div className="flex-1 flex items-center gap-3 bg-[var(--bg-main)] rounded-2xl px-5 border border-[var(--border-color)]">
-                <Clock size={18} className="text-[var(--accent)]" />
-                <input type="time" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} className="bg-transparent text-sm font-bold text-[var(--text-main)] outline-none w-full py-4" />
-              </div>
-            </div>
+            <div className="flex gap-4 mb-10"><div className="flex-1 flex items-center gap-3 bg-[var(--bg-main)] rounded-2xl px-5 border border-[var(--border-color)]"><Clock size={18} className="text-[var(--accent)]" /><input type="time" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} className="bg-transparent text-sm font-bold text-[var(--text-main)] outline-none w-full py-4" /></div></div>
             <button onClick={handleAddTask} disabled={!newTaskTitle.trim()} className="w-full py-5 bg-[var(--accent)] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent-glow)] active:scale-95 transition-all disabled:opacity-20">Зафиксировать</button>
           </div>
         </div>
       )}
 
-      {/* EDIT MODAL */}
       {editingTask && (
         <div className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
           <div className="w-full max-w-sm glass-card rounded-[3rem] p-8 shadow-2xl border border-white/10">
-            <div className="flex justify-between items-center mb-6">
-              <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Редактирование</span>
-              <button onClick={() => setEditingTask(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]"><X size={24} /></button>
-            </div>
-            
-            <div className="space-y-6">
-                <input 
-                    value={editTitle} 
-                    onChange={(e) => setEditTitle(e.target.value)} 
-                    className="w-full bg-transparent text-xl font-black text-[var(--text-main)] outline-none border-b border-[var(--border-color)] pb-4 placeholder:text-[var(--text-muted)]/20" 
-                />
-                
-                <div className="flex flex-col gap-3">
-                    <label className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Дата и Время</label>
-                    <div className="flex gap-3">
-                        <div className="flex-1 flex items-center gap-2 bg-[var(--bg-main)] rounded-2xl px-4 py-3 border border-[var(--border-color)]">
-                            <CalendarIcon size={16} className="text-[var(--accent)]" />
-                            <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none w-full" />
-                        </div>
-                        <div className="flex-1 flex items-center gap-2 bg-[var(--bg-main)] rounded-2xl px-4 py-3 border border-[var(--border-color)]">
-                            <Clock size={16} className="text-[var(--accent)]" />
-                            <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none w-full" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex gap-3 mt-10">
-                <button 
-                    onClick={handleDeleteTask} 
-                    className="px-5 py-4 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"
-                >
-                    <Trash2 size={20} />
-                </button>
-                <button 
-                    onClick={handleSaveEdit} 
-                    className="flex-1 py-4 bg-[var(--accent)] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent-glow)] active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                    <Save size={18} /> Сохранить
-                </button>
-            </div>
+            <div className="flex justify-between items-center mb-6"><span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Редактирование</span><button onClick={() => setEditingTask(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]"><X size={24} /></button></div>
+            <div className="space-y-6"><input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-transparent text-xl font-black text-[var(--text-main)] outline-none border-b border-[var(--border-color)] pb-4 placeholder:text-[var(--text-muted)]/20" /><div className="flex flex-col gap-3"><label className="text-[9px] font-bold uppercase text-[var(--text-muted)]">Дата и Время</label><div className="flex gap-3"><div className="flex-1 flex items-center gap-2 bg-[var(--bg-main)] rounded-2xl px-4 py-3 border border-[var(--border-color)]"><CalendarIcon size={16} className="text-[var(--accent)]" /><input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none w-full" /></div><div className="flex-1 flex items-center gap-2 bg-[var(--bg-main)] rounded-2xl px-4 py-3 border border-[var(--border-color)]"><Clock size={16} className="text-[var(--accent)]" /><input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none w-full" /></div></div></div></div>
+            <div className="flex gap-3 mt-10"><button onClick={handleDeleteTask} className="px-5 py-4 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"><Trash2 size={20} /></button><button onClick={handleSaveEdit} className="flex-1 py-4 bg-[var(--accent)] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent-glow)] active:scale-95 transition-all flex items-center justify-center gap-2"><Save size={18} /> Сохранить</button></div>
           </div>
         </div>
       )}
-
     </div>
   );
 };

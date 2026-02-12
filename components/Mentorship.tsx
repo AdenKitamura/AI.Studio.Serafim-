@@ -5,7 +5,7 @@ import * as googleService from '../services/googleService';
 import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
-  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard
+  XCircle, Terminal, Image as ImageIcon, Volume2, VolumeX, Sparkles, AlertTriangle, X, ChevronDown, ChevronUp, Radio, LayoutDashboard, Menu
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -295,6 +295,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
     }
   };
 
+  const openMenu = () => {
+      const menuBtn = document.getElementById('sidebar-trigger');
+      if(menuBtn) menuBtn.click();
+  };
+
   return (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
@@ -357,18 +362,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       {/* FLOATING ACTION PILL (Chat Input Variant) */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4 flex justify-center">
-         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5 w-full">
+         <div className="pointer-events-auto bg-[#000000]/60 backdrop-blur-3xl border border-white/10 rounded-full p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex items-center gap-2 animate-in slide-in-from-bottom-5 w-full">
              
-             {/* Home/Dashboard Button */}
+             {/* 1. Menu (Fixed) */}
              <button 
-                onClick={() => onNavigate && onNavigate('dashboard')} 
-                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 shrink-0"
+                onClick={openMenu}
+                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 shrink-0 border border-transparent hover:border-white/5"
              >
-                <LayoutDashboard size={20} />
+                <Menu size={22} />
              </button>
-
-             {/* Divider */}
-             <div className="w-px h-6 bg-[var(--border-color)] shrink-0"></div>
 
              {/* Image Attach */}
              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />

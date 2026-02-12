@@ -1,10 +1,11 @@
 
 import React, { useMemo, useState } from 'react';
 import { Task, Thought, JournalEntry, Project, Habit, Priority } from '../types';
-import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, X, Trash2, ArrowRight, Menu, Plus, Mic, MessageSquare } from 'lucide-react';
+import { Sparkles, Clock, Target, CheckCircle2, Folder, Zap, ArrowRight, Plus } from 'lucide-react';
 import { format, isToday, isFuture, differenceInMinutes } from 'date-fns';
 import HabitTracker from './HabitTracker';
 import Ticker from './Ticker';
+import NavigationPill from './NavigationPill';
 
 interface DashboardProps {
   tasks: Task[];
@@ -25,7 +26,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     tasks, thoughts, journal, projects, habits = [],
-    onAddTask, onAddProject, onAddThought, onNavigate, onToggleTask, onDeleteTask,
+    onAddTask, onAddThought, onNavigate, onToggleTask, onDeleteTask,
     onAddHabit, onToggleHabit, onDeleteHabit
 }) => {
   const upcomingReminders = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(new Date(t.dueDate))).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 2), [tasks]);
@@ -35,35 +36,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Edit Task State
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editTime, setEditTime] = useState('');
 
-  const openEditModal = (task: Task) => {
-      setEditingTask(task);
-      setEditTitle(task.title);
-      const d = task.dueDate ? new Date(task.dueDate) : null;
-      setEditTime(d ? format(d, 'HH:mm') : '');
-  };
-
-  const handleSaveEdit = () => {
-      if (!editingTask) return;
-      let newDate = editingTask.dueDate;
-      
-      if (editingTask.dueDate && editTime) {
-          const d = new Date(editingTask.dueDate);
-          const [h, m] = editTime.split(':').map(Number);
-          d.setHours(h, m);
-          newDate = d.toISOString();
-      }
-
-      onToggleTask(editingTask.id, { title: editTitle, dueDate: newDate });
-      setEditingTask(null);
-  };
-
-  const handleDeleteTask = () => {
-      if(!editingTask) return;
-      onDeleteTask(editingTask.id);
-      setEditingTask(null);
+  const openMenu = () => {
+      const menuBtn = document.getElementById('sidebar-trigger');
+      if(menuBtn) menuBtn.click();
   };
 
   return (
@@ -83,7 +59,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <div 
                 key={task.id} 
                 className="glass-panel rounded-[2rem] p-6 relative overflow-hidden group cursor-pointer transition-transform hover:scale-[1.01] border border-[var(--border-color)]" 
-                onClick={() => openEditModal(task)}
+                onClick={() => setEditingTask(task)}
               >
                 {/* Glow derived from Theme Accent */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--accent)] blur-[80px] opacity-20 rounded-full translate-x-10 -translate-y-10 group-hover:opacity-30 transition-opacity"></div>
@@ -154,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               
               <div className="space-y-3 relative z-10">
                 {todayTasks.length > 0 ? todayTasks.map(task => (
-                  <div key={task.id} className="flex items-center gap-4 group/item cursor-pointer p-2 rounded-xl hover:bg-[var(--bg-item)] transition-colors" onClick={() => openEditModal(task)}>
+                  <div key={task.id} className="flex items-center gap-4 group/item cursor-pointer p-2 rounded-xl hover:bg-[var(--bg-item)] transition-colors" onClick={() => setEditingTask(task)}>
                     <button 
                         onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, { isCompleted: !task.isCompleted }); }}
                         className="w-5 h-5 rounded-full border-2 border-[var(--border-color)] flex items-center justify-center shrink-0 group-hover/item:border-[var(--accent)] transition-colors"
@@ -225,13 +201,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onClick={() => onNavigate('projects')} 
                     className="flex-none w-48 glass-panel rounded-[2rem] p-5 cursor-pointer relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 border border-[var(--border-color)]"
                 >
-                  {/* Subtle Color Glow based on project color */}
                   <div className="absolute inset-0 opacity-[0.05] transition-opacity group-hover:opacity-[0.1]" style={{ backgroundColor: project.color }}></div>
-                  
                   <div className="w-10 h-10 rounded-xl bg-[var(--bg-main)] flex items-center justify-center mb-12 border border-[var(--border-color)] shadow-inner" style={{ color: project.color }}>
                       <Folder size={18} fill="currentColor" fillOpacity={0.2} />
                   </div>
-                  
                   <div className="relative z-10">
                       <h4 className="text-sm font-black text-[var(--text-main)] truncate mb-2">{project.title}</h4>
                       <div className="h-1 bg-[var(--bg-main)] rounded-full overflow-hidden">
@@ -250,97 +223,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         </section>
       </div>
 
-      {/* FLOATING ACTION PILL (MAIN NAVIGATION) */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full flex justify-center">
-         <div className="pointer-events-auto bg-[var(--bg-item)]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-full p-2 shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-5">
-             
-             {/* Open Menu (Mobile) */}
-             <button 
-                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 md:hidden"
-                onClick={() => { 
-                    // This is a hacky way to trigger sidebar, ideally pass a prop
-                    const menuBtn = document.getElementById('sidebar-trigger');
-                    if(menuBtn) menuBtn.click();
-                }}
-             >
-                <Menu size={20} />
-             </button>
-
-             {/* Divider */}
-             <div className="w-px h-6 bg-[var(--border-color)] mx-1 md:hidden"></div>
-
-             {/* Tools */}
-             <button 
-                onClick={() => onNavigate('planner')}
-                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all bg-[var(--bg-main)] border border-[var(--border-color)]"
-             >
-                <Plus size={20} />
-             </button>
-
-             <button 
-                onClick={() => onNavigate('chat')}
-                className="w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] hover:scale-105"
-             >
-                <Mic size={24} />
-             </button>
-
-             <button 
-                onClick={() => onNavigate('thoughts')}
-                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-all bg-[var(--bg-main)] border border-[var(--border-color)]"
-             >
-                <Sparkles size={20} />
-             </button>
-
-         </div>
-      </div>
-
-      {/* EDIT TASK MODAL (Refined Glass) */}
-      {editingTask && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in zoom-in-95">
-              <div className="w-full max-w-sm glass-card rounded-[3rem] p-8 border border-[var(--border-color)] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                  <div className="flex justify-between items-center mb-8">
-                      <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-[0.2em]">Редактирование</span>
-                      <button onClick={() => setEditingTask(null)} className="p-2 rounded-full hover:bg-[var(--bg-item)] transition-colors"><X size={24} className="text-[var(--text-muted)] hover:text-[var(--text-main)]" /></button>
-                  </div>
-                  
-                  <div className="space-y-8">
-                      <div className="relative">
-                          <input 
-                              autoFocus 
-                              value={editTitle} 
-                              onChange={(e) => setEditTitle(e.target.value)} 
-                              className="w-full bg-transparent text-2xl font-black text-[var(--text-main)] outline-none border-b border-[var(--border-color)] pb-4 placeholder:text-[var(--text-muted)]/20 focus:border-[var(--accent)] transition-colors" 
-                          />
-                      </div>
-                      
-                      <div className="flex items-center gap-4 bg-[var(--bg-item)] rounded-2xl px-5 py-4 border border-[var(--border-color)] shadow-inner">
-                          <Clock size={20} className="text-[var(--accent)]" />
-                          <input 
-                              type="time" 
-                              value={editTime} 
-                              onChange={(e) => setEditTime(e.target.value)} 
-                              className="bg-transparent text-lg font-bold text-[var(--text-main)] outline-none w-full" 
-                          />
-                      </div>
-                  </div>
-
-                  <div className="flex gap-4 mt-10">
-                      <button 
-                          onClick={handleDeleteTask}
-                          className="w-16 h-16 rounded-[1.5rem] bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-95"
-                      >
-                          <Trash2 size={24} />
-                      </button>
-                      <button 
-                          onClick={handleSaveEdit}
-                          className="flex-1 h-16 bg-[var(--text-main)] text-[var(--bg-main)] rounded-[1.5rem] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-                      >
-                          Сохранить
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
+      <NavigationPill 
+        currentView="dashboard"
+        onNavigate={onNavigate}
+        onOpenMenu={openMenu}
+        toolL={{ icon: <Plus size={22} />, onClick: () => onNavigate('planner') }}
+        toolR={{ icon: <Sparkles size={22} />, onClick: () => onNavigate('thoughts') }}
+      />
 
     </div>
   );
