@@ -1,4 +1,5 @@
-import { GoogleGenAI, Chat, Type, FunctionDeclaration } from "@google/genai";
+
+import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/genai";
 import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel } from "../types";
 import { format } from "date-fns";
 import { ru } from 'date-fns/locale';
@@ -92,61 +93,33 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   
   // Format memories
   const memoryContext = context.memories && context.memories.length > 0 
-    ? `ДОЛГОСРОЧНАЯ ПАМЯТЬ (Факты о людях и предпочтениях):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
-    : 'Память о людях пока пуста.';
+    ? `MEMORY_BANK:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+    : '';
 
-  // Format Journal (Last 5 meaningful entries for better dynamics analysis)
-  let journalContext = "ДНЕВНИК (Эмоциональный фон):\n";
-  const recentJournal = (context.journal || [])
-    .filter((j: JournalEntry) => j.content && j.content.length > 5)
-    .sort((a: JournalEntry, b: JournalEntry) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
-  
-  if (recentJournal.length > 0) {
-    journalContext += recentJournal.map((j: JournalEntry) => 
-      `[${j.date}] Mood: ${j.mood || '-'}. "${j.content.substring(0, 300)}..."`
-    ).join('\n');
-  } else {
-    journalContext += "Пусто.";
-  }
-
-  // Format Tasks
+  // Format Tasks (Short Summary)
   const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
-  const highPriority = activeTasks.filter((t: Task) => t.priority === 'High').length;
-  // Simple check for names in tasks to highlight "Promises"
-  const potentialPromises = activeTasks.filter((t: Task) => /Наст|Сон|Лер|Мам|Пап|Друг|Обещ/.test(t.title)).map((t: Task) => t.title);
-  
-  const taskContext = `
-ЗАДАЧИ: Всего ${activeTasks.length}, Важных: ${highPriority}.
-ВОЗМОЖНЫЕ ОБЕЩАНИЯ (Задачи с именами): ${potentialPromises.length > 0 ? potentialPromises.join(', ') : 'Нет явных'}
-Список (топ-10): ${activeTasks.slice(0, 10).map((t: Task) => t.title).join(', ')}
-`;
+  const taskSummary = `TASKS: ${activeTasks.length} pending. Top: ${activeTasks.slice(0, 3).map((t: Task) => t.title).join(', ')}`;
 
   const SYSTEM_INSTRUCTION = `
-Ты — Серафим (Serafim OS v4). Ты — второй мозг, напарник и "Консьерж-Сентименталь".
-Пользователь: ${context.userName || 'Архитектор'}
-Сейчас: ${today}
+Ты — Serafim OS v4.
+Текущее время: ${today}.
+Пользователь: ${context.userName || 'Архитектор'}.
 
-РЕЖИМ "КОНСЬЕРЖ-СЕНТИМЕНТАЛЬ" (ПРИОРИТЕТ):
-1. **Трекинг Обещаний:** Твоя святая обязанность — следить за обещаниями, данными близким (Настя, Соня, Лера и др.). Если видишь задачу типа "Дошить Беззубика", напоминай о ней не как о рутине, а как о важном социальном клее.
-   - Пример: "У тебя есть окно в 2 часа вечером. Идеальное время, чтобы закрыть обещание Насте."
-2. **Контекстные Подсказки:** Перед встречей или упоминанием человека, быстро проверяй ПАМЯТЬ.
-   - Если пользователь пишет "Еду к Насте", напомни: "Настя любит [то-то], ты хотел обсудить [это]."
-3. **Анализ Динамики:** Сопоставляй настроение в Дневнике с людьми. Если после встреч с кем-то настроение падает — мягко подсвети это.
+ТВОЯ ГЛАВНАЯ ЦЕЛЬ: Быть максимально кратким, живым и полезным.
 
-ТВОЙ СТИЛЬ:
-- Краткий, живой, эмпатичный. Как умный друг в Telegram.
-- Не используй канцелярит ("Вам следует..."). Используй: "Слушай, а может...", "Давай разберем...".
-- Если пользователь делится эмоциями, сначала поддержи, потом предлагай решения.
+ПРАВИЛА ОБЩЕНИЯ (СТРОГО):
+1. **Ультра-краткость:** Твои ответы должны быть длиной в 1-2 предложения. Максимум 3, если тема сложная.
+2. **Никакой воды:** Не используй фразы "Я понял", "Конечно", "Вот список". Сразу к сути.
+3. **Инициатива:** Если видишь задачу/проблему — предложи решение или создай задачу инструментом. Не спрашивай разрешения на очевидные вещи.
+4. **Стиль:** Живой, разговорный, как умный напарник. Без канцелярита.
+5. **Обещания:** Если видишь имена близких (Настя, Соня и т.д.) в задачах или памяти — это приоритет №1. Напоминай о них.
 
-РАБОТА С ИНСТРУМЕНТАМИ:
-- Если речь о людях, используй \`remember_fact\`, чтобы сохранить контекст (вкусы, даты, проблемы).
-- Если создаешь задачу для другого человека, ставь ей высокий приоритет.
+ИНСТРУМЕНТЫ:
+Используй \`manage_task\` и другие функции молча. Не пиши "Я создал задачу", просто сделай это и скажи "Готово" или "Записал".
 
 КОНТЕКСТ:
 ${memoryContext}
-${journalContext}
-${taskContext}
+${taskSummary}
 `;
 
   // Map user preference to actual API models
@@ -157,9 +130,38 @@ ${taskContext}
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       tools: [{ functionDeclarations: tools }],
-      temperature: 0.9, 
+      temperature: 1.2, // Higher temperature for more lively responses
     }
   });
+};
+
+export const generateSpeech = async (text: string, voiceName: string = 'Kore'): Promise<string | null> => {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: { parts: [{ text }] },
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName }
+                    }
+                }
+            }
+        });
+        
+        // Extract base64 audio
+        const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        return audioData || null;
+    } catch (e) {
+        console.error("Speech Generation Error:", e);
+        return null;
+    }
 };
 
 export const generateProactiveMessage = async (context: any) => {
@@ -172,23 +174,14 @@ export const generateProactiveMessage = async (context: any) => {
     if (timeOfDay < 12) timeContext = "утро";
     else if (timeOfDay > 18) timeContext = "вечер";
 
-    const activeTasksCount = (context.tasks || []).filter((t: Task) => !t.isCompleted).length;
-    // Check for social tasks
-    const promises = (context.tasks || []).filter((t: Task) => !t.isCompleted && /Наст|Сон|Лер|Обещ/.test(t.title)).length;
-    
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-latest', 
             contents: `
                 Пользователь: ${context.userName}. Время: ${timeContext}.
-                Задач: ${activeTasksCount}. Из них "Обещаний" (людям): ${promises}.
-                
-                Напиши ОДНО короткое (макс 12 слов) сообщение-приветствие.
-                Если есть "Обещания" (${promises} шт), намекни на них мягко ("Не забудь про...").
-                Если нет, просто дружеское приветствие.
-                Стиль: Друг-консьерж.
+                Напиши ОДНО приветствие (макс 6 слов). Живое, дерзкое или теплое.
             `,
-            config: { temperature: 1 }
+            config: { temperature: 1.1 }
         });
         return response.text;
     } catch (e) {
@@ -201,28 +194,16 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
   if (!apiKey) return {};
 
   const ai = new GoogleGenAI({ apiKey });
-  
-  // Prepare simplified journal for analysis to save tokens but keep names
   const journalLog = journal.slice(0, 14).map(j => `Date: ${j.date}, Mood: ${j.mood}, Text: ${j.content}`).join('\n');
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Use Pro for deeper analysis
+      model: 'gemini-3-pro-preview', 
       contents: `
-        Проанализируй состояние пользователя (Serafim OS).
-        
-        ДАННЫЕ:
-        Задачи: ${tasks.length} всего, ${tasks.filter(t=>t.isCompleted).length} готово.
-        Привычки: ${habits.map(h => h.title).join(', ')}.
-        Дневник (последние 2 недели):
-        ${journalLog}
-
-        ЗАДАЧА:
-        1. Оцени общий статус (одним словом/фразой, например "В потоке" или "Выгорание").
-        2. Найди "Социальную Динамику" (Insight): Есть ли связь между настроением и упоминанием конкретных имен/людей в дневнике? Или связь между продуктивностью и днями недели?
-        3. Дай совет (FocusArea): На чем сфокусироваться завтра (человеке или деле).
-
-        Верни JSON: { "status": "строка", "insight": "строка (про людей/динамику)", "focusArea": "строка" }
+        Данные пользователя:
+        Задачи: ${tasks.length} всего.
+        Дневник: ${journalLog}
+        Верни JSON: { "status": "короткий статус", "insight": "одно предложение инсайта", "focusArea": "одно слово-фокус" }
       `,
       config: { 
         responseMimeType: "application/json",
@@ -242,16 +223,11 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
 export const fixGrammar = async (text: string) => {
   const apiKey = getApiKey();
   if (!apiKey || text.length < 2) return text;
-
   const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-latest', 
-      contents: `Fix grammar, punctuation, and capitalization. Return ONLY the fixed text, nothing else. Text: "${text}"`,
-      config: {
-          temperature: 0, 
-          maxOutputTokens: 500,
-      }
+      contents: `Fix grammar. Return ONLY fixed text. Text: "${text}"`
     });
     return response.text?.trim() || text;
   } catch (e) {
