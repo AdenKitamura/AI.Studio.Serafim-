@@ -174,8 +174,26 @@ const Mentorship: React.FC<MentorshipProps> = ({
      }
   }, [voiceTrigger]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeSession?.messages, isThinking]);
-  useEffect(() => { chatSessionRef.current = null; stopSpeaking(); }, [activeSessionId]);
+  // --- SCROLL HANDLING FIXED ---
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior });
+      }, 100);
+  };
+
+  // 1. Scroll instantly when session changes (navigation)
+  useEffect(() => {
+      scrollToBottom('auto');
+      chatSessionRef.current = null; 
+      stopSpeaking();
+  }, [activeSessionId]);
+
+  // 2. Scroll smoothly when new messages appear or thinking
+  useEffect(() => { 
+      scrollToBottom('smooth'); 
+  }, [activeSession?.messages, isThinking]);
+
 
   const toggleVoice = () => {
     if (!recognitionRef.current) return;
@@ -360,25 +378,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* FLOATING ACTION PILL (Chat Input Variant) */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4 flex justify-center">
-         <div className="pointer-events-auto bg-[#000000]/60 backdrop-blur-3xl border border-white/10 rounded-full p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex items-center gap-2 animate-in slide-in-from-bottom-5 w-full">
+      {/* FLOATING ACTION PILL (Chat Input Variant) - UPDATED STYLE: Ice Frosted */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-6 flex justify-center">
+         <div className="pointer-events-auto bg-[#121212]/85 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-2 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] flex items-center gap-2 animate-in slide-in-from-bottom-5 w-full transition-all duration-300">
              
              {/* 1. Menu (Fixed) */}
              <button 
                 onClick={openMenu}
-                className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 shrink-0 border border-transparent hover:border-white/5"
+                className="w-12 h-12 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors active:scale-95 shrink-0 hover:bg-white/5"
              >
-                <Menu size={22} />
+                <Menu size={22} strokeWidth={2.5} />
              </button>
 
              {/* Image Attach */}
              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
              <button 
                 onClick={() => fileInputRef.current?.click()} 
-                className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors active:scale-95 shrink-0"
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors active:scale-95 shrink-0 hover:bg-white/5"
              >
-                <ImageIcon size={20} />
+                <ImageIcon size={20} strokeWidth={2.5} />
              </button>
 
              {/* Input Field */}
@@ -389,24 +407,24 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
                 placeholder={isThinking ? "Думаю..." : isRecording ? interimText || "Слушаю..." : "Сообщение..."} 
                 disabled={isThinking} 
-                className="flex-1 bg-transparent text-sm text-[var(--text-main)] px-2 py-3 outline-none resize-none no-scrollbar placeholder:text-[var(--text-muted)]/40 font-bold min-h-[44px] max-h-[120px]" 
+                className="flex-1 bg-transparent text-sm text-white px-2 py-3 outline-none resize-none no-scrollbar placeholder:text-white/30 font-bold min-h-[44px] max-h-[120px]" 
              />
 
              {/* Mic Toggle */}
              <button 
                 onClick={toggleVoice} 
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
              >
-                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                {isRecording ? <MicOff size={20} strokeWidth={2.5} /> : <Mic size={20} strokeWidth={2.5} />}
              </button>
 
-             {/* Send Button */}
+             {/* Send Button - Styled like the Main Mic in Nav */}
              <button 
                 onClick={handleSend} 
                 disabled={!input.trim() && !attachedImage} 
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0 ${(!input.trim() && !attachedImage) ? 'opacity-20 bg-[var(--bg-main)] cursor-not-allowed' : 'bg-[var(--accent)] text-white shadow-lg active:scale-90 cursor-pointer'}`}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0 ${(!input.trim() && !attachedImage) ? 'opacity-30 bg-white/10 cursor-not-allowed' : 'bg-amber-500 text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] active:scale-90 cursor-pointer hover:scale-105'}`}
              >
-                {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}
+                {isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={24} strokeWidth={3} />}
              </button>
 
          </div>
