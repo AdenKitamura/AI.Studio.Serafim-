@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
-import { createMentorChat, generateProactiveMessage, generateSpeech } from '../services/geminiService';
+import { createMentorChat, generateProactiveMessage, generateSpeech, polishText } from '../services/geminiService';
 import * as googleService from '../services/googleService'; 
 import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   Terminal, Volume2, VolumeX, Sparkles, X, Menu, Cpu,
-  Paperclip, SlidersHorizontal
+  Paperclip, SlidersHorizontal, Wand2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -30,6 +30,7 @@ interface MentorshipProps {
   onAddProject: (project: Project) => void;
   onAddHabit: (habit: Habit) => void;
   onAddMemory: (memory: Memory) => void;
+  onAddJournal: (entry: Partial<JournalEntry>) => void; // New prop
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
   hasAiKey: boolean;
@@ -51,20 +52,24 @@ const VOICES = [
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
-    onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onSetTheme, onStartFocus,
+    onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
     hasAiKey, onConnectAI, userName, voiceTrigger, session
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false); 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [interimText, setInterimText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [isProcessingTool, setIsProcessingTool] = useState(false);
   
+  // Voice Recognition State
+  const [liveTranscript, setLiveTranscript] = useState(''); 
+  const rawTranscriptRef = useRef(''); 
+  
   // Gemini Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Kore');
-  const [autoVoice, setAutoVoice] = useState<boolean>(() => localStorage.getItem('sb_auto_voice') === 'true');
+  const [autoVoice, setAutoVoice] = useState<boolean>(() => localStorage.getItem('sb_auto_voice') !== 'false');
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   // Terminal State
@@ -82,67 +87,75 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
-  // --- AUDIO CONTEXT SETUP ---
+  // --- AUDIO CONTEXT SETUP (Raw PCM Support) ---
   const initAudio = () => {
       if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          audioContextRef.current = new AudioContext(); 
       }
       if (audioContextRef.current.state === 'suspended') {
-          audioContextRef.current.resume();
+          audioContextRef.current.resume().catch(e => console.error("Audio resume failed", e));
       }
   };
 
-  const decodeAudioData = async (base64String: string) => {
-      initAudio();
-      if (!audioContextRef.current) return;
-
-      const binaryString = atob(base64String);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
+  const decodeAudioData = (base64String: string, ctx: AudioContext): AudioBuffer | null => {
       try {
-          // Gemini returns raw audio, but let's try standard decode first which works for many formats
-          // If raw PCM is needed we might need a custom decoder, but usually web audio handles standard formats well
-          const buffer = await audioContextRef.current.decodeAudioData(bytes.buffer);
+          const binaryString = atob(base64String);
+          const len = binaryString.length;
+          const safeLen = len - (len % 2); 
+          const bytes = new Uint8Array(safeLen);
+          for (let i = 0; i < safeLen; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const dataInt16 = new Int16Array(bytes.buffer);
+          const numChannels = 1;
+          const frameCount = dataInt16.length;
+          const buffer = ctx.createBuffer(numChannels, frameCount, 24000); 
+          const channelData = buffer.getChannelData(0);
+          for (let i = 0; i < frameCount; i++) {
+            channelData[i] = dataInt16[i] / 32768.0;
+          }
           return buffer;
       } catch (e) {
-          console.error("Audio Decode Error", e);
+          console.error("PCM Decode Error", e);
+          return null;
       }
   };
 
   const playGeminiAudio = async (text: string) => {
       if (isPlaying) stopAudio();
-      setIsPlaying(true);
-      
       try {
+          setIsPlaying(true);
+          initAudio();
           const base64Audio = await generateSpeech(text, selectedVoice);
-          if (base64Audio && audioContextRef.current) {
-               const buffer = await decodeAudioData(base64Audio);
-               if (buffer) {
-                   const source = audioContextRef.current.createBufferSource();
-                   source.buffer = buffer;
-                   source.connect(audioContextRef.current.destination);
-                   source.onended = () => setIsPlaying(false);
-                   source.start(0);
-                   activeSourceRef.current = source;
-               } else {
-                   setIsPlaying(false);
-               }
-          } else {
+          if (!base64Audio) {
               setIsPlaying(false);
+              return;
           }
+          if (!audioContextRef.current) return;
+          const buffer = decodeAudioData(base64Audio, audioContextRef.current);
+          if (!buffer) {
+              setIsPlaying(false);
+              return;
+          }
+          const source = audioContextRef.current.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioContextRef.current.destination);
+          source.onended = () => {
+              setIsPlaying(false);
+              activeSourceRef.current = null;
+          };
+          source.start(0);
+          activeSourceRef.current = source;
       } catch (e) {
-          console.error(e);
+          console.error("Audio Playback Error:", e);
           setIsPlaying(false);
       }
   };
 
   const stopAudio = () => {
       if (activeSourceRef.current) {
-          activeSourceRef.current.stop();
+          try { activeSourceRef.current.stop(); } catch(e){}
           activeSourceRef.current = null;
       }
       setIsPlaying(false);
@@ -159,7 +172,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
      });
   }, [showTerminal]);
 
-  // --- SPEECH RECOGNITION ---
+  // --- SPEECH RECOGNITION SETUP ---
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -173,21 +186,32 @@ const Mentorship: React.FC<MentorshipProps> = ({
         rec.lang = 'ru-RU';
         
         rec.onresult = (event: any) => {
-          let finalTranscript = '';
-          let interimTranscript = '';
+          let currentInterim = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
-            else interimTranscript += event.results[i][0].transcript;
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                rawTranscriptRef.current += transcript + ' ';
+            } else {
+                currentInterim += transcript;
+            }
           }
-          if (finalTranscript) {
-             setInput(prev => {
-                 const cleanPrev = prev.trim();
-                 return cleanPrev ? `${cleanPrev} ${finalTranscript.trim()}` : finalTranscript.trim();
-             });
-          }
-          setInterimText(interimTranscript);
+          setLiveTranscript(rawTranscriptRef.current + currentInterim);
         };
-        rec.onend = () => { setIsRecording(false); setInterimText(''); };
+
+        rec.onend = () => { 
+            setIsRecording(false); 
+            if (rawTranscriptRef.current.trim().length > 0) {
+                processVoiceInput();
+            } else {
+                setLiveTranscript('');
+            }
+        };
+        
+        rec.onerror = (e: any) => {
+            console.error("Speech Error", e);
+            setIsRecording(false);
+        };
+
         recognitionRef.current = rec;
     } catch (e) { console.error(e); }
   }, []);
@@ -198,36 +222,52 @@ const Mentorship: React.FC<MentorshipProps> = ({
   }, [voiceTrigger]);
 
   const toggleVoice = () => {
-    initAudio(); // Initialize audio context on user interaction
+    initAudio(); 
     if (!recognitionRef.current) return;
+    
     if (isRecording) {
         recognitionRef.current.stop(); 
     } else { 
         try { 
-            setInterimText('');
+            rawTranscriptRef.current = ''; 
+            setLiveTranscript('');
             recognitionRef.current.start(); 
             setIsRecording(true);
         } catch(e){ setIsRecording(false); } 
     }
   };
 
+  const processVoiceInput = async () => {
+      const rawText = rawTranscriptRef.current;
+      if (!rawText.trim()) return;
+
+      setIsProcessingAudio(true);
+      setLiveTranscript(rawText); 
+      logger.log('Audio', 'Processing voice input via Gemini...', 'info');
+
+      try {
+          const polishedText = await polishText(rawText);
+          setInput(prev => {
+              const cleanPrev = prev.trim();
+              return cleanPrev ? `${cleanPrev} ${polishedText}` : polishedText;
+          });
+      } catch (e) {
+          setInput(prev => prev + rawText);
+      } finally {
+          setIsProcessingAudio(false);
+          setLiveTranscript('');
+          rawTranscriptRef.current = '';
+      }
+  };
+
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
       setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior }); }, 100);
   };
 
-  // Scroll and Greeting
   useEffect(() => {
       scrollToBottom('auto');
       chatSessionRef.current = null; 
       stopAudio();
-      
-      // Proactive Greeting
-      if (activeSessionId && sessions.length > 0) {
-          const sess = sessions.find(s => s.id === activeSessionId);
-          if (sess && sess.messages.length === 0 && !isThinking) {
-             // Optional: initProactiveGreeting(); 
-          }
-      }
   }, [activeSessionId]);
 
   useEffect(() => { scrollToBottom('smooth'); }, [activeSession?.messages, isThinking]);
@@ -238,7 +278,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const handleInputFocus = () => {
-      initAudio(); // Ensure audio context is ready
+      initAudio(); 
       setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, 400);
   };
 
@@ -250,6 +290,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopAudio(); 
     if (recognitionRef.current) recognitionRef.current.stop();
+
+    logger.log('User', `Sending: "${cleanInput.substring(0, 30)}..."`, 'info');
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
     const currentHistory = activeSession ? activeSession.messages : [];
@@ -276,15 +318,23 @@ const Mentorship: React.FC<MentorshipProps> = ({
         setIsProcessingTool(true);
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
+          logger.log('AI', `Calling Tool: ${fc.name}`, 'warning', args);
+          
           switch (fc.name) {
             case 'manage_task':
               if (args.action === 'create') {
                 const newTask: Task = { id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() };
                 onAddTask(newTask);
+                logger.log('Tool', `Task created: ${args.title}`, 'success');
               }
               break;
             case 'create_idea':
               onAddThought({ id: Date.now().toString(), content: args.title, notes: args.content, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
+              logger.log('Tool', `Idea created: ${args.title}`, 'success');
+              break;
+            case 'save_journal_entry':
+              onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });
+              logger.log('Tool', `Journal Entry saved`, 'success');
               break;
             case 'remember_fact':
               if (args.fact) onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() });
@@ -302,17 +352,22 @@ const Mentorship: React.FC<MentorshipProps> = ({
       }
 
       const responseText = response.text || "Готово.";
+      logger.log('AI', `Response received`, 'success');
+      
       const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: responseText, timestamp: Date.now() };
       onUpdateMessages([...newHistory, modelMsg]);
 
       // AUTO VOICE PLAYBACK
       if (autoVoice) {
-          playGeminiAudio(responseText);
+          setTimeout(() => playGeminiAudio(responseText), 50);
       }
 
     } catch (e: any) {
       console.error(e);
-      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Ошибка нейросвязи. Попробуй еще раз.", timestamp: Date.now() };
+      logger.log('System', `AI Error: ${e.message}`, 'error');
+      // RESTORE INPUT ON ERROR
+      setInput(cleanInput);
+      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Связь потеряна. Я вернул твой текст в поле ввода, попробуй отправить снова.", timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
     } finally {
       setIsThinking(false);
@@ -413,7 +468,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
-                <div className="text-sm leading-relaxed whitespace-pre-wrap font-semibold font-sans">{msg.content}</div>
+                <div className="text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">{msg.content}</div>
                 {msg.role === 'model' && (
                     <button onClick={() => isPlaying ? stopAudio() : playGeminiAudio(msg.content)} className={`absolute -bottom-8 left-2 p-2 rounded-full transition-all cursor-pointer ${isPlaying ? 'bg-[var(--accent)] text-white shadow-lg scale-110' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)]'}`}>
                         {isPlaying ? <VolumeX size={16} className="animate-pulse" /> : <Volume2 size={16} />}
@@ -446,6 +501,26 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       {/* AI PROMPT BOX */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 flex justify-center">
+         
+         {/* Live Voice Transcript Bubble */}
+         {(isRecording || isProcessingAudio) && (
+             <div className="absolute -top-16 left-0 w-full px-4 flex justify-center animate-in slide-in-from-bottom-5">
+                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-[90%]">
+                     {isProcessingAudio ? (
+                         <>
+                            <Wand2 size={18} className="text-[var(--accent)] animate-pulse" />
+                            <span className="text-xs font-bold text-[var(--text-muted)]">Улучшение текста...</span>
+                         </>
+                     ) : (
+                         <>
+                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></div>
+                            <p className="text-xs font-medium truncate">{liveTranscript || "Слушаю..."}</p>
+                         </>
+                     )}
+                 </div>
+             </div>
+         )}
+
          <div className="w-full bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-5 shadow-[0_8px_40px_0_rgba(0,0,0,0.45)] animate-in slide-in-from-bottom-5 transition-all duration-300 relative group hover:border-[var(--accent)]/30 ring-1 ring-white/5">
              {attachedImage && (
                  <div className="mb-4 relative inline-block animate-in zoom-in slide-in-from-bottom-2">
@@ -459,8 +534,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  onFocus={handleInputFocus}
                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }} 
                  onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
-                 placeholder={isThinking ? "Серафим думает..." : isRecording ? interimText || "Говорите..." : "Задай вопрос..."} 
-                 disabled={isThinking} 
+                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите, я записываю..." : "Задай вопрос..."} 
+                 disabled={isThinking || isProcessingAudio} 
                  className="w-full bg-transparent text-[15px] text-white placeholder:text-zinc-500 font-medium outline-none resize-none no-scrollbar min-h-[24px] max-h-[160px] leading-relaxed"
                  style={{ height: input ? 'auto' : '24px' }}
              />
@@ -471,7 +546,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"><Paperclip size={20} strokeWidth={2} /></button>
                  </div>
                  <div className="flex items-center gap-2">
-                      <button onClick={toggleVoice} className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500/20 text-rose-500 animate-pulse' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>{isRecording ? <MicOff size={20} /> : <Mic size={20} />}</button>
+                      <button 
+                        onClick={toggleVoice} 
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500/20 text-rose-500 animate-pulse ring-1 ring-rose-500' : isProcessingAudio ? 'bg-indigo-500/20 text-indigo-400 animate-pulse' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+                      >
+                          {isProcessingAudio ? <Wand2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                      </button>
                       <button onClick={handleSend} disabled={!input.trim() && !attachedImage} className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
                  </div>
              </div>

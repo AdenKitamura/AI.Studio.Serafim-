@@ -218,6 +218,38 @@ const App = () => {
     if (habit) { const exists = habit.completedDates.includes(date); const newHabit = { ...habit, completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date] }; setHabits(prev => prev.map(h => h.id === id ? newHabit : h)); persist('habits', newHabit); }
   };
   const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); };
+  
+  // NEW: Handle Journal Entry via Chat
+  const handleAddJournalEntry = (entry: Partial<JournalEntry>) => {
+      const date = entry.date || new Date().toISOString().split('T')[0];
+      const existingIndex = journal.findIndex(j => j.date === date);
+      
+      let newEntry: JournalEntry;
+      if (existingIndex >= 0) {
+          const existing = journal[existingIndex];
+          newEntry = {
+              ...existing,
+              content: existing.content + '\n\n' + (entry.content || ''),
+              mood: entry.mood || existing.mood,
+              tags: [...(existing.tags || []), ...(entry.tags || [])]
+          };
+          const newJournal = [...journal];
+          newJournal[existingIndex] = newEntry;
+          setJournal(newJournal);
+      } else {
+          newEntry = {
+              id: Date.now().toString(),
+              date: date,
+              content: entry.content || '',
+              mood: entry.mood || '😐',
+              tags: entry.tags || [],
+              notes: '',
+          };
+          setJournal(prev => [newEntry, ...prev]);
+      }
+      persist('journal', newEntry);
+  };
+
   const handleStartFocus = (mins: number) => { setShowTimer(true); };
   
   const hasAiKey = useMemo(() => {
@@ -303,6 +335,7 @@ const App = () => {
               onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
               onAddHabit={handleAddHabit}
               onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
+              onAddJournal={handleAddJournalEntry} // Pass handler
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
