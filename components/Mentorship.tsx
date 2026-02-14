@@ -7,7 +7,7 @@ import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   Terminal, Volume2, VolumeX, Sparkles, X, Menu, Cpu,
-  Paperclip, SlidersHorizontal, Wand2, Activity
+  Paperclip, SlidersHorizontal, Wand2, Activity, Play
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -42,11 +42,11 @@ interface MentorshipProps {
 }
 
 const VOICES = [
-    { id: 'Kore', label: 'Kore (Calm)' },
-    { id: 'Puck', label: 'Puck (Energetic)' },
-    { id: 'Fenrir', label: 'Fenrir (Deep)' },
-    { id: 'Charon', label: 'Charon (Low)' },
-    { id: 'Zephyr', label: 'Zephyr (Soft)' },
+    { id: 'Kore', label: 'Kore (Спокойный)', color: 'bg-emerald-500' },
+    { id: 'Puck', label: 'Puck (Энергичный)', color: 'bg-blue-500' },
+    { id: 'Fenrir', label: 'Fenrir (Глубокий)', color: 'bg-purple-500' },
+    { id: 'Charon', label: 'Charon (Низкий)', color: 'bg-zinc-500' },
+    { id: 'Zephyr', label: 'Zephyr (Мягкий)', color: 'bg-pink-500' },
 ];
 
 const Mentorship: React.FC<MentorshipProps> = ({ 
@@ -67,10 +67,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef<string>('audio/webm'); // Default
   
   // Gemini Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Kore');
   const [autoVoice, setAutoVoice] = useState<boolean>(() => localStorage.getItem('sb_auto_voice') !== 'false');
+  const [voiceSpeed, setVoiceSpeed] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_speed') || '1.0'));
+  const [voiceVolume, setVoiceVolume] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_volume') || '1.0'));
+  
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   // Terminal State
@@ -83,6 +87,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
@@ -91,7 +96,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const initAudioContext = () => {
       if (!audioContextRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          audioContextRef.current = new AudioContext({ sampleRate: 24000 }); // Gemini TTS is usually 24kHz
+          audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+          
+          // Initialize Gain Node for Volume Control
+          gainNodeRef.current = audioContextRef.current.createGain();
+          gainNodeRef.current.connect(audioContextRef.current.destination);
       }
       if (audioContextRef.current.state === 'suspended') {
           audioContextRef.current.resume();
@@ -103,11 +112,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
       if (isPlaying) stopAudio();
       
       const ctx = initAudioContext();
-      // Resume context explicitly for mobile autoplay policies
       if (ctx.state === 'suspended') await ctx.resume();
 
       try {
-          // logger.log('Audio', 'Generating speech...', 'info');
           setIsPlaying(true);
           
           const base64Audio = await generateSpeech(text, selectedVoice);
@@ -137,7 +144,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
           const source = ctx.createBufferSource();
           source.buffer = buffer;
-          source.connect(ctx.destination);
+          
+          // APPLY USER SETTINGS
+          source.playbackRate.value = voiceSpeed; // Speed
+          if (gainNodeRef.current) {
+              gainNodeRef.current.gain.value = voiceVolume; // Volume
+              source.connect(gainNodeRef.current);
+          } else {
+              source.connect(ctx.destination);
+          }
           
           source.onended = () => {
               setIsPlaying(false);
@@ -174,7 +189,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   // --- VOICE INPUT (RECORDING) ---
   
-  // Handle External Trigger (e.g. FAB)
   useEffect(() => {
      if (voiceTrigger && voiceTrigger > 0 && !isRecording) toggleRecording();
   }, [voiceTrigger]);
@@ -191,11 +205,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
     
     // 2. If not recording -> Start
     try { 
-        // Request Microphone
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
         
-        const mediaRecorder = new MediaRecorder(stream);
+        // Determine supported mime type (Crucial for Gemini)
+        let mimeType = 'audio/webm';
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            mimeType = 'audio/mp4';
+        }
+        mimeTypeRef.current = mimeType;
+        
+        const mediaRecorder = new MediaRecorder(stream, { mimeType });
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
 
@@ -206,17 +228,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
 
         mediaRecorder.onstop = async () => {
-            // Stop all tracks to release mic
             stream.getTracks().forEach(track => track.stop());
-            
-            // Compile blob
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+            const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
             await processAudioBlob(audioBlob);
         };
 
         mediaRecorder.start();
         setIsRecording(true);
-        // logger.log('Audio', 'Recording started', 'info');
 
     } catch(e) { 
         console.error("Mic Error", e);
@@ -226,31 +244,27 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const processAudioBlob = async (blob: Blob) => {
-      if (blob.size < 1000) return; // Ignore very short/empty clips
+      if (blob.size < 1000) return; 
       
       setIsProcessingAudio(true);
-      // logger.log('Audio', 'Transcribing...', 'info');
 
       try {
           const reader = new FileReader();
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const base64Audio = (reader.result as string).split(',')[1];
-              
-              // Send to Gemini for STT (Speech-to-Text)
-              const text = await transcribeAudio(base64Audio);
+              // Pass the detected mimeType to Gemini
+              const text = await transcribeAudio(base64Audio, mimeTypeRef.current);
               
               if (text && text.length > 1) {
-                  // AUTO SEND: Directly send the transcribed text
                   handleSend(text);
-                  // logger.log('Audio', 'Voice command sent', 'success');
               } else {
-                  logger.log('Audio', 'No clear speech detected', 'warning');
+                  logger.log('Audio', 'Речь не распознана', 'warning');
               }
               setIsProcessingAudio(false);
           };
       } catch (e) {
-          logger.log('Audio', 'Transcription failed', 'error');
+          logger.log('Audio', 'Ошибка обработки аудио', 'error');
           setIsProcessingAudio(false);
       }
   };
@@ -276,7 +290,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
       setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, 400);
   };
 
-  // MAIN SEND FUNCTION
   const handleSend = async (manualText?: string) => {
     if (isThinking) return;
     const cleanInput = manualText || input.trim();
@@ -285,13 +298,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopAudio(); 
     
-    // Safety cleanup just in case
     if (isRecording && mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
         setIsRecording(false);
     }
-
-    // logger.log('User', `Sending: "${cleanInput.substring(0, 30)}..."`, 'info');
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
     const currentHistory = activeSession ? activeSession.messages : [];
@@ -319,8 +329,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         setIsProcessingTool(true);
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
-          // logger.log('AI', `Calling Tool: ${fc.name}`, 'warning', args);
-          
           switch (fc.name) {
             case 'manage_task':
               if (args.action === 'create') {
@@ -331,11 +339,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
               break;
             case 'create_idea':
               onAddThought({ id: Date.now().toString(), content: args.title, notes: args.content, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
-              logger.log('Tool', `Idea created: ${args.title}`, 'success');
               break;
             case 'save_journal_entry':
               onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });
-              logger.log('Tool', `Journal Entry saved`, 'success');
               break;
             case 'remember_fact':
               if (args.fact) onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() });
@@ -353,22 +359,16 @@ const Mentorship: React.FC<MentorshipProps> = ({
       }
 
       const responseText = response.text || "Готово.";
-      // logger.log('AI', `Response received`, 'success');
-      
       const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: responseText, timestamp: Date.now() };
       onUpdateMessages([...newHistory, modelMsg]);
 
-      // --- AUTO VOICE PLAYBACK ---
       if (autoVoice) {
-          // Play automatically only if manual text input was NOT used, or if autoVoice is strictly forced.
-          // Since user requested "Also need audio", we play it.
           setTimeout(() => playGeminiAudio(responseText), 100);
       }
 
     } catch (e: any) {
       console.error(e);
       logger.log('System', `AI Error: ${e.message}`, 'error');
-      // On error, put text back so user doesn't lose it
       setInput(cleanInput);
       const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Связь потеряна. Попробуй еще раз.", timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
@@ -404,25 +404,61 @@ const Mentorship: React.FC<MentorshipProps> = ({
          </button>
       </div>
 
-      {/* --- VOICE SETTINGS PANEL --- */}
+      {/* --- VOICE SETTINGS PANEL (EXPANDED) --- */}
       {showVoiceSettings && (
-          <div className="absolute top-32 right-4 z-50 w-48 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-2xl p-3 shadow-2xl animate-in fade-in slide-in-from-right-5">
-              <h4 className="text-[10px] font-black uppercase text-[var(--text-muted)] mb-2 tracking-widest">Голос Серафима</h4>
-              <div className="space-y-1 mb-3">
+          <div className="absolute top-32 right-4 z-50 w-64 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-3xl p-4 shadow-2xl animate-in fade-in slide-in-from-right-5">
+              <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">Аудио Модуль</h4>
+                  <button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-white"><X size={14}/></button>
+              </div>
+              
+              {/* Voice Selection */}
+              <div className="space-y-1 mb-4">
                   {VOICES.map(v => (
                       <button 
                         key={v.id} 
                         onClick={() => { setSelectedVoice(v.id); localStorage.setItem('sb_voice', v.id); }}
-                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedVoice === v.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5'}`}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${selectedVoice === v.id ? 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--accent)]' : 'text-[var(--text-muted)] hover:bg-white/5 border border-transparent'}`}
                       >
-                          {v.label}
+                          <span>{v.label}</span>
+                          {selectedVoice === v.id && <div className={`w-2 h-2 rounded-full ${v.color}`}></div>}
                       </button>
                   ))}
               </div>
-              <div className="border-t border-white/10 pt-2">
+
+              {/* Sliders */}
+              <div className="space-y-4 mb-4 pt-2 border-t border-white/10">
+                  <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]">
+                          <span>Скорость</span>
+                          <span>{voiceSpeed.toFixed(1)}x</span>
+                      </div>
+                      <input 
+                          type="range" min="0.5" max="2.0" step="0.1" 
+                          value={voiceSpeed}
+                          onChange={(e) => { const v = parseFloat(e.target.value); setVoiceSpeed(v); localStorage.setItem('sb_voice_speed', v.toString()); }}
+                          className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
+                      />
+                  </div>
+                  
+                  <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]">
+                          <span>Громкость</span>
+                          <span>{Math.round(voiceVolume * 100)}%</span>
+                      </div>
+                      <input 
+                          type="range" min="0.1" max="1.5" step="0.1" 
+                          value={voiceVolume}
+                          onChange={(e) => { const v = parseFloat(e.target.value); setVoiceVolume(v); localStorage.setItem('sb_voice_volume', v.toString()); }}
+                          className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
+                      />
+                  </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-3">
                   <button 
                     onClick={() => { setAutoVoice(!autoVoice); localStorage.setItem('sb_auto_voice', (!autoVoice).toString()); }}
-                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-bold transition-all ${autoVoice ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--text-muted)]'}`}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${autoVoice ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--text-muted)]'}`}
                   >
                       <span>Авто-озвучка</span>
                       <div className={`w-2 h-2 rounded-full ${autoVoice ? 'bg-emerald-400' : 'bg-white/20'}`} />

@@ -59,15 +59,25 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
     } else {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorderRef.current = new MediaRecorder(stream);
+            
+            let mimeType = 'audio/webm';
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                mimeType = 'audio/webm;codecs=opus';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                mimeType = 'audio/mp4';
+            }
+
+            mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
             audioChunksRef.current = [];
 
             mediaRecorderRef.current.ondataavailable = (event) => {
-                audioChunksRef.current.push(event.data);
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
             };
 
             mediaRecorderRef.current.onstop = async () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
                 await processAudioBlob(audioBlob);
                 stream.getTracks().forEach(track => track.stop());
             };
@@ -88,7 +98,7 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const base64Audio = (reader.result as string).split(',')[1];
-              const text = await transcribeAudio(base64Audio);
+              const text = await transcribeAudio(base64Audio, blob.type);
               if (text) {
                   setContent(prev => (prev + ' ' + text).trim());
               }

@@ -288,25 +288,28 @@ export const polishText = async (text: string): Promise<string> => {
     }
 };
 
-// NEW: Use Gemini to transcribe audio directly
-export const transcribeAudio = async (base64Audio: string): Promise<string> => {
+// NEW: Use Gemini to transcribe audio directly with dynamic mime type
+export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
     const apiKey = getApiKey();
     if (!apiKey) return "";
 
     const ai = new GoogleGenAI({ apiKey });
     try {
+        // Clean mimeType just in case
+        const cleanMime = mimeType.split(';')[0];
+        
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash-latest",
             contents: {
                 parts: [
                     {
                         inlineData: {
-                            mimeType: "audio/wav", 
+                            mimeType: cleanMime, 
                             data: base64Audio
                         }
                     },
                     {
-                        text: "Transcribe this audio exactly. Remove stuttering, repetitions (like 'this is test this is test'), and fillers. Punctuate correctly. Return ONLY the text in Russian (or language spoken)."
+                        text: "Transcribe this audio exactly. Ignore background noise. Return ONLY the text in the language spoken."
                     }
                 ]
             }
