@@ -7,7 +7,7 @@ import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   Terminal, Volume2, VolumeX, Sparkles, X, Menu, Cpu,
-  Paperclip, SlidersHorizontal, Wand2
+  Paperclip, SlidersHorizontal, Wand2, Activity
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -181,25 +181,36 @@ const Mentorship: React.FC<MentorshipProps> = ({
     try {
         const rec = new SpeechRecognition();
         rec.continuous = true; 
-        rec.interimResults = true;
+        rec.interimResults = true; // Важно видеть процесс
         rec.maxAlternatives = 1;
         rec.lang = 'ru-RU';
         
         rec.onresult = (event: any) => {
-          let currentInterim = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const transcript = event.results[i][0].transcript;
+          // FIX: Rebuild logic to prevent "stuttering" duplication
+          let finalTranscript = '';
+          let interimTranscript = '';
+
+          // Iterate through ALL results, not just new ones. 
+          // This reconstructs the string cleanly every time.
+          for (let i = 0; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                rawTranscriptRef.current += transcript + ' ';
+              finalTranscript += event.results[i][0].transcript;
             } else {
-                currentInterim += transcript;
+              interimTranscript += event.results[i][0].transcript;
             }
           }
-          setLiveTranscript(rawTranscriptRef.current + currentInterim);
+
+          // Normalize spaces
+          const cleanFinal = finalTranscript.replace(/\s+/g, ' ');
+          const cleanInterim = interimTranscript.replace(/\s+/g, ' ');
+
+          rawTranscriptRef.current = cleanFinal;
+          setLiveTranscript(cleanFinal + (cleanInterim ? ' ' + cleanInterim : ''));
         };
 
         rec.onend = () => { 
             setIsRecording(false); 
+            // Trigger processing only if we have text
             if (rawTranscriptRef.current.trim().length > 0) {
                 processVoiceInput();
             } else {
@@ -209,7 +220,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
         
         rec.onerror = (e: any) => {
             console.error("Speech Error", e);
-            setIsRecording(false);
+            if (e.error !== 'no-speech') {
+                setIsRecording(false);
+            }
         };
 
         recognitionRef.current = rec;
@@ -505,23 +518,32 @@ const Mentorship: React.FC<MentorshipProps> = ({
          {/* Live Voice Transcript Bubble */}
          {(isRecording || isProcessingAudio) && (
              <div className="absolute -top-16 left-0 w-full px-4 flex justify-center animate-in slide-in-from-bottom-5">
-                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-[90%]">
+                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-[90%] w-full">
                      {isProcessingAudio ? (
                          <>
-                            <Wand2 size={18} className="text-[var(--accent)] animate-pulse" />
-                            <span className="text-xs font-bold text-[var(--text-muted)]">Улучшение текста...</span>
+                            <Wand2 size={24} className="text-[var(--accent)] animate-pulse shrink-0" />
+                            <div className="flex flex-col overflow-hidden">
+                                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Магия...</span>
+                                <span className="text-sm font-medium truncate text-white/50">{liveTranscript}</span>
+                            </div>
                          </>
                      ) : (
                          <>
-                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></div>
-                            <p className="text-xs font-medium truncate">{liveTranscript || "Слушаю..."}</p>
+                            <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0 shadow-[0_0_10px_red]"></div>
+                            {/* Audio Visualizer Effect */}
+                            <div className="flex gap-1 h-4 items-center shrink-0">
+                                <div className="w-1 bg-white/50 h-2 animate-[pulse_0.5s_infinite]"></div>
+                                <div className="w-1 bg-white/50 h-4 animate-[pulse_0.7s_infinite]"></div>
+                                <div className="w-1 bg-white/50 h-3 animate-[pulse_0.6s_infinite]"></div>
+                            </div>
+                            <p className="text-sm font-medium truncate flex-1 min-w-0">{liveTranscript || "Слушаю..."}</p>
                          </>
                      )}
                  </div>
              </div>
          )}
 
-         <div className="w-full bg-[#121212]/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-5 shadow-[0_8px_40px_0_rgba(0,0,0,0.45)] animate-in slide-in-from-bottom-5 transition-all duration-300 relative group hover:border-[var(--accent)]/30 ring-1 ring-white/5">
+         <div className={`w-full bg-[#121212]/90 backdrop-blur-2xl border transition-all duration-300 rounded-[2rem] p-5 shadow-[0_8px_40px_0_rgba(0,0,0,0.45)] relative group hover:border-[var(--accent)]/30 ring-1 ring-white/5 ${isRecording ? 'border-[var(--accent)] shadow-[0_0_30px_var(--accent-glow)]' : 'border-white/10'}`}>
              {attachedImage && (
                  <div className="mb-4 relative inline-block animate-in zoom-in slide-in-from-bottom-2">
                      <img src={attachedImage} className="h-16 w-16 rounded-xl object-cover border border-white/10 shadow-lg" alt="attachment" />
@@ -534,7 +556,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  onFocus={handleInputFocus}
                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }} 
                  onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
-                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите, я записываю..." : "Задай вопрос..."} 
+                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите..." : "Задай вопрос..."} 
                  disabled={isThinking || isProcessingAudio} 
                  className="w-full bg-transparent text-[15px] text-white placeholder:text-zinc-500 font-medium outline-none resize-none no-scrollbar min-h-[24px] max-h-[160px] leading-relaxed"
                  style={{ height: input ? 'auto' : '24px' }}
@@ -548,9 +570,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  <div className="flex items-center gap-2">
                       <button 
                         onClick={toggleVoice} 
-                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500/20 text-rose-500 animate-pulse ring-1 ring-rose-500' : isProcessingAudio ? 'bg-indigo-500/20 text-indigo-400 animate-pulse' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-white shadow-lg animate-pulse' : isProcessingAudio ? 'bg-indigo-500 text-white animate-spin' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
                       >
-                          {isProcessingAudio ? <Wand2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                          {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                       </button>
                       <button onClick={handleSend} disabled={!input.trim() && !attachedImage} className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
                  </div>
