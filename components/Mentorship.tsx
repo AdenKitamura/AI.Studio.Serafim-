@@ -63,9 +63,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [isProcessingTool, setIsProcessingTool] = useState(false);
   
-  // Voice Recognition State (New: MediaRecorder)
+  // Voice Recognition State (MediaRecorder)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
   
   // Gemini Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Kore');
@@ -86,66 +87,66 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
-  // --- AUDIO CONTEXT SETUP (Raw PCM Support) ---
-  const initAudio = () => {
+  // --- AUDIO OUTPUT (PCM Decoder) ---
+  const initAudioContext = () => {
       if (!audioContextRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          audioContextRef.current = new AudioContext(); 
+          audioContextRef.current = new AudioContext({ sampleRate: 24000 }); // Gemini TTS is usually 24kHz
       }
       if (audioContextRef.current.state === 'suspended') {
-          audioContextRef.current.resume().catch(e => console.error("Audio resume failed", e));
+          audioContextRef.current.resume();
       }
-  };
-
-  const decodeAudioData = (base64String: string, ctx: AudioContext): AudioBuffer | null => {
-      try {
-          const binaryString = atob(base64String);
-          const len = binaryString.length;
-          const safeLen = len - (len % 2); 
-          const bytes = new Uint8Array(safeLen);
-          for (let i = 0; i < safeLen; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          const dataInt16 = new Int16Array(bytes.buffer);
-          const numChannels = 1;
-          const frameCount = dataInt16.length;
-          const buffer = ctx.createBuffer(numChannels, frameCount, 24000); 
-          const channelData = buffer.getChannelData(0);
-          for (let i = 0; i < frameCount; i++) {
-            channelData[i] = dataInt16[i] / 32768.0;
-          }
-          return buffer;
-      } catch (e) {
-          console.error("PCM Decode Error", e);
-          return null;
-      }
+      return audioContextRef.current;
   };
 
   const playGeminiAudio = async (text: string) => {
       if (isPlaying) stopAudio();
+      
+      const ctx = initAudioContext();
+      // Resume context explicitly for mobile autoplay policies
+      if (ctx.state === 'suspended') await ctx.resume();
+
       try {
+          // logger.log('Audio', 'Generating speech...', 'info');
           setIsPlaying(true);
-          initAudio();
+          
           const base64Audio = await generateSpeech(text, selectedVoice);
           if (!base64Audio) {
               setIsPlaying(false);
               return;
           }
-          if (!audioContextRef.current) return;
-          const buffer = decodeAudioData(base64Audio, audioContextRef.current);
-          if (!buffer) {
-              setIsPlaying(false);
-              return;
+
+          // Decode Raw PCM (16-bit signed integer)
+          const binaryString = atob(base64Audio);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
           }
-          const source = audioContextRef.current.createBufferSource();
+          
+          const int16Data = new Int16Array(bytes.buffer);
+          const float32Data = new Float32Array(int16Data.length);
+          
+          // Convert Int16 to Float32 [-1.0, 1.0]
+          for (let i = 0; i < int16Data.length; i++) {
+              float32Data[i] = int16Data[i] / 32768.0;
+          }
+
+          const buffer = ctx.createBuffer(1, float32Data.length, 24000);
+          buffer.copyToChannel(float32Data, 0);
+
+          const source = ctx.createBufferSource();
           source.buffer = buffer;
-          source.connect(audioContextRef.current.destination);
+          source.connect(ctx.destination);
+          
           source.onended = () => {
               setIsPlaying(false);
               activeSourceRef.current = null;
           };
+          
           source.start(0);
           activeSourceRef.current = source;
+
       } catch (e) {
           console.error("Audio Playback Error:", e);
           setIsPlaying(false);
@@ -160,7 +161,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       setIsPlaying(false);
   };
 
-  // --- SUBSCRIBE TO LOGGER ---
+  // --- LOGGING ---
   useEffect(() => {
      setSystemLogs(logger.getLogs());
      return logger.subscribe((logs) => {
@@ -171,65 +172,80 @@ const Mentorship: React.FC<MentorshipProps> = ({
      });
   }, [showTerminal]);
 
-  // Listen for Voice Trigger
+  // --- VOICE INPUT (RECORDING) ---
+  
+  // Handle External Trigger (e.g. FAB)
   useEffect(() => {
      if (voiceTrigger && voiceTrigger > 0 && !isRecording) toggleRecording();
   }, [voiceTrigger]);
 
   const toggleRecording = async () => {
-    initAudio(); 
-    
+    // 1. If currently recording -> Stop
     if (isRecording) {
-        // STOP RECORDING
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
-    } else { 
-        // START RECORDING
-        try { 
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorderRef.current = new MediaRecorder(stream);
-            audioChunksRef.current = [];
+        return;
+    } 
+    
+    // 2. If not recording -> Start
+    try { 
+        // Request Microphone
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
+        
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
 
-            mediaRecorderRef.current.ondataavailable = (event) => {
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
                 audioChunksRef.current.push(event.data);
-            };
+            }
+        };
 
-            mediaRecorderRef.current.onstop = async () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' }); // 'audio/webm' often works too but Gemini likes wav structure if containerless
-                await processAudioBlob(audioBlob);
-                stream.getTracks().forEach(track => track.stop());
-            };
+        mediaRecorder.onstop = async () => {
+            // Stop all tracks to release mic
+            stream.getTracks().forEach(track => track.stop());
+            
+            // Compile blob
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+            await processAudioBlob(audioBlob);
+        };
 
-            mediaRecorderRef.current.start();
-            setIsRecording(true);
-        } catch(e) { 
-            console.error("Mic Error", e);
-            logger.log("Audio", "Microphone access denied", "error");
-            setIsRecording(false); 
-        } 
-    }
+        mediaRecorder.start();
+        setIsRecording(true);
+        // logger.log('Audio', 'Recording started', 'info');
+
+    } catch(e) { 
+        console.error("Mic Error", e);
+        logger.log("Audio", "Microphone access denied", "error");
+        setIsRecording(false); 
+    } 
   };
 
   const processAudioBlob = async (blob: Blob) => {
+      if (blob.size < 1000) return; // Ignore very short/empty clips
+      
       setIsProcessingAudio(true);
-      logger.log('Audio', 'Sending audio to Gemini for transcription...', 'info');
+      // logger.log('Audio', 'Transcribing...', 'info');
 
       try {
           const reader = new FileReader();
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const base64Audio = (reader.result as string).split(',')[1];
+              
+              // Send to Gemini for STT (Speech-to-Text)
               const text = await transcribeAudio(base64Audio);
-              if (text) {
-                  setInput(prev => {
-                      const cleanPrev = prev.trim();
-                      return cleanPrev ? `${cleanPrev} ${text}` : text;
-                  });
-                  logger.log('Audio', 'Transcription successful', 'success');
+              
+              if (text && text.length > 1) {
+                  // AUTO SEND: Directly send the transcribed text
+                  handleSend(text);
+                  // logger.log('Audio', 'Voice command sent', 'success');
               } else {
-                  logger.log('Audio', 'No speech detected', 'warning');
+                  logger.log('Audio', 'No clear speech detected', 'warning');
               }
               setIsProcessingAudio(false);
           };
@@ -257,25 +273,34 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const handleInputFocus = () => {
-      initAudio(); 
       setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, 400);
   };
 
-  const handleSend = async () => {
+  // MAIN SEND FUNCTION
+  const handleSend = async (manualText?: string) => {
     if (isThinking) return;
-    const cleanInput = input.trim();
+    const cleanInput = manualText || input.trim();
     if (!cleanInput && !attachedImage) return;
 
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopAudio(); 
     
-    logger.log('User', `Sending: "${cleanInput.substring(0, 30)}..."`, 'info');
+    // Safety cleanup just in case
+    if (isRecording && mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+    }
+
+    // logger.log('User', `Sending: "${cleanInput.substring(0, 30)}..."`, 'info');
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
     const currentHistory = activeSession ? activeSession.messages : [];
     const newHistory = [...currentHistory, userMsg];
     onUpdateMessages(newHistory);
-    setInput(''); setAttachedImage(null); setIsThinking(true);
+    
+    setInput(''); 
+    setAttachedImage(null); 
+    setIsThinking(true);
 
     try {
       if (!chatSessionRef.current) {
@@ -288,15 +313,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
         contents = { parts: [{ text: cleanInput || "Analyze image" }, { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }] };
       }
 
-      // ----------------------------------------------------
       const response: any = await chatSessionRef.current.sendMessage({ message: contents });
-      // ----------------------------------------------------
 
       if (response.functionCalls) {
         setIsProcessingTool(true);
         for (const fc of response.functionCalls) {
           const args = fc.args as any;
-          logger.log('AI', `Calling Tool: ${fc.name}`, 'warning', args);
+          // logger.log('AI', `Calling Tool: ${fc.name}`, 'warning', args);
           
           switch (fc.name) {
             case 'manage_task':
@@ -330,22 +353,24 @@ const Mentorship: React.FC<MentorshipProps> = ({
       }
 
       const responseText = response.text || "Готово.";
-      logger.log('AI', `Response received`, 'success');
+      // logger.log('AI', `Response received`, 'success');
       
       const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: responseText, timestamp: Date.now() };
       onUpdateMessages([...newHistory, modelMsg]);
 
-      // AUTO VOICE PLAYBACK
+      // --- AUTO VOICE PLAYBACK ---
       if (autoVoice) {
-          setTimeout(() => playGeminiAudio(responseText), 50);
+          // Play automatically only if manual text input was NOT used, or if autoVoice is strictly forced.
+          // Since user requested "Also need audio", we play it.
+          setTimeout(() => playGeminiAudio(responseText), 100);
       }
 
     } catch (e: any) {
       console.error(e);
       logger.log('System', `AI Error: ${e.message}`, 'error');
-      // RESTORE INPUT ON ERROR
+      // On error, put text back so user doesn't lose it
       setInput(cleanInput);
-      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Связь потеряна. Я вернул твой текст в поле ввода, попробуй отправить снова.", timestamp: Date.now() };
+      const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Связь потеряна. Попробуй еще раз.", timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
     } finally {
       setIsThinking(false);
@@ -361,7 +386,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
       
       {/* --- FLOATING CONTROLS --- */}
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
-         {/* Voice Settings Toggle */}
          <button 
             onClick={() => setShowVoiceSettings(!showVoiceSettings)}
             className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}
@@ -369,7 +393,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
              <SlidersHorizontal size={16} />
          </button>
 
-         {/* Terminal Toggle */}
          <button 
             onClick={() => setShowTerminal(!showTerminal)}
             className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}
@@ -480,30 +503,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
       {/* AI PROMPT BOX */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 flex justify-center">
          
-         {/* Live Voice Status Bubble */}
+         {/* STATUS BUBBLE (Minimal) */}
          {(isRecording || isProcessingAudio) && (
              <div className="absolute -top-16 left-0 w-full px-4 flex justify-center animate-in slide-in-from-bottom-5">
-                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-[90%] w-full">
+                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3">
                      {isProcessingAudio ? (
                          <>
-                            <Wand2 size={24} className="text-[var(--accent)] animate-pulse shrink-0" />
-                            <div className="flex flex-col overflow-hidden">
-                                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Магия...</span>
-                                <span className="text-sm font-medium truncate text-white/50">Обработка речи...</span>
-                            </div>
+                            <Wand2 size={18} className="text-[var(--accent)] animate-spin" />
+                            <span className="text-xs font-bold text-[var(--text-muted)]">Обработка...</span>
                          </>
                      ) : (
                          <>
-                            <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0 shadow-[0_0_10px_red]"></div>
-                            {/* Audio Visualizer Effect (Fake) */}
-                            <div className="flex gap-1 h-6 items-center shrink-0">
-                                <div className="w-1 bg-white/50 h-3 animate-[pulse_0.3s_infinite]"></div>
-                                <div className="w-1 bg-white/50 h-5 animate-[pulse_0.5s_infinite]"></div>
-                                <div className="w-1 bg-white/50 h-4 animate-[pulse_0.4s_infinite]"></div>
-                                <div className="w-1 bg-white/50 h-6 animate-[pulse_0.6s_infinite]"></div>
-                                <div className="w-1 bg-white/50 h-3 animate-[pulse_0.2s_infinite]"></div>
-                            </div>
-                            <p className="text-sm font-medium truncate flex-1 min-w-0">Запись...</p>
+                            <div className="w-3 h-3 rounded-full bg-red-500 animate-[pulse_1s_infinite] shadow-[0_0_15px_red]"></div>
+                            <span className="text-xs font-bold text-white uppercase tracking-widest">Запись...</span>
                          </>
                      )}
                  </div>
@@ -523,7 +535,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  onFocus={handleInputFocus}
                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }} 
                  onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
-                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите, я слушаю..." : "Задай вопрос..."} 
+                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите..." : "Задай вопрос..."} 
                  disabled={isThinking || isProcessingAudio || isRecording} 
                  className="w-full bg-transparent text-[15px] text-white placeholder:text-zinc-500 font-medium outline-none resize-none no-scrollbar min-h-[24px] max-h-[160px] leading-relaxed"
                  style={{ height: input ? 'auto' : '24px' }}
@@ -541,7 +553,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       >
                           {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                       </button>
-                      <button onClick={handleSend} disabled={!input.trim() && !attachedImage} className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
+                      <button onClick={() => handleSend()} disabled={!input.trim() && !attachedImage} className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
                  </div>
              </div>
          </div>
