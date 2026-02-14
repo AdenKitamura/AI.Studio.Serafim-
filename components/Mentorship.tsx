@@ -30,7 +30,7 @@ interface MentorshipProps {
   onAddProject: (project: Project) => void;
   onAddHabit: (habit: Habit) => void;
   onAddMemory: (memory: Memory) => void;
-  onAddJournal: (entry: Partial<JournalEntry>) => void; // New prop
+  onAddJournal: (entry: Partial<JournalEntry>) => void; 
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
   hasAiKey: boolean;
@@ -243,7 +243,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       setIsProcessingAudio(true);
       setLiveTranscript(rawText); 
-      logger.log('Audio', 'Processing voice input via Gemini...', 'info');
+      logger.log('Audio', 'Improving speech recognition via Gemini...', 'info');
 
       try {
           const polishedText = await polishText(rawText);
