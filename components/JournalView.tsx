@@ -3,9 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { JournalEntry, DailyReflection, Task } from '../types';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket } from 'lucide-react';
+import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket, Loader2 } from 'lucide-react';
 import CalendarView from './CalendarView';
-import { fixGrammar } from '../services/geminiService';
+import { fixGrammar, transcribeAudio } from '../services/geminiService';
 import NavigationPill from './NavigationPill';
 
 interface JournalViewProps {
@@ -18,15 +18,17 @@ interface JournalViewProps {
 const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, onNavigate }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const [showReflection, setShowReflection] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [interimText, setInterimText] = useState('');
   const [isFixing, setIsFixing] = useState(false);
   
-  const recognitionRef = useRef<any>(null);
+  // Media Recorder
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  
   const autoSaveTimeoutRef = useRef<any>(null);
   const reflectionRef = useRef<HTMLDivElement>(null);
-  const lastResultIndexRef = useRef(0);
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);
@@ -48,48 +50,54 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
   }, [content, mood, reflection, dateStr, onSave]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-      const rec = new SpeechRecognition();
-      rec.continuous = true; 
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-      rec.lang = 'ru-RU';
-      
-      rec.onresult = (event: any) => {
-        let currentInterim = ''; 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (i < lastResultIndexRef.current) continue;
-          const result = event.results[i];
-          if (result.isFinal) {
-             const transcript = result[0].transcript;
-             setContent(prev => (prev + ' ' + transcript).replace(/\s+/g, ' ').trim());
-             lastResultIndexRef.current = i + 1;
-          } else { 
-             currentInterim += result[0].transcript;
-          }
-        }
-        setInterimText(currentInterim);
-      };
-      
-      rec.onstart = () => { setIsRecording(true); lastResultIndexRef.current = 0; };
-      rec.onend = async () => { setIsRecording(false); setInterimText(''); };
-      rec.onerror = () => setIsRecording(false);
-      recognitionRef.current = rec;
-    }
-  }, []);
-
-  const toggleRecording = () => {
-    if (!recognitionRef.current) return;
+  const toggleRecording = async () => {
     if (isRecording) {
-        recognitionRef.current.stop(); 
-    } else { 
-        setInterimText(''); 
-        lastResultIndexRef.current = 0;
-        recognitionRef.current.lang = 'ru-RU'; 
-        recognitionRef.current.start(); 
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+    } else {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                audioChunksRef.current.push(event.data);
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                await processAudioBlob(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorderRef.current.start();
+            setIsRecording(true);
+        } catch (e) {
+            console.error("Mic Error", e);
+            alert("Нет доступа к микрофону");
+        }
     }
+  };
+
+  const processAudioBlob = async (blob: Blob) => {
+      setIsProcessingAudio(true);
+      try {
+          const reader = new FileReader();
+          reader.readAsDataURL(blob);
+          reader.onloadend = async () => {
+              const base64Audio = (reader.result as string).split(',')[1];
+              const text = await transcribeAudio(base64Audio);
+              if (text) {
+                  setContent(prev => (prev + ' ' + text).trim());
+              }
+              setIsProcessingAudio(false);
+          };
+      } catch (e) {
+          console.error(e);
+          setIsProcessingAudio(false);
+      }
   };
 
   const handleMagicFix = async () => {
@@ -119,7 +127,9 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
             <div className="cursor-pointer group active:opacity-70 transition-opacity" onClick={() => setShowCalendar(!showCalendar)}>
             <div className="flex items-center gap-3"><h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">ДНЕВНИК</h2><div className={`p-1.5 rounded-full bg-[var(--bg-item)] border border-[var(--border-color)] transition-transform duration-300 ${showCalendar ? 'rotate-180 bg-[var(--accent)] border-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}><ChevronDown size={16} /></div></div>
             <p className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest mt-1 pl-1">{format(selectedDate, 'eeee, d MMMM', { locale: ru })}</p></div>
-            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">{interimText ? <span className="text-[var(--accent)] animate-pulse">Слушаю...</span> : <span>Сохранено</span>}</div>
+            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                {isRecording ? <span className="text-red-500 animate-pulse">Запись...</span> : isProcessingAudio ? <span className="text-[var(--accent)] animate-pulse">Обработка...</span> : <span>Сохранено</span>}
+            </div>
         </div>
 
         {showCalendar && (
@@ -134,7 +144,6 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
             </div>
             <div className="relative mb-12">
                 <textarea className="w-full h-full min-h-[50vh] bg-transparent text-[var(--text-main)] text-xl font-medium leading-relaxed outline-none resize-none placeholder:text-[var(--text-muted)]/20 placeholder:italic placeholder:font-serif" value={content} onChange={e => setContent(e.target.value)} placeholder="О чем ты думаешь сегодня?.." spellCheck={false} />
-                {interimText && <div className="mt-2 text-[var(--text-muted)] opacity-50 animate-pulse font-medium">{interimText}</div>}
             </div>
             {showReflection && (
                 <div ref={reflectionRef} className="animate-in slide-in-from-bottom-5 fade-in space-y-6 pt-8 border-t border-[var(--border-color)]">
@@ -155,7 +164,11 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
         onNavigate={onNavigate}
         onOpenMenu={openMenu}
         toolL={{ icon: <Target size={22} />, onClick: toggleReflection, active: showReflection }}
-        toolR={{ icon: isRecording ? <MicOff size={22}/> : <Mic size={22}/>, onClick: toggleRecording, active: isRecording }}
+        toolR={{ 
+            icon: isProcessingAudio ? <Loader2 size={22} className="animate-spin"/> : isRecording ? <MicOff size={22}/> : <Mic size={22}/>, 
+            onClick: toggleRecording, 
+            active: isRecording 
+        }}
       />
     </div>
   );

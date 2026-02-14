@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
-import { createMentorChat, generateProactiveMessage, generateSpeech, polishText } from '../services/geminiService';
+import { createMentorChat, generateProactiveMessage, generateSpeech, polishText, transcribeAudio } from '../services/geminiService';
 import * as googleService from '../services/googleService'; 
 import { logger, SystemLog } from '../services/logger';
 import { 
@@ -63,9 +63,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [isProcessingTool, setIsProcessingTool] = useState(false);
   
-  // Voice Recognition State
-  const [liveTranscript, setLiveTranscript] = useState(''); 
-  const rawTranscriptRef = useRef(''); 
+  // Voice Recognition State (New: MediaRecorder)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   
   // Gemini Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Kore');
@@ -76,7 +76,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [showTerminal, setShowTerminal] = useState(false);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   
-  const recognitionRef = useRef<any>(null);
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -172,104 +171,71 @@ const Mentorship: React.FC<MentorshipProps> = ({
      });
   }, [showTerminal]);
 
-  // --- SPEECH RECOGNITION SETUP ---
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    try {
-        const rec = new SpeechRecognition();
-        rec.continuous = true; 
-        rec.interimResults = true; // Важно видеть процесс
-        rec.maxAlternatives = 1;
-        rec.lang = 'ru-RU';
-        
-        rec.onresult = (event: any) => {
-          // FIX: Rebuild logic to prevent "stuttering" duplication
-          let finalTranscript = '';
-          let interimTranscript = '';
-
-          // Iterate through ALL results, not just new ones. 
-          // This reconstructs the string cleanly every time.
-          for (let i = 0; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            } else {
-              interimTranscript += event.results[i][0].transcript;
-            }
-          }
-
-          // Normalize spaces
-          const cleanFinal = finalTranscript.replace(/\s+/g, ' ');
-          const cleanInterim = interimTranscript.replace(/\s+/g, ' ');
-
-          rawTranscriptRef.current = cleanFinal;
-          setLiveTranscript(cleanFinal + (cleanInterim ? ' ' + cleanInterim : ''));
-        };
-
-        rec.onend = () => { 
-            setIsRecording(false); 
-            // Trigger processing only if we have text
-            if (rawTranscriptRef.current.trim().length > 0) {
-                processVoiceInput();
-            } else {
-                setLiveTranscript('');
-            }
-        };
-        
-        rec.onerror = (e: any) => {
-            console.error("Speech Error", e);
-            if (e.error !== 'no-speech') {
-                setIsRecording(false);
-            }
-        };
-
-        recognitionRef.current = rec;
-    } catch (e) { console.error(e); }
-  }, []);
-
   // Listen for Voice Trigger
   useEffect(() => {
-     if (voiceTrigger && voiceTrigger > 0 && !isRecording) toggleVoice();
+     if (voiceTrigger && voiceTrigger > 0 && !isRecording) toggleRecording();
   }, [voiceTrigger]);
 
-  const toggleVoice = () => {
+  const toggleRecording = async () => {
     initAudio(); 
-    if (!recognitionRef.current) return;
     
     if (isRecording) {
-        recognitionRef.current.stop(); 
+        // STOP RECORDING
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
     } else { 
+        // START RECORDING
         try { 
-            rawTranscriptRef.current = ''; 
-            setLiveTranscript('');
-            recognitionRef.current.start(); 
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                audioChunksRef.current.push(event.data);
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' }); // 'audio/webm' often works too but Gemini likes wav structure if containerless
+                await processAudioBlob(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorderRef.current.start();
             setIsRecording(true);
-        } catch(e){ setIsRecording(false); } 
+        } catch(e) { 
+            console.error("Mic Error", e);
+            logger.log("Audio", "Microphone access denied", "error");
+            setIsRecording(false); 
+        } 
     }
   };
 
-  const processVoiceInput = async () => {
-      const rawText = rawTranscriptRef.current;
-      if (!rawText.trim()) return;
-
+  const processAudioBlob = async (blob: Blob) => {
       setIsProcessingAudio(true);
-      setLiveTranscript(rawText); 
-      logger.log('Audio', 'Improving speech recognition via Gemini...', 'info');
+      logger.log('Audio', 'Sending audio to Gemini for transcription...', 'info');
 
       try {
-          const polishedText = await polishText(rawText);
-          setInput(prev => {
-              const cleanPrev = prev.trim();
-              return cleanPrev ? `${cleanPrev} ${polishedText}` : polishedText;
-          });
+          const reader = new FileReader();
+          reader.readAsDataURL(blob);
+          reader.onloadend = async () => {
+              const base64Audio = (reader.result as string).split(',')[1];
+              const text = await transcribeAudio(base64Audio);
+              if (text) {
+                  setInput(prev => {
+                      const cleanPrev = prev.trim();
+                      return cleanPrev ? `${cleanPrev} ${text}` : text;
+                  });
+                  logger.log('Audio', 'Transcription successful', 'success');
+              } else {
+                  logger.log('Audio', 'No speech detected', 'warning');
+              }
+              setIsProcessingAudio(false);
+          };
       } catch (e) {
-          setInput(prev => prev + rawText);
-      } finally {
+          logger.log('Audio', 'Transcription failed', 'error');
           setIsProcessingAudio(false);
-          setLiveTranscript('');
-          rawTranscriptRef.current = '';
       }
   };
 
@@ -302,8 +268,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopAudio(); 
-    if (recognitionRef.current) recognitionRef.current.stop();
-
+    
     logger.log('User', `Sending: "${cleanInput.substring(0, 30)}..."`, 'info');
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
@@ -515,7 +480,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       {/* AI PROMPT BOX */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 flex justify-center">
          
-         {/* Live Voice Transcript Bubble */}
+         {/* Live Voice Status Bubble */}
          {(isRecording || isProcessingAudio) && (
              <div className="absolute -top-16 left-0 w-full px-4 flex justify-center animate-in slide-in-from-bottom-5">
                  <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 max-w-[90%] w-full">
@@ -524,19 +489,21 @@ const Mentorship: React.FC<MentorshipProps> = ({
                             <Wand2 size={24} className="text-[var(--accent)] animate-pulse shrink-0" />
                             <div className="flex flex-col overflow-hidden">
                                 <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Магия...</span>
-                                <span className="text-sm font-medium truncate text-white/50">{liveTranscript}</span>
+                                <span className="text-sm font-medium truncate text-white/50">Обработка речи...</span>
                             </div>
                          </>
                      ) : (
                          <>
                             <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0 shadow-[0_0_10px_red]"></div>
-                            {/* Audio Visualizer Effect */}
-                            <div className="flex gap-1 h-4 items-center shrink-0">
-                                <div className="w-1 bg-white/50 h-2 animate-[pulse_0.5s_infinite]"></div>
-                                <div className="w-1 bg-white/50 h-4 animate-[pulse_0.7s_infinite]"></div>
-                                <div className="w-1 bg-white/50 h-3 animate-[pulse_0.6s_infinite]"></div>
+                            {/* Audio Visualizer Effect (Fake) */}
+                            <div className="flex gap-1 h-6 items-center shrink-0">
+                                <div className="w-1 bg-white/50 h-3 animate-[pulse_0.3s_infinite]"></div>
+                                <div className="w-1 bg-white/50 h-5 animate-[pulse_0.5s_infinite]"></div>
+                                <div className="w-1 bg-white/50 h-4 animate-[pulse_0.4s_infinite]"></div>
+                                <div className="w-1 bg-white/50 h-6 animate-[pulse_0.6s_infinite]"></div>
+                                <div className="w-1 bg-white/50 h-3 animate-[pulse_0.2s_infinite]"></div>
                             </div>
-                            <p className="text-sm font-medium truncate flex-1 min-w-0">{liveTranscript || "Слушаю..."}</p>
+                            <p className="text-sm font-medium truncate flex-1 min-w-0">Запись...</p>
                          </>
                      )}
                  </div>
@@ -556,8 +523,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  onFocus={handleInputFocus}
                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }} 
                  onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
-                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите..." : "Задай вопрос..."} 
-                 disabled={isThinking || isProcessingAudio} 
+                 placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите, я слушаю..." : "Задай вопрос..."} 
+                 disabled={isThinking || isProcessingAudio || isRecording} 
                  className="w-full bg-transparent text-[15px] text-white placeholder:text-zinc-500 font-medium outline-none resize-none no-scrollbar min-h-[24px] max-h-[160px] leading-relaxed"
                  style={{ height: input ? 'auto' : '24px' }}
              />
@@ -569,7 +536,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  </div>
                  <div className="flex items-center gap-2">
                       <button 
-                        onClick={toggleVoice} 
+                        onClick={toggleRecording} 
                         className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-white shadow-lg animate-pulse' : isProcessingAudio ? 'bg-indigo-500 text-white animate-spin' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
                       >
                           {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}

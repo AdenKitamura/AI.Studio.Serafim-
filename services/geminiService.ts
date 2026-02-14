@@ -257,7 +257,6 @@ export const fixGrammar = async (text: string) => {
   }
 };
 
-// Функция для "причесывания" текста голосового ввода
 export const polishText = async (text: string): Promise<string> => {
     const apiKey = getApiKey();
     if (!apiKey || text.length < 2) return text;
@@ -269,12 +268,12 @@ export const polishText = async (text: string): Promise<string> => {
             contents: `
                 Ты редактор текста.
                 Твоя задача: 
-                1. УДАЛИТЬ повторяющиеся слова и фразы (например "это тест это тест" -> "это тест").
+                1. УДАЛИТЬ повторяющиеся слова и фразы.
                 2. Исправить пунктуацию, орфографию и регистр.
-                3. Убрать слова-паразиты (типа "эээ", "ну").
+                3. Убрать слова-паразиты.
                 4. Сделай текст читаемым и естественным, но НЕ меняй смысл.
                 
-                Входной текст (сырой транскрипт): "${text}"
+                Входной текст: "${text}"
                 
                 Верни ТОЛЬКО исправленный текст без кавычек и комментариев.
             `,
@@ -286,5 +285,35 @@ export const polishText = async (text: string): Promise<string> => {
     } catch (e) {
         console.error("Polish Error", e);
         return text;
+    }
+};
+
+// NEW: Use Gemini to transcribe audio directly
+export const transcribeAudio = async (base64Audio: string): Promise<string> => {
+    const apiKey = getApiKey();
+    if (!apiKey) return "";
+
+    const ai = new GoogleGenAI({ apiKey });
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-latest",
+            contents: {
+                parts: [
+                    {
+                        inlineData: {
+                            mimeType: "audio/wav", 
+                            data: base64Audio
+                        }
+                    },
+                    {
+                        text: "Transcribe this audio exactly. Remove stuttering, repetitions (like 'this is test this is test'), and fillers. Punctuate correctly. Return ONLY the text in Russian (or language spoken)."
+                    }
+                ]
+            }
+        });
+        return response.text?.trim() || "";
+    } catch (e) {
+        console.error("Transcription Error", e);
+        return "";
     }
 };
