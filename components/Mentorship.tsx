@@ -67,7 +67,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
-  const mimeTypeRef = useRef<string>('audio/webm'); // Default
+  const mimeTypeRef = useRef<string>('audio/webm'); // Default fallback
+  const safetyTimeoutRef = useRef<any>(null);
   
   // Gemini Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Kore');
@@ -208,13 +209,17 @@ const Mentorship: React.FC<MentorshipProps> = ({
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
         
-        // Determine supported mime type (Crucial for Gemini)
+        // FIX: Simplified Mime Type detection to prefer webm or mp4 which Gemini supports best
         let mimeType = 'audio/webm';
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-            mimeType = 'audio/webm;codecs=opus';
+        if (MediaRecorder.isTypeSupported('audio/webm')) {
+            mimeType = 'audio/webm';
         } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
             mimeType = 'audio/mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+            mimeType = 'audio/ogg';
         }
+        
+        console.log("Recording with mimeType:", mimeType);
         mimeTypeRef.current = mimeType;
         
         const mediaRecorder = new MediaRecorder(stream, { mimeType });
@@ -228,23 +233,31 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
 
         mediaRecorder.onstop = async () => {
+            // Stop all tracks to release mic
             stream.getTracks().forEach(track => track.stop());
-            const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-            await processAudioBlob(audioBlob);
+            
+            // Wait a tick to ensure all data is flushed
+            setTimeout(async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+                await processAudioBlob(audioBlob);
+            }, 100);
         };
 
         mediaRecorder.start();
         setIsRecording(true);
 
-    } catch(e) { 
+    } catch(e: any) { 
         console.error("Mic Error", e);
-        logger.log("Audio", "Microphone access denied", "error");
+        logger.log("Audio", `Mic Access Error: ${e.message}`, "error");
         setIsRecording(false); 
     } 
   };
 
   const processAudioBlob = async (blob: Blob) => {
-      if (blob.size < 1000) return; 
+      if (blob.size < 500) {
+          logger.log('Audio', 'Recording too short', 'warning');
+          return; 
+      }
       
       setIsProcessingAudio(true);
 
@@ -252,19 +265,30 @@ const Mentorship: React.FC<MentorshipProps> = ({
           const reader = new FileReader();
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
-              const base64Audio = (reader.result as string).split(',')[1];
+              const result = reader.result as string;
+              // Remove data URL header carefully
+              const base64Audio = result.split(',')[1];
+              
+              logger.log('Audio', `Transcribing ${blob.size} bytes (${mimeTypeRef.current})...`, 'info');
+              
               // Pass the detected mimeType to Gemini
               const text = await transcribeAudio(base64Audio, mimeTypeRef.current);
               
               if (text && text.length > 1) {
-                  handleSend(text);
+                  // Don't auto-send simple silence/noise hallucinations
+                  if (text.toLowerCase().includes("silence") || text.length < 2) {
+                      logger.log('Audio', 'Ignored empty/silence', 'warning');
+                  } else {
+                      logger.log('Audio', `Recognized: "${text}"`, 'success');
+                      handleSend(text);
+                  }
               } else {
-                  logger.log('Audio', 'Речь не распознана', 'warning');
+                  logger.log('Audio', 'No speech detected', 'warning');
               }
               setIsProcessingAudio(false);
           };
       } catch (e) {
-          logger.log('Audio', 'Ошибка обработки аудио', 'error');
+          logger.log('Audio', 'Processing Failed', 'error');
           setIsProcessingAudio(false);
       }
   };
@@ -311,6 +335,17 @@ const Mentorship: React.FC<MentorshipProps> = ({
     setInput(''); 
     setAttachedImage(null); 
     setIsThinking(true);
+
+    // SAFETY TIMEOUT: Force stop thinking if no response in 60s
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    safetyTimeoutRef.current = setTimeout(() => {
+        if (isThinking) {
+            setIsThinking(false);
+            logger.log('System', 'Request timed out (60s)', 'error');
+            const errorMsg: ChatMessage = { id: Date.now().toString(), role: 'model', content: "Сервер долго не отвечает. Попробуйте еще раз.", timestamp: Date.now() };
+            onUpdateMessages([...newHistory, errorMsg]);
+        }
+    }, 60000);
 
     try {
       if (!chatSessionRef.current) {
@@ -369,12 +404,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } catch (e: any) {
       console.error(e);
       logger.log('System', `AI Error: ${e.message}`, 'error');
+      // Restore input if failed
       setInput(cleanInput);
       const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Связь потеряна. Попробуй еще раз.", timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
     } finally {
       setIsThinking(false);
       setIsProcessingTool(false);
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
       scrollToBottom('smooth');
     }
   };

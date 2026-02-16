@@ -4,7 +4,7 @@ import { Task, Priority, Project, Habit, Thought } from '../types';
 import CalendarView from './CalendarView';
 import HabitTracker from './HabitTracker';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import ru from 'date-fns/locale/ru';
 import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save } from 'lucide-react';
 import NavigationPill from './NavigationPill';
 

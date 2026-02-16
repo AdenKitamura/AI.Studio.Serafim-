@@ -2,7 +2,7 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/genai";
 import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel } from "../types";
 import { format } from "date-fns";
-import { ru } from 'date-fns/locale';
+import ru from 'date-fns/locale/ru';
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {
@@ -291,13 +291,27 @@ export const polishText = async (text: string): Promise<string> => {
 // NEW: Use Gemini to transcribe audio directly with dynamic mime type
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
     const apiKey = getApiKey();
-    if (!apiKey) return "";
+    if (!apiKey) {
+        console.error("API Key missing in transcribeAudio");
+        return "";
+    }
 
     const ai = new GoogleGenAI({ apiKey });
     try {
-        // Clean mimeType just in case
-        const cleanMime = mimeType.split(';')[0];
+        // CLEAN THE MIME TYPE: Gemini is picky.
+        // It generally expects "audio/wav", "audio/mp3", "audio/aiff", "audio/aac", "audio/ogg", "audio/flac".
+        // It does NOT like "audio/webm;codecs=opus". We must strip the codecs part.
+        let cleanMime = mimeType.split(';')[0].trim();
         
+        // Fallback for common browser recording types to something Gemini accepts if compatible
+        if (cleanMime === 'audio/webm' || cleanMime === 'audio/mp4') {
+            // These are generally fine as container formats
+        } else if (!cleanMime) {
+            cleanMime = 'audio/mp4'; // Default guess
+        }
+
+        console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
+
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash-latest",
             contents: {
@@ -309,14 +323,22 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
                         }
                     },
                     {
-                        text: "Transcribe this audio exactly. Ignore background noise. Return ONLY the text in the language spoken."
+                        text: "Transcribe this audio exactly. Ignore background noise. Return ONLY the text in the language spoken. If no speech, return nothing."
                     }
                 ]
             }
         });
-        return response.text?.trim() || "";
-    } catch (e) {
-        console.error("Transcription Error", e);
+        
+        const resultText = response.text?.trim();
+        if (!resultText) {
+            console.warn("Gemini returned empty transcription");
+            return "";
+        }
+        return resultText;
+
+    } catch (e: any) {
+        console.error("Transcription Error Full:", e);
+        if (e.message) console.error("Error Message:", e.message);
         return "";
     }
 };
