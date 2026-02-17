@@ -212,21 +212,19 @@ const Mentorship: React.FC<MentorshipProps> = ({
         streamRef.current = stream;
         
         // Robust MIME Type Detection for Gemini
-        // Gemini prefers 'audio/mp4' (AAC) or 'audio/mpeg' (MP3). 
-        // WebM is supported but codecs can be tricky.
         let mimeType = '';
         if (MediaRecorder.isTypeSupported('audio/mp4')) {
-            mimeType = 'audio/mp4'; // Safari/iOS preferred
+            mimeType = 'audio/mp4'; 
         } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-            mimeType = 'audio/webm;codecs=opus'; // Chrome/Firefox standard
+            mimeType = 'audio/webm;codecs=opus'; 
         } else if (MediaRecorder.isTypeSupported('audio/webm')) {
             mimeType = 'audio/webm';
         } else {
-            mimeType = ''; // Let browser decide default, we'll try to guess later
+            mimeType = ''; 
         }
         
         console.log("Starting recording with mimeType:", mimeType);
-        mimeTypeRef.current = mimeType; // Store specifically chosen mime
+        mimeTypeRef.current = mimeType; 
         
         const options = mimeType ? { mimeType } : undefined;
         const mediaRecorder = new MediaRecorder(stream, options);
@@ -240,12 +238,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
 
         mediaRecorder.onstop = async () => {
-            // Ensure tracks are stopped to release mic
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop());
             }
             
-            // Allow a brief moment for the last chunk to be pushed
             setTimeout(async () => {
                 const finalMime = mimeTypeRef.current || 'audio/webm';
                 const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
@@ -260,7 +256,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             }, 50);
         };
 
-        mediaRecorder.start(1000); // Collect chunks every second
+        mediaRecorder.start(1000); 
         setIsRecording(true);
 
     } catch(e: any) { 
@@ -271,7 +267,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const processAudioBlob = async (blob: Blob) => {
-      // Basic silence detection by size (very rough)
       if (blob.size < 1000) {
           logger.log('Audio', 'Recording too short/silent', 'warning');
           return; 
@@ -284,7 +279,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const result = reader.result as string;
-              // Remove data URL header specifically
               const base64Audio = result.split(',')[1];
               
               if (!base64Audio) {
@@ -295,7 +289,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
               logger.log('Audio', `Sending to Gemini... (${mimeTypeRef.current})`, 'info');
               
-              // Pass the detected mimeType to Gemini
               const text = await transcribeAudio(base64Audio, mimeTypeRef.current || blob.type);
               
               if (text && text.length > 0) {
@@ -335,17 +328,23 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const handleSend = async (manualText?: string) => {
     if (isThinking) return;
+    
+    // 1. If recording, stop it properly
+    if (isRecording) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.requestData(); // Capture final buffer
+            mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+        // Do NOT proceed with text sending here; onstop handler will call handleSend with transcribed text
+        return; 
+    }
+
     const cleanInput = manualText || input.trim();
     if (!cleanInput && !attachedImage) return;
 
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopAudio(); 
-    
-    // Safety check if user clicks send while recording
-    if (isRecording && mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
-        setIsRecording(false);
-    }
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
     const currentHistory = activeSession ? activeSession.messages : [];
@@ -356,7 +355,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     setAttachedImage(null); 
     setIsThinking(true);
 
-    // SAFETY TIMEOUT: Force stop thinking if no response in 60s
     if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     safetyTimeoutRef.current = setTimeout(() => {
         if (isThinking) {
@@ -424,7 +422,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
     } catch (e: any) {
       console.error(e);
       logger.log('System', `AI Error: ${e.message}`, 'error');
-      // Restore input if failed
       setInput(cleanInput);
       const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: "Связь потеряна. Попробуй еще раз.", timestamp: Date.now() };
       onUpdateMessages([...newHistory, errorMsg]);
@@ -441,117 +438,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
   return (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
-      {/* --- FLOATING CONTROLS --- */}
+      {/* ... (Previous Floating Controls & Terminal - No Changes) ... */}
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
-         <button 
-            onClick={() => setShowVoiceSettings(!showVoiceSettings)}
-            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}
-         >
-             <SlidersHorizontal size={16} />
-         </button>
-
-         <button 
-            onClick={() => setShowTerminal(!showTerminal)}
-            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}
-         >
-            <div className="relative">
-                <Terminal size={16} />
-                {isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}
-            </div>
-         </button>
+         <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><SlidersHorizontal size={16} /></button>
+         <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
       </div>
 
-      {/* --- VOICE SETTINGS PANEL (EXPANDED) --- */}
       {showVoiceSettings && (
           <div className="absolute top-32 right-4 z-50 w-64 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-3xl p-4 shadow-2xl animate-in fade-in slide-in-from-right-5">
-              <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">Аудио Модуль</h4>
-                  <button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-white"><X size={14}/></button>
-              </div>
-              
-              {/* Voice Selection */}
-              <div className="space-y-1 mb-4">
-                  {VOICES.map(v => (
-                      <button 
-                        key={v.id} 
-                        onClick={() => { setSelectedVoice(v.id); localStorage.setItem('sb_voice', v.id); }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${selectedVoice === v.id ? 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--accent)]' : 'text-[var(--text-muted)] hover:bg-white/5 border border-transparent'}`}
-                      >
-                          <span>{v.label}</span>
-                          {selectedVoice === v.id && <div className={`w-2 h-2 rounded-full ${v.color}`}></div>}
-                      </button>
-                  ))}
-              </div>
-
-              {/* Sliders */}
-              <div className="space-y-4 mb-4 pt-2 border-t border-white/10">
-                  <div className="space-y-2">
-                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]">
-                          <span>Скорость</span>
-                          <span>{voiceSpeed.toFixed(1)}x</span>
-                      </div>
-                      <input 
-                          type="range" min="0.5" max="2.0" step="0.1" 
-                          value={voiceSpeed}
-                          onChange={(e) => { const v = parseFloat(e.target.value); setVoiceSpeed(v); localStorage.setItem('sb_voice_speed', v.toString()); }}
-                          className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
-                      />
-                  </div>
-                  
-                  <div className="space-y-2">
-                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]">
-                          <span>Громкость</span>
-                          <span>{Math.round(voiceVolume * 100)}%</span>
-                      </div>
-                      <input 
-                          type="range" min="0.1" max="1.5" step="0.1" 
-                          value={voiceVolume}
-                          onChange={(e) => { const v = parseFloat(e.target.value); setVoiceVolume(v); localStorage.setItem('sb_voice_volume', v.toString()); }}
-                          className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
-                      />
-                  </div>
-              </div>
-
-              <div className="border-t border-white/10 pt-3">
-                  <button 
-                    onClick={() => { setAutoVoice(!autoVoice); localStorage.setItem('sb_auto_voice', (!autoVoice).toString()); }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${autoVoice ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--text-muted)]'}`}
-                  >
-                      <span>Авто-озвучка</span>
-                      <div className={`w-2 h-2 rounded-full ${autoVoice ? 'bg-emerald-400' : 'bg-white/20'}`} />
-                  </button>
-              </div>
+              <div className="flex justify-between items-center mb-4"><h4 className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">Аудио Модуль</h4><button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-white"><X size={14}/></button></div>
+              <div className="space-y-1 mb-4">{VOICES.map(v => (<button key={v.id} onClick={() => { setSelectedVoice(v.id); localStorage.setItem('sb_voice', v.id); }} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${selectedVoice === v.id ? 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--accent)]' : 'text-[var(--text-muted)] hover:bg-white/5 border border-transparent'}`}><span>{v.label}</span>{selectedVoice === v.id && <div className={`w-2 h-2 rounded-full ${v.color}`}></div>}</button>))}</div>
+              <div className="space-y-4 mb-4 pt-2 border-t border-white/10"><div className="space-y-2"><div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Скорость</span><span>{voiceSpeed.toFixed(1)}x</span></div><input type="range" min="0.5" max="2.0" step="0.1" value={voiceSpeed} onChange={(e) => { const v = parseFloat(e.target.value); setVoiceSpeed(v); localStorage.setItem('sb_voice_speed', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" /></div><div className="space-y-2"><div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Громкость</span><span>{Math.round(voiceVolume * 100)}%</span></div><input type="range" min="0.1" max="1.5" step="0.1" value={voiceVolume} onChange={(e) => { const v = parseFloat(e.target.value); setVoiceVolume(v); localStorage.setItem('sb_voice_volume', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" /></div></div>
+              <div className="border-t border-white/10 pt-3"><button onClick={() => { setAutoVoice(!autoVoice); localStorage.setItem('sb_auto_voice', (!autoVoice).toString()); }} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${autoVoice ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--text-muted)]'}`}><span>Авто-озвучка</span><div className={`w-2 h-2 rounded-full ${autoVoice ? 'bg-emerald-400' : 'bg-white/20'}`} /></button></div>
           </div>
       )}
 
-      {/* --- TERMINAL OVERLAY --- */}
       {showTerminal && (
           <div className="absolute top-0 left-0 w-full h-[60%] z-[60] bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-[var(--border-color)] animate-in slide-in-from-top-10 flex flex-col font-mono text-xs shadow-2xl">
-              <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-white/5">
-                  <div className="flex items-center gap-2 text-emerald-500">
-                      <Terminal size={14} />
-                      <span className="font-bold uppercase tracking-widest">Serafim Core System</span>
-                  </div>
-                  <div className="flex gap-2">
-                      <button onClick={() => logger.clear()} className="text-[var(--text-muted)] hover:text-white px-2">Clear</button>
-                      <button onClick={() => setShowTerminal(false)} className="text-[var(--text-muted)] hover:text-white"><X size={16}/></button>
-                  </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-white/20">
-                  {systemLogs.map(log => (
-                      <div key={log.id} className="flex gap-2 animate-in fade-in">
-                          <span className="text-white/30 shrink-0">[{log.timestamp}]</span>
-                          <span className={`break-all ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : log.type === 'warning' ? 'text-amber-400' : 'text-blue-300'}`}>{log.message}</span>
-                      </div>
-                  ))}
-                  {isThinking && (
-                      <div className="flex gap-2 animate-pulse text-purple-400 mt-2">
-                          <span className="text-white/30">{`[${new Date().toLocaleTimeString()}]`}</span>
-                          <span>{isProcessingTool ? 'EXECUTING KERNEL FUNCTION...' : 'NEURAL PROCESSING...'}</span>
-                      </div>
-                  )}
-                  <div ref={terminalEndRef} />
-              </div>
+              <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-white/5"><div className="flex items-center gap-2 text-emerald-500"><Terminal size={14} /><span className="font-bold uppercase tracking-widest">Serafim Core System</span></div><div className="flex gap-2"><button onClick={() => logger.clear()} className="text-[var(--text-muted)] hover:text-white px-2">Clear</button><button onClick={() => setShowTerminal(false)} className="text-[var(--text-muted)] hover:text-white"><X size={16}/></button></div></div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-white/20">{systemLogs.map(log => (<div key={log.id} className="flex gap-2 animate-in fade-in"><span className="text-white/30 shrink-0">[{log.timestamp}]</span><span className={`break-all ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : log.type === 'warning' ? 'text-amber-400' : 'text-blue-300'}`}>{log.message}</span></div>))}{isThinking && (<div className="flex gap-2 animate-pulse text-purple-400 mt-2"><span className="text-white/30">{`[${new Date().toLocaleTimeString()}]`}</span><span>{isProcessingTool ? 'EXECUTING KERNEL FUNCTION...' : 'NEURAL PROCESSING...'}</span></div>)}<div ref={terminalEndRef} /></div>
           </div>
       )}
 
@@ -571,24 +476,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
               </div>
             </div>
           ))}
-          {isThinking && (
-              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
-                  <div className="glass-panel px-4 py-3 rounded-t-3xl rounded-br-3xl border border-[var(--border-color)] flex items-center gap-3">
-                      {isProcessingTool ? (
-                          <>
-                             <Cpu size={16} className="text-[var(--accent)] animate-spin" />
-                             <span className="text-xs font-mono text-[var(--text-muted)]">SYSTEM ACTION...</span>
-                          </>
-                      ) : (
-                          <>
-                             <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                             <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                             <div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce"></div>
-                          </>
-                      )}
-                  </div>
-              </div>
-          )}
+          {isThinking && (<div className="flex justify-start animate-in fade-in slide-in-from-bottom-2"><div className="glass-panel px-4 py-3 rounded-t-3xl rounded-br-3xl border border-[var(--border-color)] flex items-center gap-3">{isProcessingTool ? (<><Cpu size={16} className="text-[var(--accent)] animate-spin" /><span className="text-xs font-mono text-[var(--text-muted)]">SYSTEM ACTION...</span></>) : (<><div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.3s]"></div><div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce [animation-delay:-0.15s]"></div><div className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce"></div></>)}</div></div>)}
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>
@@ -596,7 +484,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
       {/* AI PROMPT BOX */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 flex justify-center">
          
-         {/* STATUS BUBBLE (Minimal) */}
          {(isRecording || isProcessingAudio) && (
              <div className="absolute -top-16 left-0 w-full px-4 flex justify-center animate-in slide-in-from-bottom-5">
                  <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3">
@@ -646,7 +533,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       >
                           {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                       </button>
-                      <button onClick={() => handleSend()} disabled={!input.trim() && !attachedImage} className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}>{isThinking ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} />}</button>
+                      {/* MODIFIED: Button is enabled if recording, so user can click to Stop */}
+                      <button 
+                        onClick={() => handleSend()} 
+                        disabled={(!input.trim() && !attachedImage && !isRecording)} 
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center ${(!input.trim() && !attachedImage && !isRecording) ? 'bg-white/5 text-zinc-600 cursor-not-allowed' : 'bg-[var(--accent)] text-black shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent-hover)] hover:scale-105'}`}
+                      >
+                          {isThinking ? <Loader2 size={20} className="animate-spin" /> : isRecording ? <ArrowUp size={20} strokeWidth={3} className="animate-bounce" /> : <ArrowUp size={20} strokeWidth={3} />}
+                      </button>
                  </div>
              </div>
          </div>

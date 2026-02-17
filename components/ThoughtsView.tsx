@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, FileText, LayoutDashboard, Menu, Mic
 } from 'lucide-react';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 import NavigationPill from './NavigationPill';
 
 interface ThoughtsViewProps {

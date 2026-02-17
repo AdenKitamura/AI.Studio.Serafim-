@@ -2,7 +2,7 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/genai";
 import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel } from "../types";
 import { format } from "date-fns";
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale';
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {
@@ -288,7 +288,6 @@ export const polishText = async (text: string): Promise<string> => {
     }
 };
 
-// NEW: Use Gemini to transcribe audio directly with dynamic mime type
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
     const apiKey = getApiKey();
     if (!apiKey) {
@@ -299,20 +298,11 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
     const ai = new GoogleGenAI({ apiKey });
     try {
         // CLEAN THE MIME TYPE: Gemini is picky.
-        // It generally expects "audio/wav", "audio/mp3", "audio/aiff", "audio/aac", "audio/ogg", "audio/flac".
-        // It does NOT like "audio/webm;codecs=opus". We must strip the codecs part.
-        
         let cleanMime = mimeType;
         if (mimeType.includes(';')) {
             cleanMime = mimeType.split(';')[0].trim();
         }
         
-        // If the browser sent an empty string or something weird, default to mp4 (safest for Gemini)
-        if (!cleanMime || cleanMime === 'audio/webm') {
-             // Sometimes 'audio/webm' without codecs fails if it's actually Opus. 
-             // We'll trust the container unless it fails.
-        }
-
         console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
 
         const response = await ai.models.generateContent({
