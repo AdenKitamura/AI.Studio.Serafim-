@@ -7,7 +7,7 @@ import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   Terminal, Volume2, VolumeX, Sparkles, X, Menu, Cpu,
-  Paperclip, SlidersHorizontal, Wand2, Activity, Play
+  Paperclip, SlidersHorizontal, Wand2, Activity, Play, Settings2
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -75,6 +75,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [autoVoice, setAutoVoice] = useState<boolean>(() => localStorage.getItem('sb_auto_voice') !== 'false');
   const [voiceSpeed, setVoiceSpeed] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_speed') || '1.0'));
   const [voiceVolume, setVoiceVolume] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_volume') || '1.0'));
+  const [voicePitch, setVoicePitch] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_pitch') || '0'));
   
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
@@ -93,7 +94,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
 
-  // --- AUDIO OUTPUT (PCM Decoder) ---
+  // --- AUDIO OUTPUT (PCM Decoder & Optimizer) ---
   const initAudioContext = () => {
       if (!audioContextRef.current) {
           const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -107,6 +108,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
           audioContextRef.current.resume();
       }
       return audioContextRef.current;
+  };
+
+  // Hidden function triggered by AI command
+  const applyASMR = () => {
+      logger.log('Audio', 'Activating ASMR Mode...', 'info');
+      setVoiceSpeed(0.85); // Slower
+      setVoicePitch(-500); // Deeper (-5 semitones approx)
+      setVoiceVolume(1.3); // Louder to compensate for breathiness
+      // Persist
+      localStorage.setItem('sb_voice_speed', '0.85');
+      localStorage.setItem('sb_voice_pitch', '-500');
+      localStorage.setItem('sb_voice_volume', '1.3');
   };
 
   const playGeminiAudio = async (text: string) => {
@@ -146,10 +159,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
           const source = ctx.createBufferSource();
           source.buffer = buffer;
           
-          // APPLY USER SETTINGS
-          source.playbackRate.value = voiceSpeed; // Speed
+          // APPLY USER SETTINGS (Real-time DSP)
+          // Speed optimization: playbackRate is efficient native implementation
+          source.playbackRate.value = voiceSpeed; 
+          
+          // Pitch optimization: detune (cents) allows adjusting pitch without complex resampling
+          source.detune.value = voicePitch; 
+
           if (gainNodeRef.current) {
-              gainNodeRef.current.gain.value = voiceVolume; // Volume
+              gainNodeRef.current.gain.value = voiceVolume;
               source.connect(gainNodeRef.current);
           } else {
               source.connect(ctx.destination);
@@ -225,7 +243,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
             }
         }
         
-        // Fallback if nothing found (let browser decide, likely empty string)
         if (!selectedMime) console.warn("No specific audio MIME type supported, using default.");
         
         mimeTypeRef.current = selectedMime;
@@ -243,7 +260,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
 
         mediaRecorder.onstop = async () => {
-            // Stop all tracks to release mic immediately
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop());
             }
@@ -251,16 +267,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
             const finalMime = mimeTypeRef.current || 'audio/webm';
             const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
             
-            logger.log('Audio', `Blob created: ${audioBlob.size} bytes (${finalMime})`, 'info');
-            
-            if (audioBlob.size > 500) { // Filter out extremely small empty files
+            if (audioBlob.size > 500) { 
                 await processAudioBlob(audioBlob);
             } else {
                 logger.log('Audio', 'Recording too short or empty.', 'warning');
             }
         };
 
-        // Start without timeslice to ensure single clean file with header
         mediaRecorder.start(); 
         setIsRecording(true);
 
@@ -279,7 +292,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const result = reader.result as string;
-              // Safely extract Base64
               const base64Audio = result.split(',')[1];
               
               if (!base64Audio) {
@@ -289,8 +301,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
               }
 
               logger.log('Audio', `Sending to AI...`, 'info');
-              
-              // Use the ref mime type to ensure we tell Gemini exactly what we recorded
               const text = await transcribeAudio(base64Audio, mimeTypeRef.current || blob.type);
               
               if (text && text.length > 0) {
@@ -331,13 +341,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const handleSend = async (manualText?: string) => {
     if (isThinking) return;
     
-    // Stop recording if active (UI safety)
     if (isRecording) {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
-        // If stopping via send button, we wait for onstop to trigger the send.
         if (!manualText) return; 
     }
 
@@ -368,10 +376,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
       if (!chatSessionRef.current) {
-        // Pass 'sessions' to context so the service can build global memory
         chatSessionRef.current = createMentorChat({ 
             tasks, thoughts, journal, projects, habits, memories, 
-            sessions, // <--- CRITICAL: Passing all sessions for global context
+            sessions, 
             isGoogleAuth: false, userName 
         }, getStoredModel());
       }
@@ -411,6 +418,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
             case 'ui_control':
               if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
               if (args.command === 'start_focus') onStartFocus(args.duration || 25);
+              if (args.command === 'enable_asmr') applyASMR(); // AI Trigger for ASMR
               break;
           }
         }
@@ -450,11 +458,43 @@ const Mentorship: React.FC<MentorshipProps> = ({
       </div>
 
       {showVoiceSettings && (
-          <div className="absolute top-32 right-4 z-50 w-64 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-3xl p-4 shadow-2xl animate-in fade-in slide-in-from-right-5">
-              <div className="flex justify-between items-center mb-4"><h4 className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">Аудио Модуль</h4><button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-white"><X size={14}/></button></div>
-              <div className="space-y-1 mb-4">{VOICES.map(v => (<button key={v.id} onClick={() => { setSelectedVoice(v.id); localStorage.setItem('sb_voice', v.id); }} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${selectedVoice === v.id ? 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--accent)]' : 'text-[var(--text-muted)] hover:bg-white/5 border border-transparent'}`}><span>{v.label}</span>{selectedVoice === v.id && <div className={`w-2 h-2 rounded-full ${v.color}`}></div>}</button>))}</div>
-              <div className="space-y-4 mb-4 pt-2 border-t border-white/10"><div className="space-y-2"><div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Скорость</span><span>{voiceSpeed.toFixed(1)}x</span></div><input type="range" min="0.5" max="2.0" step="0.1" value={voiceSpeed} onChange={(e) => { const v = parseFloat(e.target.value); setVoiceSpeed(v); localStorage.setItem('sb_voice_speed', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" /></div><div className="space-y-2"><div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Громкость</span><span>{Math.round(voiceVolume * 100)}%</span></div><input type="range" min="0.1" max="1.5" step="0.1" value={voiceVolume} onChange={(e) => { const v = parseFloat(e.target.value); setVoiceVolume(v); localStorage.setItem('sb_voice_volume', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" /></div></div>
-              <div className="border-t border-white/10 pt-3"><button onClick={() => { setAutoVoice(!autoVoice); localStorage.setItem('sb_auto_voice', (!autoVoice).toString()); }} className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${autoVoice ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--text-muted)]'}`}><span>Авто-озвучка</span><div className={`w-2 h-2 rounded-full ${autoVoice ? 'bg-emerald-400' : 'bg-white/20'}`} /></button></div>
+          <div className="absolute top-32 right-4 z-50 w-72 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-3xl p-5 shadow-2xl animate-in fade-in slide-in-from-right-5">
+              <div className="flex justify-between items-center mb-5">
+                  <div className="flex items-center gap-2 text-[var(--accent)]">
+                      <Settings2 size={16} />
+                      <h4 className="text-[10px] font-black uppercase tracking-widest">Аудио Ядро</h4>
+                  </div>
+                  <button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-white"><X size={16}/></button>
+              </div>
+              
+              <div className="space-y-1 mb-6">
+                  <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase mb-2 pl-1">Голосовой Профиль</p>
+                  {VOICES.map(v => (<button key={v.id} onClick={() => { setSelectedVoice(v.id); localStorage.setItem('sb_voice', v.id); }} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${selectedVoice === v.id ? 'bg-[var(--bg-item)] text-[var(--text-main)] border border-[var(--accent)]' : 'text-[var(--text-muted)] hover:bg-white/5 border border-transparent'}`}><span>{v.label}</span>{selectedVoice === v.id && <div className={`w-2 h-2 rounded-full ${v.color}`}></div>}</button>))}
+              </div>
+
+              <div className="space-y-5 mb-5 pt-4 border-t border-white/10">
+                  <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Скорость</span><span>{voiceSpeed.toFixed(1)}x</span></div>
+                      <input type="range" min="0.5" max="2.0" step="0.1" value={voiceSpeed} onChange={(e) => { const v = parseFloat(e.target.value); setVoiceSpeed(v); localStorage.setItem('sb_voice_speed', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Тон (Pitch)</span><span>{voicePitch > 0 ? '+' : ''}{voicePitch}</span></div>
+                      <input type="range" min="-1200" max="1200" step="50" value={voicePitch} onChange={(e) => { const v = parseFloat(e.target.value); setVoicePitch(v); localStorage.setItem('sb_voice_pitch', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" />
+                  </div>
+
+                  <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)]"><span>Громкость</span><span>{Math.round(voiceVolume * 100)}%</span></div>
+                      <input type="range" min="0.1" max="1.5" step="0.1" value={voiceVolume} onChange={(e) => { const v = parseFloat(e.target.value); setVoiceVolume(v); localStorage.setItem('sb_voice_volume', v.toString()); }} className="w-full h-1 bg-[var(--bg-item)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]" />
+                  </div>
+              </div>
+
+              <div className="border-t border-white/10 pt-4">
+                  <button onClick={() => { setAutoVoice(!autoVoice); localStorage.setItem('sb_auto_voice', (!autoVoice).toString()); }} className={`w-full flex items-center justify-between px-3 py-3 rounded-xl text-xs font-bold transition-all ${autoVoice ? 'text-emerald-400 bg-emerald-500/10' : 'text-[var(--text-muted)] bg-white/5'}`}>
+                      <span>Авто-озвучка</span>
+                      <div className={`w-2 h-2 rounded-full ${autoVoice ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                  </button>
+              </div>
           </div>
       )}
 

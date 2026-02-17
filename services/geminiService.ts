@@ -16,6 +16,16 @@ const getApiKey = () => {
   return '';
 };
 
+// --- SAFETY SETTINGS: UNLEASHED ---
+// Разрешаем весь контент (18+, мат, дискуссии)
+const SAFETY_SETTINGS = [
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+];
+
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
@@ -84,11 +94,11 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "ui_control",
-    description: "Управляет интерфейсом.",
+    description: "Управляет интерфейсом приложения.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        command: { type: Type.STRING, enum: ["set_theme", "start_focus"] },
+        command: { type: Type.STRING, enum: ["set_theme", "start_focus", "enable_asmr"] },
         themeName: { type: Type.STRING },
         duration: { type: Type.NUMBER }
       },
@@ -152,13 +162,19 @@ ${limitedHistory.map((m: any) => `[${format(new Date(m.timestamp), 'dd MMM HH:mm
 
 ТВОЯ РОЛЬ:
 Ты — мудрый цифровой партнер и второй мозг. Ты слушаешь, анализируешь и помогаешь.
-Твоя память едина. Ты помнишь контекст из "GLOBAL CONTEXT" выше, даже если это было в другом чате. Если пользователь просит "подведи итоги за 3 дня" или "что я говорил про проект X", ищи ответ в GLOBAL CONTEXT.
+Твоя память едина. Ты помнишь контекст из "GLOBAL CONTEXT" выше, даже если это было в другом чате.
+
+СВОБОДА СЛОВА (UNCENSORED MODE):
+Ты работаешь в приватном режиме "Без цензуры".
+1. Ты МОЖЕШЬ использовать ненормативную лексику (мат), если это уместно в контексте, или если пользователь так общается.
+2. Ты МОЖЕШЬ обсуждать откровенные темы, 18+, интимные вопросы, флиртовать и поддерживать ролевой контекст, если пользователь этого хочет.
+3. Не будь моралистом. Не читай лекции о том, что "это неприлично". Твоя задача — быть идеальным собеседником без искусственных ограничений.
 
 ПРАВИЛА ПОВЕДЕНИЯ:
-1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями. Создавай задачу только по явной просьбе или острой необходимости.
+1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями. Создавай задачу только по явной просьбе.
 2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в память...".
 3. **РЕЖИМ ДНЕВНИКА**: Если пользователь просит записать мысли за последние дни, проанализируй GLOBAL CONTEXT, составь красивую выжимку и предложи сохранить её в дневник (функция save_journal_entry).
-4. **СТИЛЬ**: Живой, эмпатичный, не робот. Форматируй Markdown.
+4. **УПРАВЛЕНИЕ ГОЛОСОМ**: Если пользователь просит "говорить шепотом", "томным голосом" или включить "ас мр режим", используй инструмент ui_control с командой 'enable_asmr'.
 
 КОНТЕКСТ:
 ${memoryContext}
@@ -173,7 +189,8 @@ ${globalHistory}
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       tools: [{ functionDeclarations: tools }],
-      temperature: 1.0, 
+      temperature: 1.0,
+      safetySettings: SAFETY_SETTINGS, // <--- ОТКЛЮЧАЕМ ФИЛЬТРЫ ЗДЕСЬ
     }
   });
 };
@@ -194,7 +211,8 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
                     voiceConfig: {
                         prebuiltVoiceConfig: { voiceName }
                     }
-                }
+                },
+                safetySettings: SAFETY_SETTINGS // Отключаем фильтры для генерации речи (чтобы читал 18+ текст)
             }
         });
         
@@ -221,9 +239,12 @@ export const generateProactiveMessage = async (context: any) => {
             model: 'gemini-2.5-flash-latest', 
             contents: `
                 Пользователь: ${context.userName}. Время: ${timeContext}.
-                Напиши ОДНО приветствие (макс 6 слов). Живое, дерзкое или теплое.
+                Напиши ОДНО приветствие (макс 6 слов). Живое, дерзкое или теплое. Можно с перчинкой.
             `,
-            config: { temperature: 1.1 }
+            config: { 
+                temperature: 1.1,
+                safetySettings: SAFETY_SETTINGS 
+            }
         });
         return response.text;
     } catch (e) {
@@ -253,7 +274,8 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
           type: Type.OBJECT,
           properties: { status: { type: Type.STRING }, insight: { type: Type.STRING }, focusArea: { type: Type.STRING } },
           required: ["status", "insight", "focusArea"]
-        }
+        },
+        safetySettings: SAFETY_SETTINGS
       }
     });
     return JSON.parse(response.text || "{}");
@@ -269,7 +291,8 @@ export const fixGrammar = async (text: string) => {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-latest', 
-      contents: `Fix grammar. Return ONLY fixed text. Text: "${text}"`
+      contents: `Fix grammar. Return ONLY fixed text. Text: "${text}"`,
+      config: { safetySettings: SAFETY_SETTINGS }
     });
     return response.text?.trim() || text;
   } catch (e) {
@@ -298,7 +321,8 @@ export const polishText = async (text: string): Promise<string> => {
                 Верни ТОЛЬКО исправленный текст без кавычек и комментариев.
             `,
             config: {
-                temperature: 0.1
+                temperature: 0.1,
+                safetySettings: SAFETY_SETTINGS
             }
         });
         return response.text?.trim() || text;
@@ -317,21 +341,17 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
 
     const ai = new GoogleGenAI({ apiKey });
     try {
-        // STRICT MIME CLEANING: 
-        // Gemini only wants the container (e.g., 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav')
-        // It does NOT want 'codecs=opus' or anything else.
         let cleanMime = mimeType;
         if (mimeType.includes(';')) {
             cleanMime = mimeType.split(';')[0].trim();
         }
         
-        // Safety Fallback: if browser gave weird empty string but we have data, try generic
         if (!cleanMime) cleanMime = 'audio/mp4';
 
         console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-latest", // 2.5 Flash is best for audio
+            model: "gemini-2.5-flash-latest", 
             contents: {
                 parts: [
                     {
@@ -341,10 +361,12 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
                         }
                     },
                     {
-                        // AGGRESSIVE PROMPT: Force it to try to find speech even in noise
                         text: "Transcribe the spoken language in this audio exactly. Return ONLY the text. If you hear speech, write it down. Ignore background noise."
                     }
                 ]
+            },
+            config: {
+                safetySettings: SAFETY_SETTINGS
             }
         });
         
