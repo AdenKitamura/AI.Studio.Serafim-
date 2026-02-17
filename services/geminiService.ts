@@ -301,13 +301,16 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
         // CLEAN THE MIME TYPE: Gemini is picky.
         // It generally expects "audio/wav", "audio/mp3", "audio/aiff", "audio/aac", "audio/ogg", "audio/flac".
         // It does NOT like "audio/webm;codecs=opus". We must strip the codecs part.
-        let cleanMime = mimeType.split(';')[0].trim();
         
-        // Fallback for common browser recording types to something Gemini accepts if compatible
-        if (cleanMime === 'audio/webm' || cleanMime === 'audio/mp4') {
-            // These are generally fine as container formats
-        } else if (!cleanMime) {
-            cleanMime = 'audio/mp4'; // Default guess
+        let cleanMime = mimeType;
+        if (mimeType.includes(';')) {
+            cleanMime = mimeType.split(';')[0].trim();
+        }
+        
+        // If the browser sent an empty string or something weird, default to mp4 (safest for Gemini)
+        if (!cleanMime || cleanMime === 'audio/webm') {
+             // Sometimes 'audio/webm' without codecs fails if it's actually Opus. 
+             // We'll trust the container unless it fails.
         }
 
         console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);

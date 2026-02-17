@@ -195,55 +195,72 @@ const Mentorship: React.FC<MentorshipProps> = ({
   }, [voiceTrigger]);
 
   const toggleRecording = async () => {
-    // 1. If currently recording -> Stop
+    // 1. STOPPING
     if (isRecording) {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            // Request last chunk of data before stopping
+            mediaRecorderRef.current.requestData();
             mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
         return;
     } 
     
-    // 2. If not recording -> Start
+    // 2. STARTING
     try { 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
         
-        // FIX: Simplified Mime Type detection to prefer webm or mp4 which Gemini supports best
-        let mimeType = 'audio/webm';
-        if (MediaRecorder.isTypeSupported('audio/webm')) {
+        // Robust MIME Type Detection for Gemini
+        // Gemini prefers 'audio/mp4' (AAC) or 'audio/mpeg' (MP3). 
+        // WebM is supported but codecs can be tricky.
+        let mimeType = '';
+        if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            mimeType = 'audio/mp4'; // Safari/iOS preferred
+        } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            mimeType = 'audio/webm;codecs=opus'; // Chrome/Firefox standard
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
             mimeType = 'audio/webm';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-            mimeType = 'audio/mp4';
-        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
-            mimeType = 'audio/ogg';
+        } else {
+            mimeType = ''; // Let browser decide default, we'll try to guess later
         }
         
-        console.log("Recording with mimeType:", mimeType);
-        mimeTypeRef.current = mimeType;
+        console.log("Starting recording with mimeType:", mimeType);
+        mimeTypeRef.current = mimeType; // Store specifically chosen mime
         
-        const mediaRecorder = new MediaRecorder(stream, { mimeType });
+        const options = mimeType ? { mimeType } : undefined;
+        const mediaRecorder = new MediaRecorder(stream, options);
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
 
         mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
+            if (event.data && event.data.size > 0) {
                 audioChunksRef.current.push(event.data);
             }
         };
 
         mediaRecorder.onstop = async () => {
-            // Stop all tracks to release mic
-            stream.getTracks().forEach(track => track.stop());
+            // Ensure tracks are stopped to release mic
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+            }
             
-            // Wait a tick to ensure all data is flushed
+            // Allow a brief moment for the last chunk to be pushed
             setTimeout(async () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-                await processAudioBlob(audioBlob);
-            }, 100);
+                const finalMime = mimeTypeRef.current || 'audio/webm';
+                const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
+                
+                logger.log('Audio', `Recording stopped. Size: ${audioBlob.size} bytes`, 'info');
+                
+                if (audioBlob.size > 0) {
+                    await processAudioBlob(audioBlob);
+                } else {
+                    logger.log('Audio', 'Recording failed: Empty blob', 'error');
+                }
+            }, 50);
         };
 
-        mediaRecorder.start();
+        mediaRecorder.start(1000); // Collect chunks every second
         setIsRecording(true);
 
     } catch(e: any) { 
@@ -254,8 +271,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const processAudioBlob = async (blob: Blob) => {
-      if (blob.size < 500) {
-          logger.log('Audio', 'Recording too short', 'warning');
+      // Basic silence detection by size (very rough)
+      if (blob.size < 1000) {
+          logger.log('Audio', 'Recording too short/silent', 'warning');
           return; 
       }
       
@@ -266,24 +284,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const result = reader.result as string;
-              // Remove data URL header carefully
+              // Remove data URL header specifically
               const base64Audio = result.split(',')[1];
               
-              logger.log('Audio', `Transcribing ${blob.size} bytes (${mimeTypeRef.current})...`, 'info');
+              if (!base64Audio) {
+                  logger.log('Audio', 'Failed to convert to Base64', 'error');
+                  setIsProcessingAudio(false);
+                  return;
+              }
+
+              logger.log('Audio', `Sending to Gemini... (${mimeTypeRef.current})`, 'info');
               
               // Pass the detected mimeType to Gemini
-              const text = await transcribeAudio(base64Audio, mimeTypeRef.current);
+              const text = await transcribeAudio(base64Audio, mimeTypeRef.current || blob.type);
               
-              if (text && text.length > 1) {
-                  // Don't auto-send simple silence/noise hallucinations
-                  if (text.toLowerCase().includes("silence") || text.length < 2) {
-                      logger.log('Audio', 'Ignored empty/silence', 'warning');
-                  } else {
-                      logger.log('Audio', `Recognized: "${text}"`, 'success');
-                      handleSend(text);
-                  }
+              if (text && text.length > 0) {
+                  logger.log('Audio', `Recognized: "${text}"`, 'success');
+                  handleSend(text);
               } else {
-                  logger.log('Audio', 'No speech detected', 'warning');
+                  logger.log('Audio', 'No speech detected by AI', 'warning');
               }
               setIsProcessingAudio(false);
           };
@@ -322,6 +341,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     if (!hasAiKey) { logger.log('System', 'No API Key', 'error'); return; }
     stopAudio(); 
     
+    // Safety check if user clicks send while recording
     if (isRecording && mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
         setIsRecording(false);
