@@ -67,7 +67,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
-  const mimeTypeRef = useRef<string>('audio/webm'); // Default fallback
+  const mimeTypeRef = useRef<string>(''); 
   const safetyTimeoutRef = useRef<any>(null);
   
   // Gemini Voice Settings
@@ -198,9 +198,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     // 1. STOPPING
     if (isRecording) {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            // Request last chunk of data before stopping
-            mediaRecorderRef.current.requestData();
-            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current.stop(); // This triggers onstop
         }
         setIsRecording(false);
         return;
@@ -211,22 +209,29 @@ const Mentorship: React.FC<MentorshipProps> = ({
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
         
-        // Robust MIME Type Detection for Gemini
-        let mimeType = '';
-        if (MediaRecorder.isTypeSupported('audio/mp4')) {
-            mimeType = 'audio/mp4'; 
-        } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-            mimeType = 'audio/webm;codecs=opus'; 
-        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-            mimeType = 'audio/webm';
-        } else {
-            mimeType = ''; 
+        // Strict prioritized MIME types
+        const mimeTypes = [
+            'audio/mp4', // Best for Gemini & iOS
+            'audio/webm', // Chrome default
+            'audio/ogg',
+            'audio/wav'
+        ];
+        
+        let selectedMime = '';
+        for (const type of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                selectedMime = type;
+                break;
+            }
         }
         
-        console.log("Starting recording with mimeType:", mimeType);
-        mimeTypeRef.current = mimeType; 
+        // Fallback if nothing found (let browser decide, likely empty string)
+        if (!selectedMime) console.warn("No specific audio MIME type supported, using default.");
         
-        const options = mimeType ? { mimeType } : undefined;
+        mimeTypeRef.current = selectedMime;
+        console.log(`🎙️ Starting recording. Mime: ${selectedMime}`);
+        
+        const options = selectedMime ? { mimeType: selectedMime } : undefined;
         const mediaRecorder = new MediaRecorder(stream, options);
         mediaRecorderRef.current = mediaRecorder;
         audioChunksRef.current = [];
@@ -238,25 +243,25 @@ const Mentorship: React.FC<MentorshipProps> = ({
         };
 
         mediaRecorder.onstop = async () => {
+            // Stop all tracks to release mic immediately
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop());
             }
             
-            setTimeout(async () => {
-                const finalMime = mimeTypeRef.current || 'audio/webm';
-                const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
-                
-                logger.log('Audio', `Recording stopped. Size: ${audioBlob.size} bytes`, 'info');
-                
-                if (audioBlob.size > 0) {
-                    await processAudioBlob(audioBlob);
-                } else {
-                    logger.log('Audio', 'Recording failed: Empty blob', 'error');
-                }
-            }, 50);
+            const finalMime = mimeTypeRef.current || 'audio/webm';
+            const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
+            
+            logger.log('Audio', `Blob created: ${audioBlob.size} bytes (${finalMime})`, 'info');
+            
+            if (audioBlob.size > 500) { // Filter out extremely small empty files
+                await processAudioBlob(audioBlob);
+            } else {
+                logger.log('Audio', 'Recording too short or empty.', 'warning');
+            }
         };
 
-        mediaRecorder.start(1000); 
+        // Start without timeslice to ensure single clean file with header
+        mediaRecorder.start(); 
         setIsRecording(true);
 
     } catch(e: any) { 
@@ -267,11 +272,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   };
 
   const processAudioBlob = async (blob: Blob) => {
-      if (blob.size < 1000) {
-          logger.log('Audio', 'Recording too short/silent', 'warning');
-          return; 
-      }
-      
       setIsProcessingAudio(true);
 
       try {
@@ -279,6 +279,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
               const result = reader.result as string;
+              // Safely extract Base64
               const base64Audio = result.split(',')[1];
               
               if (!base64Audio) {
@@ -287,8 +288,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
                   return;
               }
 
-              logger.log('Audio', `Sending to Gemini... (${mimeTypeRef.current})`, 'info');
+              logger.log('Audio', `Sending to AI...`, 'info');
               
+              // Use the ref mime type to ensure we tell Gemini exactly what we recorded
               const text = await transcribeAudio(base64Audio, mimeTypeRef.current || blob.type);
               
               if (text && text.length > 0) {
@@ -329,15 +331,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const handleSend = async (manualText?: string) => {
     if (isThinking) return;
     
-    // 1. If recording, stop it properly
+    // Stop recording if active (UI safety)
     if (isRecording) {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.requestData(); // Capture final buffer
             mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
-        // Do NOT proceed with text sending here; onstop handler will call handleSend with transcribed text
-        return; 
+        // If stopping via send button, we wait for onstop to trigger the send.
+        if (!manualText) return; 
     }
 
     const cleanInput = manualText || input.trim();
@@ -367,7 +368,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
       if (!chatSessionRef.current) {
-        chatSessionRef.current = createMentorChat({ tasks, thoughts, journal, projects, habits, memories, isGoogleAuth: false, userName }, getStoredModel());
+        // Pass 'sessions' to context so the service can build global memory
+        chatSessionRef.current = createMentorChat({ 
+            tasks, thoughts, journal, projects, habits, memories, 
+            sessions, // <--- CRITICAL: Passing all sessions for global context
+            isGoogleAuth: false, userName 
+        }, getStoredModel());
       }
       const now = new Date();
       const timeContext = `\n[Context: ${format(now, "HH:mm")}]`;
@@ -438,7 +444,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
   return (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
-      {/* ... (Previous Floating Controls & Terminal - No Changes) ... */}
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
          <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><SlidersHorizontal size={16} /></button>
          <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
@@ -460,7 +465,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
           </div>
       )}
 
-      {/* --- MESSAGES AREA --- */}
       <div className="flex-1 relative overflow-hidden z-10">
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-40">
           {activeSession?.messages.map((msg) => (
@@ -481,7 +485,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
         </div>
       </div>
 
-      {/* AI PROMPT BOX */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 flex justify-center">
          
          {(isRecording || isProcessingAudio) && (
@@ -533,7 +536,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       >
                           {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                       </button>
-                      {/* MODIFIED: Button is enabled if recording, so user can click to Stop */}
                       <button 
                         onClick={() => handleSend()} 
                         disabled={(!input.trim() && !attachedImage && !isRecording)} 

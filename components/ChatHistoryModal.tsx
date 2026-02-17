@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { ChatSession, Project } from '../types';
 import { X, MessageSquare, Plus, Trash2, Search, Zap, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import ru from 'date-fns/locale/ru';
 
 interface ChatHistoryModalProps {
   sessions: ChatSession[];

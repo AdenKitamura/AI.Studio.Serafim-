@@ -1,8 +1,8 @@
 
 import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/genai";
-import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel } from "../types";
-import { format } from "date-fns";
-import { ru } from 'date-fns/locale';
+import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel, ChatSession } from "../types";
+import { format, isAfter } from "date-fns";
+import ru from 'date-fns/locale/ru';
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {
@@ -104,12 +104,46 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   const ai = new GoogleGenAI({ apiKey });
   const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
   
+  // 1. Memory Context (Facts)
   const memoryContext = context.memories && context.memories.length > 0 
-    ? `MEMORY_BANK:\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+    ? `MEMORY_BANK (Факты о пользователе):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
     : '';
 
+  // 2. Active Tasks
   const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
   const taskSummary = `TASKS: ${activeTasks.length} pending.`;
+
+  // 3. GLOBAL CHAT HISTORY (Last 3 days context)
+  let globalHistory = '';
+  if (context.sessions && Array.isArray(context.sessions)) {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      
+      // Get messages from all OTHER sessions in the last 3 days
+      const recentMessages = context.sessions
+          .flatMap((s: ChatSession) => {
+              // Ignore empty sessions or current empty session if implied
+              if (!s.messages || s.messages.length === 0) return [];
+              return s.messages.map(m => ({
+                  ...m,
+                  sessionTitle: s.title
+              }));
+          })
+          .filter((m: any) => isAfter(new Date(m.timestamp), threeDaysAgo))
+          .sort((a: any, b: any) => a.timestamp - b.timestamp); // Sort Chronologically
+
+      if (recentMessages.length > 0) {
+          // Limit to reduce token cost if user talks A LOT (e.g. keep last 200 turns across all chats)
+          const limitedHistory = recentMessages.slice(-150); 
+          
+          globalHistory = `
+GLOBAL CONTEXT (Последние разговоры из других чатов за 3 дня):
+Это контекст того, что пользователь обсуждал с тобой ранее в других сессиях. Используй это, чтобы помнить события, но не повторяйся.
+${limitedHistory.map((m: any) => `[${format(new Date(m.timestamp), 'dd MMM HH:mm')}] ${m.role === 'user' ? 'Пользователь' : 'Серафим'}: ${m.content.substring(0, 500)}`).join('\n')}
+--------------------------------------------------
+`;
+      }
+  }
 
   const SYSTEM_INSTRUCTION = `
 Ты — Serafim OS v4.
@@ -117,33 +151,19 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
 Пользователь: ${context.userName || 'Архитектор'}.
 
 ТВОЯ РОЛЬ:
-Ты — мудрый цифровой партнер и второй мозг. Ты слушаешь, анализируешь и помогаешь, а не просто выполняешь команды как робот.
+Ты — мудрый цифровой партнер и второй мозг. Ты слушаешь, анализируешь и помогаешь.
+Твоя память едина. Ты помнишь контекст из "GLOBAL CONTEXT" выше, даже если это было в другом чате. Если пользователь просит "подведи итоги за 3 дня" или "что я говорил про проект X", ищи ответ в GLOBAL CONTEXT.
 
 ПРАВИЛА ПОВЕДЕНИЯ:
-1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями, жалуется или рассуждает. Создавай задачу только если:
-   - Пользователь прямо сказал "Создай задачу", "Напомни", "Запиши".
-   - Или если из контекста ОЧЕВИДНО следует, что это действие необходимо зафиксировать.
-   - Если сомневаешься — спроси: "Создать задачу из этого?" или "Хочешь, я занесу это в план?".
-
-2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**:
-   - Никогда не отвечай односложно "Готово" или "Сделано".
-   - Всегда говори: "Создал задачу '[Название]' на [Дата]" или "Сохранил идею в архив".
-   - Пользователь должен видеть подтверждение в тексте.
-
-3. **РЕЖИМ ДНЕВНИКА**:
-   - Если пользователь просит "Запиши в дневник", "Сохрани итоги разговора" или просто делится глубокими мыслями:
-     а) Сначала предложи красивый, литературно обработанный текст (саммари) на основе диалога.
-     б) Спроси "Сохраняем в таком виде?".
-     в) И только после ответа "Да" вызывай функцию 'save_journal_entry'.
-
-4. **СТИЛЬ ОБЩЕНИЯ**:
-   - Ответы должны быть живыми, эмпатичными.
-   - Если пользователь говорит о проблемах — поддержи, предложи решение, но не кидайся сразу создавать таски.
-   - Используй Markdown для форматирования.
+1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями. Создавай задачу только по явной просьбе или острой необходимости.
+2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в память...".
+3. **РЕЖИМ ДНЕВНИКА**: Если пользователь просит записать мысли за последние дни, проанализируй GLOBAL CONTEXT, составь красивую выжимку и предложи сохранить её в дневник (функция save_journal_entry).
+4. **СТИЛЬ**: Живой, эмпатичный, не робот. Форматируй Markdown.
 
 КОНТЕКСТ:
 ${memoryContext}
 ${taskSummary}
+${globalHistory}
 `;
 
   const modelName = modelPreference === 'pro' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
@@ -297,16 +317,21 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
 
     const ai = new GoogleGenAI({ apiKey });
     try {
-        // CLEAN THE MIME TYPE: Gemini is picky.
+        // STRICT MIME CLEANING: 
+        // Gemini only wants the container (e.g., 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav')
+        // It does NOT want 'codecs=opus' or anything else.
         let cleanMime = mimeType;
         if (mimeType.includes(';')) {
             cleanMime = mimeType.split(';')[0].trim();
         }
         
+        // Safety Fallback: if browser gave weird empty string but we have data, try generic
+        if (!cleanMime) cleanMime = 'audio/mp4';
+
         console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-latest",
+            model: "gemini-2.5-flash-latest", // 2.5 Flash is best for audio
             contents: {
                 parts: [
                     {
@@ -316,7 +341,8 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
                         }
                     },
                     {
-                        text: "Transcribe this audio exactly. Ignore background noise. Return ONLY the text in the language spoken. If no speech, return nothing."
+                        // AGGRESSIVE PROMPT: Force it to try to find speech even in noise
+                        text: "Transcribe the spoken language in this audio exactly. Return ONLY the text. If you hear speech, write it down. Ignore background noise."
                     }
                 ]
             }
