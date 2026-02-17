@@ -17,8 +17,8 @@ const getApiKey = () => {
 };
 
 // --- SAFETY SETTINGS: UNLEASHED ---
-// Разрешаем весь контент (18+, мат, дискуссии)
-const SAFETY_SETTINGS = [
+// Используем 'any', чтобы избежать ошибки TS2322 (Type string is not assignable to HarmCategory)
+const SAFETY_SETTINGS: any = [
   { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
   { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
   { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
@@ -94,7 +94,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "ui_control",
-    description: "Управляет интерфейсом приложения.",
+    description: "Управляет интерфейсом приложения (темы, таймер, режим голоса).",
     parameters: {
       type: Type.OBJECT,
       properties: {
