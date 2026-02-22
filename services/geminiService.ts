@@ -2,7 +2,7 @@
 import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/genai";
 import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel, ChatSession } from "../types";
 import { format, isAfter } from "date-fns";
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale/ru';
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {

@@ -13,7 +13,7 @@ class DBService {
   // Now async so App can await the initial sync if needed
   public async setAuth(userId: string | null) {
       this.userId = userId;
-      if (this.userId) {
+      if (userId) {
           logger.log('DB', `Authenticated user ${userId.substring(0,6)}...`, 'info');
           await this.syncAllTables();
       }

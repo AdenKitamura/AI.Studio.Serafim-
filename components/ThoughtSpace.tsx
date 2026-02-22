@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Thought } from '../types';
 import { Trash2 } from './Icons';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale/ru';
 
 interface ThoughtSpaceProps {
   thoughts: Thought[];

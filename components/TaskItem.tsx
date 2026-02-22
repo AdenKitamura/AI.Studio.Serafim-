@@ -3,7 +3,7 @@ import React, { memo } from 'react';
 import { Task, Priority } from '../types';
 import { CheckCircle, Circle, Trash2, Clock, Folder } from 'lucide-react';
 import { format } from 'date-fns';
-import ru from 'date-fns/locale/ru';
+import { ru } from 'date-fns/locale/ru';
 
 interface TaskItemProps {
   task: Task;

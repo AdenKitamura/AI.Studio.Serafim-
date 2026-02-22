@@ -46,7 +46,7 @@ const AITaskAgent: React.FC<AITaskAgentProps> = ({ onAddTask }) => {
         config: { responseMimeType: 'application/json' }
       });
       
-      const text = response.text;
+      const text = response.text || '';
       const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const data = JSON.parse(cleanText);
 
