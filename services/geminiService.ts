@@ -188,7 +188,7 @@ ${globalHistory}
     model: modelName,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
+      tools: [{ functionDeclarations: tools }], // googleSearch removed to fix conflict with function calling
       temperature: 1.0,
       safetySettings: SAFETY_SETTINGS, // <--- ОТКЛЮЧАЕМ ФИЛЬТРЫ ЗДЕСЬ
     }
@@ -354,8 +354,8 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
         console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
 
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview", 
-            contents: {
+            model: "gemini-2.0-flash-exp", 
+            contents: [{
                 parts: [
                     {
                         inlineData: {
@@ -367,7 +367,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
                         text: "Transcribe the spoken language in this audio exactly. Return ONLY the text. If you hear speech, write it down. Ignore background noise."
                     }
                 ]
-            },
+            }],
             config: {
                 safetySettings: SAFETY_SETTINGS
             }

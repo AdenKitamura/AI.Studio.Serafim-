@@ -232,8 +232,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
         
         // Strict prioritized MIME types
         const mimeTypes = [
-            'audio/mp4', // Best for Gemini & iOS
-            'audio/webm', // Chrome default
+            'audio/webm', // Chrome default - Best for Gemini
+            'audio/mp4', // iOS fallback
             'audio/ogg',
             'audio/wav'
         ];
