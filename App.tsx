@@ -370,7 +370,15 @@ const App = () => {
             <ThoughtsView 
               thoughts={thoughts} 
               onAdd={(c, t, tags, metadata) => { 
-                  const newItem = {id: Date.now().toString(), content: c, type: t, tags, createdAt: new Date().toISOString(), metadata};
+                  const newItem = {
+                    id: Date.now().toString(), 
+                    content: c, 
+                    type: t, 
+                    tags, 
+                    category: metadata?.category,
+                    createdAt: new Date().toISOString(), 
+                    metadata
+                  };
                   setThoughts([newItem, ...thoughts]); 
                   persist('thoughts', newItem);
               }} 

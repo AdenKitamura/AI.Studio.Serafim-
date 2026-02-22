@@ -75,6 +75,7 @@ export interface Thought {
   author?: string;
   projectId?: string;
   boardId?: string;
+  category?: string;
   createdAt: string;
   x?: number;
   y?: number;

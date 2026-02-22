@@ -182,13 +182,13 @@ ${taskSummary}
 ${globalHistory}
 `;
 
-  const modelName = modelPreference === 'pro' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+  const modelName = modelPreference === 'pro' ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview';
 
   return ai.chats.create({
     model: modelName,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: tools }],
+      tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
       temperature: 1.0,
       safetySettings: SAFETY_SETTINGS, // <--- ОТКЛЮЧАЕМ ФИЛЬТРЫ ЗДЕСЬ
     }
@@ -204,12 +204,15 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
-            contents: { parts: [{ text }] },
+            contents: { parts: [{ text: `Serafim: ${text}` }] },
             config: {
                 responseModalities: ['AUDIO'],
                 speechConfig: {
-                    voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName }
+                    multiSpeakerVoiceConfig: {
+                        speakerVoiceConfigs: [
+                            { speaker: 'Serafim', voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+                            { speaker: 'System', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
+                        ]
                     }
                 },
                 safetySettings: SAFETY_SETTINGS // Отключаем фильтры для генерации речи (чтобы читал 18+ текст)
@@ -236,7 +239,7 @@ export const generateProactiveMessage = async (context: any) => {
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-latest', 
+            model: 'gemini-3-flash-preview', 
             contents: `
                 Пользователь: ${context.userName}. Время: ${timeContext}.
                 Напиши ОДНО приветствие (макс 6 слов). Живое, дерзкое или теплое. Можно с перчинкой.
@@ -261,7 +264,7 @@ export const getSystemAnalysis = async (tasks: Task[], habits: Habit[], journal:
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', 
+      model: 'gemini-3.1-pro-preview', 
       contents: `
         Данные пользователя:
         Задачи: ${tasks.length} всего.
@@ -290,7 +293,7 @@ export const fixGrammar = async (text: string) => {
   const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-latest', 
+      model: 'gemini-3-flash-preview', 
       contents: `Fix grammar. Return ONLY fixed text. Text: "${text}"`,
       config: { safetySettings: SAFETY_SETTINGS }
     });
@@ -307,7 +310,7 @@ export const polishText = async (text: string): Promise<string> => {
     const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-latest",
+            model: "gemini-3-flash-preview",
             contents: `
                 Ты редактор текста.
                 Твоя задача: 
@@ -351,7 +354,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
         console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-latest", 
+            model: "gemini-3-flash-preview", 
             contents: {
                 parts: [
                     {

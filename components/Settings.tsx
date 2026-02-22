@@ -153,7 +153,7 @@ const Settings: React.FC<SettingsProps> = ({
                   className={`flex-1 py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${geminiModel === 'flash' ? 'bg-[var(--bg-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-item)]'}`}
               >
                   <Zap size={20} className={geminiModel === 'flash' ? 'text-yellow-500' : 'opacity-50'} />
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${geminiModel === 'flash' ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>Gemini Flash</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${geminiModel === 'flash' ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>Gemini 3 Flash</span>
                   <span className="text-[9px] text-[var(--text-muted)] opacity-60">Быстрая</span>
               </button>
               
@@ -162,7 +162,7 @@ const Settings: React.FC<SettingsProps> = ({
                   className={`flex-1 py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${geminiModel === 'pro' ? 'bg-[var(--bg-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-item)]'}`}
               >
                   <Brain size={20} className={geminiModel === 'pro' ? 'text-purple-500' : 'opacity-50'} />
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${geminiModel === 'pro' ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>Gemini Pro</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${geminiModel === 'pro' ? 'text-[var(--text-main)]' : 'text-[var(--text-muted)]'}`}>Gemini 3.1 Pro</span>
                   <span className="text-[9px] text-[var(--text-muted)] opacity-60">Умная</span>
               </button>
           </div>

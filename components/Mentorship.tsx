@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
+import LiveAudioAgent from './LiveAudioAgent';
+
 interface MentorshipProps {
   tasks: Task[];
   thoughts: Thought[];
@@ -82,6 +84,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   // Terminal State
   const [showTerminal, setShowTerminal] = useState(false);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+  const [showLiveAgent, setShowLiveAgent] = useState(false);
   
   const chatSessionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -453,9 +456,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
+         <button onClick={() => setShowLiveAgent(true)} className="p-2 rounded-xl backdrop-blur-md border transition-all bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30 hover:text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><Activity size={16} /></button>
          <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><SlidersHorizontal size={16} /></button>
          <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
       </div>
+
+      {showLiveAgent && (
+        <LiveAudioAgent onClose={() => setShowLiveAgent(false)} userName={userName} />
+      )}
 
       {showVoiceSettings && (
           <div className="absolute top-32 right-4 z-50 w-72 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-3xl p-5 shadow-2xl animate-in fade-in slide-in-from-right-5">
