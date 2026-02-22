@@ -230,8 +230,21 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
             processorRef.current!.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
+              const inputSampleRate = audioContextRef.current?.sampleRate || 48000;
+              const targetSampleRate = 16000;
               
-              // Calculate volume for UI
+              // Downsample if needed
+              let processedData = inputData;
+              if (inputSampleRate > targetSampleRate) {
+                  const ratio = inputSampleRate / targetSampleRate;
+                  const newLength = Math.floor(inputData.length / ratio);
+                  processedData = new Float32Array(newLength);
+                  for (let i = 0; i < newLength; i++) {
+                      processedData[i] = inputData[Math.floor(i * ratio)];
+                  }
+              }
+
+              // Calculate volume for UI (using original data for better resolution)
               let sum = 0;
               for (let i = 0; i < inputData.length; i++) {
                 sum += inputData[i] * inputData[i];
@@ -239,9 +252,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
               setVolume(Math.sqrt(sum / inputData.length));
 
               // Convert Float32 to Int16 PCM
-              const pcm16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) {
-                let s = Math.max(-1, Math.min(1, inputData[i]));
+              const pcm16 = new Int16Array(processedData.length);
+              for (let i = 0; i < processedData.length; i++) {
+                let s = Math.max(-1, Math.min(1, processedData[i]));
                 pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
               }
 
@@ -255,7 +268,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
               sessionPromise.then((session) => {
                 session.sendRealtimeInput({
-                  media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
+                  media: { data: base64Data, mimeType: `audio/pcm;rate=${targetSampleRate}` }
                 });
               });
             };
