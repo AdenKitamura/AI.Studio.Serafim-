@@ -361,6 +361,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     }
   };
 
+  const silenceTimeoutRef = useRef<any>(null);
+
   const playAudioChunk = (base64Audio: string) => {
     if (!audioContextRef.current) return;
 
@@ -378,46 +380,39 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     }
 
     playbackQueueRef.current.push(float32Data);
-    if (!isPlayingRef.current) {
-        scheduleNextBuffer();
-    }
+    processQueue();
   };
 
-  const scheduleNextBuffer = () => {
-    if (playbackQueueRef.current.length === 0 || !audioContextRef.current) {
-        isPlayingRef.current = false;
-        setIsSpeaking(false);
-        return;
-    }
-
-    isPlayingRef.current = true;
-    setIsSpeaking(true);
+  const processQueue = () => {
+    if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
-    const float32Data = playbackQueueRef.current.shift()!;
 
-    const buffer = ctx.createBuffer(1, float32Data.length, 24000); // Gemini Live returns 24kHz
-    buffer.copyToChannel(float32Data as any, 0);
+    while (playbackQueueRef.current.length > 0) {
+        const float32Data = playbackQueueRef.current.shift()!;
+        const buffer = ctx.createBuffer(1, float32Data.length, 24000);
+        buffer.copyToChannel(float32Data as any, 0);
 
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
 
-    // Lookahead scheduling to prevent gaps
-    // If nextPlayTime is in the past (gap), reset to currentTime + small buffer
-    if (nextPlayTimeRef.current < ctx.currentTime) {
-        nextPlayTimeRef.current = ctx.currentTime + 0.05; // 50ms buffer
+        if (nextPlayTimeRef.current < ctx.currentTime) {
+            nextPlayTimeRef.current = ctx.currentTime + 0.05;
+        }
+
+        source.start(nextPlayTimeRef.current);
+        nextPlayTimeRef.current += buffer.duration;
     }
 
-    source.start(nextPlayTimeRef.current);
-    nextPlayTimeRef.current += buffer.duration;
-
-    source.onended = () => {
-      // We don't rely solely on onended for scheduling to avoid gaps, 
-      // but we use it to check if we stopped.
-      // The recursive scheduling happens here for simplicity in this architecture,
-      // but the timing is pre-calculated above.
-      scheduleNextBuffer();
-    };
+    // Update UI state
+    setIsSpeaking(true);
+    
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    
+    const timeUntilEnd = (nextPlayTimeRef.current - ctx.currentTime) * 1000;
+    silenceTimeoutRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+    }, timeUntilEnd + 100); // Small buffer
   };
 
   const stopLiveSession = () => {
