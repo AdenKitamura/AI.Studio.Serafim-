@@ -1,11 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
 import { Mic, MicOff, X, Loader2, Activity } from 'lucide-react';
 import { logger } from '../services/logger';
+import { Task, Thought, JournalEntry, Project, Habit, Memory, Priority, ThemeKey } from '../types';
+import { format } from 'date-fns';
 
 interface LiveAudioAgentProps {
   onClose: () => void;
   userName: string;
+  tasks: Task[];
+  thoughts: Thought[];
+  journal: JournalEntry[];
+  projects: Project[];
+  habits: Habit[];
+  memories: Memory[];
+  onAddTask: (task: Task) => void;
+  onAddThought: (thought: Thought) => void;
+  onAddJournal: (entry: Partial<JournalEntry>) => void;
+  onAddProject: (project: Project) => void;
+  onAddMemory: (memory: Memory) => void;
+  onSetTheme: (theme: ThemeKey) => void;
+  onStartFocus: (minutes: number) => void;
 }
 
 const getApiKey = () => {
@@ -20,7 +35,92 @@ const getApiKey = () => {
   return '';
 };
 
-const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ onClose, userName }) => {
+const tools: FunctionDeclaration[] = [
+  {
+    name: "manage_task",
+    description: "Создает задачу.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: { type: Type.STRING, enum: ["create"] },
+        title: { type: Type.STRING },
+        priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+        dueDate: { type: Type.STRING },
+        projectId: { type: Type.STRING }
+      },
+      required: ["action", "title"]
+    }
+  },
+  {
+    name: "create_idea",
+    description: "Создает новую ИДЕЮ/ЗАМЕТКУ.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        content: { type: Type.STRING },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ["title"]
+    }
+  },
+  {
+    name: "save_journal_entry",
+    description: "Сохраняет запись в Дневник.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        content: { type: Type.STRING },
+        mood: { type: Type.STRING, enum: ["😔", "😐", "🙂", "😃", "🤩"] },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ["content", "mood"]
+    }
+  },
+  {
+    name: "remember_fact",
+    description: "Сохраняет важный факт о пользователе.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        fact: { type: Type.STRING }
+      },
+      required: ["fact"]
+    }
+  },
+  {
+    name: "manage_project",
+    description: "Создает новые проекты.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        description: { type: Type.STRING },
+        color: { type: Type.STRING }
+      },
+      required: ["title"]
+    }
+  },
+  {
+    name: "ui_control",
+    description: "Управляет интерфейсом приложения.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        command: { type: Type.STRING, enum: ["set_theme", "start_focus"] },
+        themeName: { type: Type.STRING },
+        duration: { type: Type.NUMBER }
+      },
+      required: ["command"]
+    }
+  }
+];
+
+const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ 
+  onClose, userName, 
+  tasks, thoughts, journal, projects, habits, memories,
+  onAddTask, onAddThought, onAddJournal, onAddProject, onAddMemory, onSetTheme, onStartFocus
+}) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +151,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ onClose, userName }) =>
       const ai = new GoogleGenAI({ apiKey });
 
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      audioContextRef.current = new AudioContext({ sampleRate: 16000 });
+      audioContextRef.current = new AudioContext({ sampleRate: 24000 });
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -62,6 +162,29 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ onClose, userName }) =>
       sourceRef.current.connect(processorRef.current);
       processorRef.current.connect(audioContextRef.current.destination);
 
+      // Prepare Context
+      const activeTasks = tasks.filter(t => !t.isCompleted).map(t => `- ${t.title}`).join('\n');
+      const memoryContext = memories.map(m => `- ${m.content}`).join('\n');
+      const projectContext = projects.map(p => `- ${p.title}`).join('\n');
+
+      const SYSTEM_INSTRUCTION = `
+      Ты — Serafim OS (Live Mode).
+      Пользователь: ${userName}.
+      
+      КОНТЕКСТ:
+      Задачи:
+      ${activeTasks}
+      
+      Проекты:
+      ${projectContext}
+      
+      Память:
+      ${memoryContext}
+      
+      Твоя цель: Быть полезным голосовым ассистентом. Ты можешь управлять приложением (создавать задачи, заметки и т.д.) и искать информацию в интернете.
+      Отвечай кратко и по делу, так как это голосовой чат.
+      `;
+
       const sessionPromise = ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
         config: {
@@ -69,7 +192,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ onClose, userName }) =>
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
           },
-          systemInstruction: `Ты Serafim, мудрый ИИ-ассистент. Общайся с пользователем ${userName} в реальном времени. Будь краток и полезен.`,
+          systemInstruction: SYSTEM_INSTRUCTION,
+          tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
         },
         callbacks: {
           onopen: () => {
@@ -109,7 +233,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ onClose, userName }) =>
               });
             };
           },
-          onmessage: (message: LiveServerMessage) => {
+          onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.interrupted) {
               playbackQueueRef.current = [];
               isPlayingRef.current = false;
@@ -118,6 +242,62 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ onClose, userName }) =>
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio) {
               playAudioChunk(base64Audio);
+            }
+
+            // Handle Tool Calls
+            const toolCalls = message.toolCall?.functionCalls;
+            if (toolCalls && toolCalls.length > 0) {
+               const session = await sessionPromise;
+               const responses = [];
+               
+               for (const call of toolCalls) {
+                 logger.log('LiveTool', `Calling ${call.name}`, 'info');
+                 let result = { result: "Success" };
+                 const args = call.args as any;
+
+                 try {
+                   switch (call.name) {
+                     case 'manage_task':
+                       if (args.action === 'create') {
+                         onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() });
+                         result = { result: `Task "${args.title}" created.` };
+                       }
+                       break;
+                     case 'create_idea':
+                       onAddThought({ id: Date.now().toString(), content: args.title, notes: args.content, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
+                       result = { result: `Idea "${args.title}" saved.` };
+                       break;
+                     case 'save_journal_entry':
+                       onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });
+                       result = { result: "Journal entry saved." };
+                       break;
+                     case 'remember_fact':
+                       onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() });
+                       result = { result: "Fact remembered." };
+                       break;
+                     case 'manage_project':
+                       onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
+                       result = { result: `Project "${args.title}" created.` };
+                       break;
+                     case 'ui_control':
+                       if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
+                       if (args.command === 'start_focus') onStartFocus(args.duration || 25);
+                       result = { result: "UI updated." };
+                       break;
+                   }
+                 } catch (e: any) {
+                   logger.log('LiveTool', `Error: ${e.message}`, 'error');
+                   result = { result: `Error: ${e.message}` };
+                 }
+                 
+                 responses.push({
+                   id: call.id,
+                   name: call.name,
+                   response: result
+                 });
+               }
+               
+               session.sendToolResponse({ functionResponses: responses });
             }
           },
           onclose: () => {

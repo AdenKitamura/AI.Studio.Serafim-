@@ -456,13 +456,28 @@ const Mentorship: React.FC<MentorshipProps> = ({
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
-         <button onClick={() => setShowLiveAgent(true)} className="p-2 rounded-xl backdrop-blur-md border transition-all bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30 hover:text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><Activity size={16} /></button>
          <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><SlidersHorizontal size={16} /></button>
          <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
       </div>
 
       {showLiveAgent && (
-        <LiveAudioAgent onClose={() => setShowLiveAgent(false)} userName={userName} />
+        <LiveAudioAgent 
+          onClose={() => setShowLiveAgent(false)} 
+          userName={userName}
+          tasks={tasks}
+          thoughts={thoughts}
+          journal={journal}
+          projects={projects}
+          habits={habits}
+          memories={memories}
+          onAddTask={onAddTask}
+          onAddThought={onAddThought}
+          onAddJournal={onAddJournal}
+          onAddProject={onAddProject}
+          onAddMemory={onAddMemory}
+          onSetTheme={onSetTheme}
+          onStartFocus={onStartFocus}
+        />
       )}
 
       {showVoiceSettings && (
@@ -578,6 +593,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"><Paperclip size={20} strokeWidth={2} /></button>
                  </div>
                  <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setShowLiveAgent(true)} 
+                        className="p-2.5 rounded-xl transition-all active:scale-95 text-emerald-400 hover:text-white hover:bg-emerald-500/20"
+                      >
+                          <Activity size={20} />
+                      </button>
                       <button 
                         onClick={toggleRecording} 
                         className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-white shadow-lg animate-pulse' : isProcessingAudio ? 'bg-indigo-500 text-white animate-spin' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
