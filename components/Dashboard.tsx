@@ -23,12 +23,13 @@ interface DashboardProps {
   onToggleHabit: (id: string, date: string) => void;
   onDeleteHabit: (id: string) => void;
   onOpenQuotes: () => void;
+  onStartLiveAudio: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
     tasks, thoughts, journal, projects, habits = [],
     onAddTask, onAddThought, onNavigate, onToggleTask, onDeleteTask,
-    onAddHabit, onToggleHabit, onDeleteHabit, onOpenQuotes
+    onAddHabit, onToggleHabit, onDeleteHabit, onOpenQuotes, onStartLiveAudio
 }) => {
   const upcomingReminders = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(new Date(t.dueDate))).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, 2), [tasks]);
   const todayTasks = useMemo(() => tasks.filter(t => !t.isCompleted && t.dueDate && isToday(new Date(t.dueDate))).sort((a, b) => (a.priority === Priority.HIGH ? 0 : 1) - (b.priority === Priority.HIGH ? 0 : 1)).slice(0, 3), [tasks]);
@@ -251,6 +252,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         onOpenMenu={openMenu}
         toolL={{ icon: <Plus size={22} />, onClick: () => onNavigate('planner') }}
         toolR={{ icon: <Sparkles size={22} />, onClick: () => onNavigate('thoughts') }}
+        centerAction={onStartLiveAudio}
       />
 
     </div>

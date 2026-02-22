@@ -24,6 +24,7 @@ import {
   Zap, Loader2, Settings as SettingsIcon, History, Menu, Mic
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
+import LiveAudioAgent from './components/LiveAudioAgent';
 
 declare global {
   interface Window {
@@ -51,6 +52,7 @@ const App = () => {
   const [showPWAInstall, setShowPWAInstall] = useState(false);
   const [showQuotes, setShowQuotes] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
+  const [showLiveAgent, setShowLiveAgent] = useState(false);
 
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -270,10 +272,30 @@ const App = () => {
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    // CHANGED: Flex row for desktop sidebar layout, column for mobile
     <div className="h-[100dvh] w-full overflow-hidden bg-transparent relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
       <BackgroundGlow />
       
+      {/* Global Live Agent */}
+      {showLiveAgent && (
+        <LiveAudioAgent 
+          onClose={() => setShowLiveAgent(false)} 
+          userName={userName}
+          tasks={tasks}
+          thoughts={thoughts}
+          journal={journal}
+          projects={projects}
+          habits={habits}
+          memories={memories}
+          onAddTask={handleAddTask}
+          onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
+          onAddJournal={handleAddJournalEntry}
+          onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
+          onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
+          onSetTheme={setCurrentTheme}
+          onStartFocus={handleStartFocus}
+        />
+      )}
+
       {/* Hidden button for programmatic trigger from Dashboard */}
       <button id="sidebar-trigger" className="hidden" onClick={() => setIsSidebarOpen(true)}></button>
 
@@ -283,7 +305,7 @@ const App = () => {
         onNavigate={navigateTo} 
         onOpenSettings={() => setShowSettings(true)}
         onOpenHistory={() => setShowChatHistory(true)}
-        onVoiceChat={() => { navigateTo('chat'); setVoiceTrigger(v => v + 1); }}
+        onVoiceChat={() => setShowLiveAgent(true)} // Changed to open Live Agent
         userName={userName}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -312,6 +334,7 @@ const App = () => {
                   onToggleHabit={handleToggleHabit}
                   onDeleteHabit={handleDeleteHabit}
                   onOpenQuotes={() => setShowQuotes(true)}
+                  onStartLiveAudio={() => setShowLiveAgent(true)} // Pass handler
               />
           )}
           {view === 'chat' && (
@@ -335,7 +358,7 @@ const App = () => {
               onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
               onAddHabit={handleAddHabit}
               onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
-              onAddJournal={handleAddJournalEntry} // Pass handler
+              onAddJournal={handleAddJournalEntry} 
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
@@ -343,8 +366,10 @@ const App = () => {
               voiceTrigger={voiceTrigger}
               userName={userName}
               session={session}
+              onStartLiveAudio={() => setShowLiveAgent(true)} // Pass handler
             />
           )}
+          {/* ... other views ... */}
           {view === 'journal' && (
               <JournalView 
                   journal={journal} 

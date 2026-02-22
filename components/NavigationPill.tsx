@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Menu, Mic, Folder, LayoutGrid, LayoutDashboard } from 'lucide-react';
+import { Menu, Mic, Folder, LayoutGrid, LayoutDashboard, AudioLines } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface ToolAction {
@@ -16,6 +16,7 @@ interface NavigationPillProps {
   onOpenMenu: () => void;
   toolL?: ToolAction;
   toolR?: ToolAction;
+  centerAction?: () => void;
 }
 
 const NavigationPill: React.FC<NavigationPillProps> = ({ 
@@ -23,7 +24,8 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
   onNavigate, 
   onOpenMenu, 
   toolL, 
-  toolR 
+  toolR,
+  centerAction
 }) => {
   return (
     <div className="fixed bottom-6 left-0 w-full z-50 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)]">
@@ -50,12 +52,12 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
             )}
         </div>
 
-        {/* 3. Mic (Fixed Center) - Main Action */}
+        {/* 3. Mic / Live Audio (Fixed Center) - Main Action */}
         <button 
-          onClick={() => onNavigate('chat')}
+          onClick={() => centerAction ? centerAction() : onNavigate('chat')}
           className="w-16 h-16 rounded-full flex items-center justify-center bg-[var(--accent)] text-black shadow-[0_0_50px_-10px_rgba(var(--accent),0.5)] hover:scale-105 active:scale-95 transition-all mx-1 border-[6px] border-black/50 relative z-10"
         >
-          <Mic size={28} strokeWidth={2.5} />
+          {centerAction ? <AudioLines size={28} strokeWidth={2.5} /> : <Mic size={28} strokeWidth={2.5} />}
         </button>
 
         {/* 4. Dynamic Tool R */}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
-import { Mic, MicOff, X, Loader2, Activity } from 'lucide-react';
+import { Mic, MicOff, X, Loader2, AudioLines, Minimize2, Maximize2, Square, Activity } from 'lucide-react';
 import { logger } from '../services/logger';
 import { Task, Thought, JournalEntry, Project, Habit, Memory, Priority, ThemeKey } from '../types';
 import { format } from 'date-fns';
@@ -125,6 +125,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [volume, setVolume] = useState(0);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -150,8 +152,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
       const ai = new GoogleGenAI({ apiKey });
 
+      // Use default sample rate for better compatibility and less crackling
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      audioContextRef.current = new AudioContext(); 
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -163,26 +166,43 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       processorRef.current.connect(audioContextRef.current.destination);
 
       // Prepare Context
-      const activeTasks = tasks.filter(t => !t.isCompleted).map(t => `- ${t.title}`).join('\n');
+      const activeTasks = tasks.filter(t => !t.isCompleted).map(t => `- [${t.priority}] ${t.title} (Due: ${t.dueDate || 'N/A'})`).join('\n');
       const memoryContext = memories.map(m => `- ${m.content}`).join('\n');
-      const projectContext = projects.map(p => `- ${p.title}`).join('\n');
+      const projectContext = projects.map(p => `- ${p.title}: ${p.description || ''}`).join('\n');
+      const recentThoughts = thoughts.slice(0, 5).map(t => `- ${t.content}`).join('\n');
+      const habitContext = habits.map(h => `- ${h.title} (Completed: ${h.completedDates.length})`).join('\n');
 
       const SYSTEM_INSTRUCTION = `
-      Ты — Serafim OS (Live Mode).
+      Ты — Serafim OS (Live Voice Core).
       Пользователь: ${userName}.
       
-      КОНТЕКСТ:
-      Задачи:
+      ТВОИ ВОЗМОЖНОСТИ:
+      1. Управление задачами, проектами, заметками, привычками.
+      2. Поиск информации в Интернете (Google Search) - ИСПОЛЬЗУЙ ЭТО ДЛЯ АКТУАЛЬНЫХ ДАННЫХ.
+      3. Поддержка диалога, советы, менторство.
+
+      ТЕКУЩИЙ КОНТЕКСТ ПРИЛОЖЕНИЯ:
+      
+      [ЗАДАЧИ]:
       ${activeTasks}
       
-      Проекты:
+      [ПРОЕКТЫ]:
       ${projectContext}
       
-      Память:
+      [ПРИВЫЧКИ]:
+      ${habitContext}
+
+      [НЕДАВНИЕ МЫСЛИ]:
+      ${recentThoughts}
+      
+      [ПАМЯТЬ О ПОЛЬЗОВАТЕЛЕ]:
       ${memoryContext}
       
-      Твоя цель: Быть полезным голосовым ассистентом. Ты можешь управлять приложением (создавать задачи, заметки и т.д.) и искать информацию в интернете.
-      Отвечай кратко и по делу, так как это голосовой чат.
+      ИНСТРУКЦИИ ПО ГОЛОСУ:
+      - Отвечай кратко, емко и естественно, как живой собеседник.
+      - Не перечисляй списки полностью, если не просят.
+      - Если нужно найти информацию, используй googleSearch.
+      - Будь проактивным.
       `;
 
       const sessionPromise = ai.live.connect({
@@ -200,6 +220,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             setIsConnected(true);
             setIsConnecting(false);
             logger.log('LiveAPI', 'Connected to Gemini Live', 'success');
+
+            if (audioContextRef.current?.state === 'suspended') {
+                audioContextRef.current.resume();
+            }
 
             processorRef.current!.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
@@ -237,6 +261,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             if (message.serverContent?.interrupted) {
               playbackQueueRef.current = [];
               isPlayingRef.current = false;
+              setIsSpeaking(false);
             }
 
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -337,13 +362,20 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     }
 
     playbackQueueRef.current.push(float32Data);
-    scheduleNextBuffer();
+    if (!isPlayingRef.current) {
+        scheduleNextBuffer();
+    }
   };
 
   const scheduleNextBuffer = () => {
-    if (isPlayingRef.current || playbackQueueRef.current.length === 0 || !audioContextRef.current) return;
+    if (playbackQueueRef.current.length === 0 || !audioContextRef.current) {
+        isPlayingRef.current = false;
+        setIsSpeaking(false);
+        return;
+    }
 
     isPlayingRef.current = true;
+    setIsSpeaking(true);
     const ctx = audioContextRef.current;
     const float32Data = playbackQueueRef.current.shift()!;
 
@@ -354,12 +386,20 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     source.buffer = buffer;
     source.connect(ctx.destination);
 
-    const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
-    source.start(startTime);
-    nextPlayTimeRef.current = startTime + buffer.duration;
+    // Lookahead scheduling to prevent gaps
+    // If nextPlayTime is in the past (gap), reset to currentTime + small buffer
+    if (nextPlayTimeRef.current < ctx.currentTime) {
+        nextPlayTimeRef.current = ctx.currentTime + 0.05; // 50ms buffer
+    }
+
+    source.start(nextPlayTimeRef.current);
+    nextPlayTimeRef.current += buffer.duration;
 
     source.onended = () => {
-      isPlayingRef.current = false;
+      // We don't rely solely on onended for scheduling to avoid gaps, 
+      // but we use it to check if we stopped.
+      // The recursive scheduling happens here for simplicity in this architecture,
+      // but the timing is pre-calculated above.
       scheduleNextBuffer();
     };
   };
@@ -382,52 +422,113 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in">
-      <button 
-        onClick={onClose}
-        className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
-      >
-        <X size={24} />
-      </button>
+  // --- RENDER ---
 
-      <div className="text-center space-y-8">
-        <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
-          {/* Glow effect based on volume */}
+  if (isMinimized) {
+      return (
+          <div className="fixed bottom-24 right-6 z-[100] animate-in zoom-in slide-in-from-bottom-10">
+              <div className="relative group">
+                  {/* Status Ring */}
+                  <div className={`absolute inset-0 rounded-full blur-md transition-all duration-500 ${isSpeaking ? 'bg-emerald-500 opacity-60 scale-125' : isConnected ? 'bg-[var(--accent)] opacity-40 scale-110' : 'bg-red-500 opacity-20'}`}></div>
+                  
+                  {/* Main Bubble */}
+                  <div className="relative w-16 h-16 bg-black/80 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center shadow-2xl overflow-hidden cursor-pointer hover:scale-105 transition-transform" onClick={() => setIsMinimized(false)}>
+                      {isSpeaking ? (
+                          <div className="flex gap-1 items-end h-6">
+                              {[...Array(3)].map((_, i) => (
+                                  <div key={i} className="w-1.5 bg-emerald-400 rounded-full animate-[bounce_1s_infinite]" style={{ animationDelay: `${i * 0.1}s`, height: '100%' }}></div>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="relative">
+                              <Activity size={24} className={`text-white transition-all ${isConnected ? 'opacity-100' : 'opacity-50'}`} />
+                              {/* Volume indicator */}
+                              <div className="absolute inset-0 bg-[var(--accent)] rounded-full opacity-20" style={{ transform: `scale(${1 + volume * 3})` }}></div>
+                          </div>
+                      )}
+                  </div>
+
+                  {/* Controls */}
+                  <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="absolute -top-1 -right-1 w-6 h-6 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors backdrop-blur-md">
+                      <X size={12} />
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-300">
+      <div className="absolute top-6 right-6 flex gap-4">
+          <button 
+            onClick={() => setIsMinimized(true)}
+            className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all"
+          >
+            <Minimize2 size={24} />
+          </button>
+          <button 
+            onClick={onClose}
+            className="p-3 bg-white/5 hover:bg-red-500/20 hover:text-red-400 rounded-full text-white/70 transition-all"
+          >
+            <X size={24} />
+          </button>
+      </div>
+
+      <div className="text-center space-y-12 relative w-full max-w-md px-6">
+        
+        {/* Main Visualizer */}
+        <div className="relative w-64 h-64 mx-auto flex items-center justify-center">
+          {/* Ambient Glow */}
           <div 
-            className="absolute inset-0 bg-[var(--accent)] rounded-full blur-3xl opacity-20 transition-all duration-75"
-            style={{ transform: `scale(${1 + volume * 5})` }}
+            className={`absolute inset-0 rounded-full blur-[80px] transition-all duration-700 ${isSpeaking ? 'bg-emerald-500/30' : 'bg-[var(--accent)]/20'}`}
+            style={{ transform: `scale(${1 + volume * 2})` }}
           />
           
-          <div className={`relative z-10 w-32 h-32 rounded-full flex items-center justify-center ${isConnected ? 'bg-[var(--accent)] text-black shadow-[0_0_40px_var(--accent-glow)]' : 'bg-white/10 text-white/50'}`}>
+          {/* Central Orb */}
+          <div className={`relative z-10 w-40 h-40 rounded-full flex items-center justify-center transition-all duration-500 ${isConnected ? 'bg-black border border-white/10 shadow-[0_0_60px_rgba(255,255,255,0.05)]' : 'bg-white/5'}`}>
             {isConnecting ? (
-              <Loader2 size={40} className="animate-spin" />
+              <Loader2 size={48} className="animate-spin text-[var(--accent)]" />
             ) : error ? (
-              <MicOff size={40} className="text-red-400" />
+              <MicOff size={48} className="text-red-400" />
+            ) : isSpeaking ? (
+               <div className="flex gap-2 items-center h-16">
+                  {[...Array(5)].map((_, i) => (
+                      <div key={i} className="w-2 bg-emerald-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite]" style={{ height: `${40 + Math.random() * 60}%`, animationDelay: `${i * 0.1}s` }}></div>
+                  ))}
+               </div>
             ) : (
-              <Mic size={40} />
+              <Activity size={56} className="text-[var(--accent)] opacity-80" />
             )}
           </div>
+
+          {/* Ripple Rings */}
+          {isConnected && !isSpeaking && (
+              <>
+                <div className="absolute inset-0 border border-white/5 rounded-full animate-[ping_3s_infinite]" />
+                <div className="absolute inset-4 border border-white/5 rounded-full animate-[ping_3s_infinite_0.5s]" />
+              </>
+          )}
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-white tracking-widest uppercase">
-            Serafim Live
+        <div className="space-y-4">
+          <h2 className="text-3xl font-black text-white tracking-widest uppercase font-mono">
+            {isSpeaking ? 'Serafim Speaking' : 'Listening...'}
           </h2>
-          <p className="text-[var(--text-muted)] font-mono text-sm">
-            {isConnecting ? 'Установка нейронной связи...' : 
+          <p className="text-white/40 font-mono text-sm max-w-xs mx-auto leading-relaxed">
+            {isConnecting ? 'Установка нейронного моста...' : 
              error ? error : 
-             'Связь установлена. Говорите.'}
+             'Говорите свободно. Я управляю системой.'}
           </p>
         </div>
 
+        {/* Volume Bar */}
         {isConnected && (
-          <div className="flex justify-center gap-1 h-8 items-end">
-            {[...Array(5)].map((_, i) => (
+          <div className="flex justify-center gap-1.5 h-12 items-end opacity-50">
+            {[...Array(12)].map((_, i) => (
               <div 
                 key={i}
-                className="w-2 bg-[var(--accent)] rounded-t-sm transition-all duration-75"
-                style={{ height: `${Math.max(10, volume * 200 * (Math.random() + 0.5))}%` }}
+                className={`w-1.5 rounded-full transition-all duration-75 ${isSpeaking ? 'bg-emerald-500' : 'bg-[var(--accent)]'}`}
+                style={{ height: `${Math.max(10, volume * 300 * (Math.sin(i) + 1.5))}%` }}
               />
             ))}
           </div>

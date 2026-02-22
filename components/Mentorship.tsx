@@ -41,6 +41,7 @@ interface MentorshipProps {
   voiceTrigger?: number;
   session: any; 
   onNavigate?: (view: any) => void; 
+  onStartLiveAudio: () => void;
 }
 
 const VOICES = [
@@ -55,7 +56,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
     onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
-    hasAiKey, onConnectAI, userName, voiceTrigger, session
+    hasAiKey, onConnectAI, userName, voiceTrigger, session, onStartLiveAudio
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -594,7 +595,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  </div>
                  <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => setShowLiveAgent(true)} 
+                        onClick={onStartLiveAudio} 
                         className="p-2.5 rounded-xl transition-all active:scale-95 text-emerald-400 hover:text-white hover:bg-emerald-500/20"
                       >
                           <Activity size={20} />
