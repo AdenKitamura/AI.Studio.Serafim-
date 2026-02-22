@@ -287,9 +287,12 @@ const App = () => {
           habits={habits}
           memories={memories}
           onAddTask={handleAddTask}
+          onUpdateTask={handleUpdateTask}
           onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
+          onUpdateThought={handleUpdateThought}
           onAddJournal={handleAddJournalEntry}
           onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
+          onUpdateProject={handleUpdateProject}
           onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
           onSetTheme={setCurrentTheme}
           onStartFocus={handleStartFocus}
@@ -355,7 +358,9 @@ const App = () => {
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
               onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
+              onUpdateThought={handleUpdateThought}
               onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
+              onUpdateProject={handleUpdateProject}
               onAddHabit={handleAddHabit}
               onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
               onAddJournal={handleAddJournalEntry} 

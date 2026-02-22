@@ -29,7 +29,9 @@ interface MentorshipProps {
   onAddTask: (task: Task) => void;
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onAddThought: (thought: Thought) => void;
+  onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   onAddProject: (project: Project) => void;
+  onUpdateProject: (id: string, updates: Partial<Project>) => void;
   onAddHabit: (habit: Habit) => void;
   onAddMemory: (memory: Memory) => void;
   onAddJournal: (entry: Partial<JournalEntry>) => void; 
@@ -55,7 +57,7 @@ const VOICES = [
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
-    onAddTask, onUpdateTask, onAddThought, onAddProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
+    onAddTask, onUpdateTask, onAddThought, onUpdateThought, onAddProject, onUpdateProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
     hasAiKey, onConnectAI, userName, voiceTrigger, session, onStartLiveAudio
 }) => {
   const [input, setInput] = useState('');
@@ -472,9 +474,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
           habits={habits}
           memories={memories}
           onAddTask={onAddTask}
+          onUpdateTask={onUpdateTask}
           onAddThought={onAddThought}
+          onUpdateThought={onUpdateThought}
           onAddJournal={onAddJournal}
           onAddProject={onAddProject}
+          onUpdateProject={onUpdateProject}
           onAddMemory={onAddMemory}
           onSetTheme={onSetTheme}
           onStartFocus={onStartFocus}
