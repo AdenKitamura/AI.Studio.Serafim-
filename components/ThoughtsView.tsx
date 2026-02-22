@@ -28,6 +28,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
   const [newUrl, setNewUrl] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const diaryFileInputRef = useRef<HTMLInputElement>(null);
@@ -51,12 +52,21 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         notes: viewingThought.notes,
         tags: viewingThought.tags,
         category: viewingThought.category,
-        attachments: viewingThought.attachments
+        attachments: viewingThought.attachments,
+        sections: viewingThought.sections
       });
     }, 1000);
 
     return () => clearTimeout(timeoutId);
   }, [viewingThought, onUpdate]);
+
+  // Reset active section when opening a thought
+  useEffect(() => {
+    if (viewingThought?.id) {
+      const firstSectionId = viewingThought.sections?.[0]?.id || 'default';
+      setActiveSectionId(firstSectionId);
+    }
+  }, [viewingThought?.id]);
 
   const handleManualAdd = () => {
     if (!newContent.trim() && !newUrl.trim()) return;
@@ -362,13 +372,91 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                 )}
 
                 <div className="mb-8">
-                  <label className="text-[10px] font-black uppercase text-white/30 tracking-widest mb-3 block">Записи / Контекст</label>
-                  <textarea 
-                    value={viewingThought.notes || ''} 
-                    onChange={(e) => setViewingThought({...viewingThought, notes: e.target.value})} 
-                    className="w-full h-[40vh] bg-transparent text-lg text-white/80 outline-none resize-none leading-relaxed font-serif" 
-                    placeholder="Развивайте свою мысль здесь... Используйте #теги и ссылки" 
-                  />
+                  <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar pb-2">
+                    {(viewingThought.sections || [{ id: 'default', title: 'Заметки', content: viewingThought.notes || '' }]).map((section, idx) => (
+                      <button
+                        key={section.id}
+                        onClick={() => {
+                           // If sections doesn't exist yet in state, we need to ensure we initialize it
+                           if (!viewingThought.sections) {
+                             setViewingThought({
+                               ...viewingThought,
+                               sections: [{ id: 'default', title: 'Заметки', content: viewingThought.notes || '' }]
+                             });
+                           }
+                           setActiveSectionId(section.id);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
+                          (activeSectionId === section.id || (!activeSectionId && idx === 0)) 
+                            ? 'bg-indigo-600 text-white shadow-lg' 
+                            : 'bg-white/5 text-white/40 hover:bg-white/10'
+                        }`}
+                      >
+                        {section.title}
+                      </button>
+                    ))}
+                    <button 
+                      onClick={() => {
+                        const newSection = { id: Date.now().toString(), title: 'Новый раздел', content: '' };
+                        const currentSections = viewingThought.sections || [{ id: 'default', title: 'Заметки', content: viewingThought.notes || '' }];
+                        setViewingThought({
+                          ...viewingThought,
+                          sections: [...currentSections, newSection]
+                        });
+                        setActiveSectionId(newSection.id);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-white/5 text-white/20 hover:bg-white/10 hover:text-white transition-all"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
+                  {(() => {
+                    const sections = viewingThought.sections || [{ id: 'default', title: 'Заметки', content: viewingThought.notes || '' }];
+                    const activeSection = sections.find(s => s.id === activeSectionId) || sections[0];
+                    
+                    return (
+                      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <input 
+                          value={activeSection.title}
+                          onChange={(e) => {
+                            const newSections = sections.map(s => s.id === activeSection.id ? { ...s, title: e.target.value } : s);
+                            setViewingThought({ ...viewingThought, sections: newSections });
+                          }}
+                          className="bg-transparent text-xs font-black uppercase text-white/30 tracking-widest mb-2 outline-none w-full hover:text-white/50 focus:text-indigo-400 transition-colors"
+                          placeholder="НАЗВАНИЕ РАЗДЕЛА"
+                        />
+                        <textarea 
+                          value={activeSection.content} 
+                          onChange={(e) => {
+                            const newSections = sections.map(s => s.id === activeSection.id ? { ...s, content: e.target.value } : s);
+                            setViewingThought({ 
+                              ...viewingThought, 
+                              sections: newSections,
+                              // Sync notes with default section for backward compatibility if needed
+                              notes: activeSection.id === 'default' ? e.target.value : viewingThought.notes 
+                            });
+                          }} 
+                          className="w-full h-[40vh] bg-transparent text-lg text-white/80 outline-none resize-none leading-relaxed font-serif" 
+                          placeholder="Пишите здесь... Используйте #теги" 
+                        />
+                        <div className="flex justify-end mt-2">
+                           <button 
+                             onClick={() => {
+                               if (confirm('Удалить этот раздел?')) {
+                                 const newSections = sections.filter(s => s.id !== activeSection.id);
+                                 setViewingThought({ ...viewingThought, sections: newSections });
+                                 if (newSections.length > 0) setActiveSectionId(newSections[0].id);
+                               }
+                             }}
+                             className="text-[10px] text-white/20 hover:text-rose-500 uppercase font-bold tracking-widest"
+                           >
+                             Удалить раздел
+                           </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

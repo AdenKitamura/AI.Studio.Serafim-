@@ -76,6 +76,7 @@ export interface Thought {
   projectId?: string;
   boardId?: string;
   category?: string;
+  sections?: { id: string; title: string; content: string; }[];
   createdAt: string;
   x?: number;
   y?: number;
