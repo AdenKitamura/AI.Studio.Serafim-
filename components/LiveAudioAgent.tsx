@@ -155,6 +155,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       // Use default sample rate for better compatibility and less crackling
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       audioContextRef.current = new AudioContext(); 
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      } 
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -512,7 +515,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
         <div className="space-y-4">
           <h2 className="text-3xl font-black text-white tracking-widest uppercase font-mono">
-            {isSpeaking ? 'Serafim Speaking' : 'Listening...'}
+            {isSpeaking ? 'Серафим говорит' : 'Слушаю...'}
           </h2>
           <p className="text-white/40 font-mono text-sm max-w-xs mx-auto leading-relaxed">
             {isConnecting ? 'Установка нейронного моста...' : 

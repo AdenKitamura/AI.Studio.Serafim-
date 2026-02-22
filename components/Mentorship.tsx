@@ -7,7 +7,7 @@ import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   Terminal, Volume2, VolumeX, Sparkles, X, Menu, Cpu,
-  Paperclip, SlidersHorizontal, Wand2, Activity, Play, Settings2
+  Paperclip, SlidersHorizontal, Wand2, Activity, Play, Settings2, AudioLines
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -598,7 +598,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                         onClick={onStartLiveAudio} 
                         className="p-2.5 rounded-xl transition-all active:scale-95 text-emerald-400 hover:text-white hover:bg-emerald-500/20"
                       >
-                          <Activity size={20} />
+                          <AudioLines size={20} />
                       </button>
                       <button 
                         onClick={toggleRecording} 

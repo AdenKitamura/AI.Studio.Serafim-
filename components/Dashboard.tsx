@@ -252,7 +252,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         onOpenMenu={openMenu}
         toolL={{ icon: <Plus size={22} />, onClick: () => onNavigate('planner') }}
         toolR={{ icon: <Sparkles size={22} />, onClick: () => onNavigate('thoughts') }}
-        centerAction={onStartLiveAudio}
       />
 
     </div>
