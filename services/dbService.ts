@@ -149,7 +149,7 @@ class DBService {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-    this.pushToCloud(storeName, item);
+    await this.pushToCloud(storeName, item);
   }
 
   async deleteItem(storeName: string, id: string): Promise<void> {

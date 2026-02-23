@@ -56,7 +56,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         attachments: viewingThought.attachments,
         sections: viewingThought.sections
       });
-    }, 1000);
+    }, 500); // Reduced to 500ms
 
     return () => clearTimeout(timeoutId);
   }, [viewingThought, onUpdate]);
@@ -68,6 +68,21 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
       setActiveSectionId(firstSectionId);
     }
   }, [viewingThought?.id]);
+
+  const handleClose = () => {
+      if (viewingThought && onUpdate) {
+          // Force immediate save before closing
+          onUpdate(viewingThought.id, {
+            content: viewingThought.content,
+            notes: viewingThought.notes,
+            tags: viewingThought.tags,
+            category: viewingThought.category,
+            attachments: viewingThought.attachments,
+            sections: viewingThought.sections
+          });
+      }
+      setViewingThought(null);
+  };
 
   const handleManualAdd = () => {
     if (!newContent.trim() && !newUrl.trim()) return;
@@ -358,7 +373,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                     </div>
                   </div>
                 </div>
-                <button onClick={() => setViewingThought(null)} className="p-3 bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-xl border border-[var(--border-color)]">
+                <button onClick={handleClose} className="p-3 bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-xl border border-[var(--border-color)]">
                   <X size={18}/>
                 </button>
               </div>
