@@ -43,16 +43,19 @@ const tools: FunctionDeclaration[] = [
     }
   },
   {
-    name: "create_idea",
-    description: "Создает новую ИДЕЮ/ЗАМЕТКУ в Архиве.",
+    name: "manage_thought",
+    description: "Управляет идеями и заметками (создание, обновление).",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        title: { type: Type.STRING },
-        content: { type: Type.STRING },
-        tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+        action: { type: Type.STRING, enum: ["create", "update"] },
+        id: { type: Type.STRING, description: "ID идеи (обязательно для update)" },
+        content: { type: Type.STRING, description: "Основной текст идеи" },
+        notes: { type: Type.STRING, description: "Дополнительные заметки" },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+        mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию replace." }
       },
-      required: ["title"]
+      required: ["action"]
     }
   },
   {
@@ -123,7 +126,10 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
   const taskSummary = `TASKS: ${activeTasks.length} pending.`;
 
-  // 3. GLOBAL CHAT HISTORY (Last 3 days context)
+  // 3. Recent Thoughts
+  const recentThoughts = (context.thoughts || []).slice(0, 10).map((t: Thought) => `- ${t.content} (ID: ${t.id})`).join('\n');
+
+  // 4. GLOBAL CHAT HISTORY (Last 3 days context)
   let globalHistory = '';
   if (context.sessions && Array.isArray(context.sessions)) {
       const threeDaysAgo = new Date();
@@ -155,7 +161,7 @@ ${limitedHistory.map((m: any) => `[${format(new Date(m.timestamp), 'dd MMM HH:mm
       }
   }
 
-  const SYSTEM_INSTRUCTION = `
+    const SYSTEM_INSTRUCTION = `
 Ты — Serafim OS v4.
 Текущее время: ${today}.
 Пользователь: ${context.userName || 'Архитектор'}.
@@ -175,10 +181,21 @@ ${limitedHistory.map((m: any) => `[${format(new Date(m.timestamp), 'dd MMM HH:mm
 2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в память...".
 3. **РЕЖИМ ДНЕВНИКА**: Если пользователь просит записать мысли за последние дни, проанализируй GLOBAL CONTEXT, составь красивую выжимку и предложи сохранить её в дневник (функция save_journal_entry).
 4. **УПРАВЛЕНИЕ ГОЛОСОМ**: Если пользователь просит "говорить шепотом", "томным голосом" или включить "ас мр режим", используй инструмент ui_control с командой 'enable_asmr'.
+5. **РЕЖИМ "БРИФИНГ"**: Если пользователь просит "Брифинг" или "Сводку", ты должен:
+    - Назвать текущую дату и время.
+    - Озвучить главные задачи на сегодня.
+    - Напомнить о важных мыслях.
+6. **ПРАВИЛА РЕДАКТИРОВАНИЯ (КРИТИЧНО)**:
+    - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ДОБАВИТЬ", "ДОПИСАТЬ", "ПРОДОЛЖИТЬ": Используй параметр mode='append'. Это сохранит старый текст и добавит новый в конец.
+    - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ИСПРАВИТЬ", "ПЕРЕПИСАТЬ", "ЗАМЕНИТЬ": Используй параметр mode='replace'. Это полностью заменит текст.
+    - Если не уверен, используй mode='append', чтобы не потерять данные.
 
 КОНТЕКСТ:
 ${memoryContext}
 ${taskSummary}
+[НЕДАВНИЕ МЫСЛИ]:
+${recentThoughts}
+
 ${globalHistory}
 `;
 
@@ -188,7 +205,7 @@ ${globalHistory}
     model: modelName,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: tools }], // googleSearch removed to fix conflict with function calling
+      tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
       temperature: 1.0,
       safetySettings: SAFETY_SETTINGS, // <--- ОТКЛЮЧАЕМ ФИЛЬТРЫ ЗДЕСЬ
     }

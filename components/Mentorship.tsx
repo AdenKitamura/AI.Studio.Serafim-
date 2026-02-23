@@ -409,8 +409,27 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 logger.log('Tool', `Task created: ${args.title}`, 'success');
               }
               break;
-            case 'create_idea':
-              onAddThought({ id: Date.now().toString(), content: args.title, notes: args.content, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
+            case 'manage_thought':
+              if (args.action === 'create') {
+                  onAddThought({ id: Date.now().toString(), content: args.content || 'Новая идея', notes: args.notes, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
+                  logger.log('Tool', `Idea created.`, 'success');
+              } else if (args.action === 'update' && args.id) {
+                  const existing = thoughts.find(t => t.id === args.id);
+                  let updateContent = args.content;
+                  let updateNotes = args.notes;
+
+                  if (args.mode === 'append' && existing) {
+                      if (updateContent) updateContent = existing.content + ' ' + updateContent;
+                      if (updateNotes) updateNotes = (existing.notes || '') + '\n' + updateNotes;
+                  }
+
+                  const updates: any = {};
+                  if (updateContent) updates.content = updateContent;
+                  if (updateNotes) updates.notes = updateNotes;
+                  if (args.tags) updates.tags = args.tags;
+                  onUpdateThought(args.id, updates);
+                  logger.log('Tool', `Idea updated.`, 'success');
+              }
               break;
             case 'save_journal_entry':
               onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });

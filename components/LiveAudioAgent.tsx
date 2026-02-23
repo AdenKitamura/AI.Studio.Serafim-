@@ -64,9 +64,10 @@ const tools: FunctionDeclaration[] = [
       properties: {
         action: { type: Type.STRING, enum: ["create", "update"] },
         id: { type: Type.STRING, description: "ID идеи (обязательно для update)" },
-        title: { type: Type.STRING },
-        content: { type: Type.STRING },
-        tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+        content: { type: Type.STRING, description: "Основной текст идеи" },
+        notes: { type: Type.STRING, description: "Дополнительные заметки" },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+        mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию replace." }
       },
       required: ["action"]
     }
@@ -187,11 +188,22 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       const SYSTEM_INSTRUCTION = `
       Ты — Serafim OS (Live Voice Core).
       Пользователь: ${userName}.
+      Текущее время: ${new Date().toLocaleString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.
       
       ТВОИ ВОЗМОЖНОСТИ:
       1. Управление задачами, проектами, заметками, привычками (СОЗДАНИЕ И РЕДАКТИРОВАНИЕ).
-      2. Поиск информации в Интернете (Google Search) - ИСПОЛЬЗУЙ ЭТО ДЛЯ АКТУАЛЬНЫХ ДАННЫХ.
+      2. Поиск информации в Интернете (Google Search) - ИСПОЛЬЗУЙ ЭТО ДЛЯ АКТУАЛЬНЫХ ДАННЫХ (Погода, Новости).
       3. Поддержка диалога, советы, менторство.
+      4. РЕЖИМ "БРИФИНГ": Если пользователь просит "Брифинг" или "Сводку", ты должен:
+         - Назвать текущую дату и время.
+         - Найти текущую погоду (используй googleSearch, спроси город если не знаешь).
+         - Озвучить главные задачи на сегодня.
+         - Напомнить о важных мыслях.
+
+      ПРАВИЛА РЕДАКТИРОВАНИЯ (КРИТИЧНО ВАЖНО):
+      - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ДОБАВИТЬ", "ДОПИСАТЬ", "ПРОДОЛЖИТЬ": Используй параметр mode='append'. Это сохранит старый текст и добавит новый в конец.
+      - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ИСПРАВИТЬ", "ПЕРЕПИСАТЬ", "ЗАМЕНИТЬ": Используй параметр mode='replace'. Это полностью заменит текст.
+      - Если не уверен, используй mode='append', чтобы не потерять данные.
 
       ТЕКУЩИЙ КОНТЕКСТ ПРИЛОЖЕНИЯ (Используй ID для редактирования):
       
@@ -336,10 +348,19 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        break;
                      case 'manage_thought': // Renamed from create_idea
                        if (args.action === 'create') {
-                           onAddThought({ id: Date.now().toString(), content: args.title, notes: args.content, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
-                           result = { result: `Idea "${args.title}" saved.` };
+                           onAddThought({ id: Date.now().toString(), content: args.content || 'Новая идея', notes: args.notes, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
+                           result = { result: `Idea created.` };
                        } else if (args.action === 'update' && args.id) {
-                           const updates = cleanUpdates({ content: args.title, notes: args.content, tags: args.tags });
+                           const existing = thoughts.find(t => t.id === args.id);
+                           let updateContent = args.content;
+                           let updateNotes = args.notes;
+                           
+                           if (args.mode === 'append' && existing) {
+                               if (updateContent) updateContent = existing.content + ' ' + updateContent;
+                               if (updateNotes) updateNotes = (existing.notes || '') + '\n' + updateNotes;
+                           }
+
+                           const updates = cleanUpdates({ content: updateContent, notes: updateNotes, tags: args.tags });
                            onUpdateThought(args.id, updates);
                            result = { result: `Idea updated.` };
                        }
