@@ -263,6 +263,36 @@ const App = () => {
 
   const isModalOpen = showSettings || showChatHistory || showQuotes || showTimer;
 
+  // --- GESTURE HANDLING ---
+  const touchStart = React.useRef<{ x: number, y: number } | null>(null);
+  const touchEnd = React.useRef<{ x: number, y: number } | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+      touchEnd.current = null; 
+      touchStart.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY };
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+      touchEnd.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY };
+  };
+
+  const onTouchEnd = () => {
+      if (!touchStart.current || !touchEnd.current) return;
+      
+      const distanceX = touchStart.current.x - touchEnd.current.x;
+      const distanceY = touchStart.current.y - touchEnd.current.y;
+      const isRightSwipe = distanceX < -100; // Swiped right (negative distance)
+      const isEdgeStart = touchStart.current.x < 50; // Started from left edge (increased to 50px for better detection)
+      
+      // Check if it's mostly horizontal and valid back gesture
+      if (isRightSwipe && isEdgeStart && Math.abs(distanceY) < 60) {
+          // Only go back if we are not on the dashboard (root)
+          if (view !== 'dashboard') {
+             window.history.back();
+          }
+      }
+  };
+
   if (authLoading) return <div className="h-screen w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-emerald-500" size={48} /></div>;
 
   if (!session) {
@@ -272,7 +302,12 @@ const App = () => {
   if (!isDataReady) return <div className="h-full w-full flex items-center justify-center bg-black text-white"><Loader2 className="animate-spin text-indigo-500" size={48} /></div>;
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-transparent relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row">
+    <div 
+      className="h-[100dvh] w-full overflow-hidden bg-transparent relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       <BackgroundGlow />
       
       {/* Global Live Agent */}
