@@ -148,6 +148,22 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const playbackQueueRef = useRef<Float32Array[]>([]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Если открыт голосовой агент или идет генерация - блокируем закрытие
+      if (isConnected) {
+        e.preventDefault();
+        e.returnValue = ''; // Эта строка нужна для Chrome, чтобы показать окно "Покинуть сайт?"
+      }
+    };
+  
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isConnected]);
   const isPlayingRef = useRef(false);
   const nextPlayTimeRef = useRef(0);
 
