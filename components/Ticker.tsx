@@ -5,42 +5,31 @@ interface TickerProps {
   onClick?: () => void;
 }
 
+const RUSSIAN_QUOTES = [
+  "Сделай шаг, и дорога появится сама. — Стив Джобс",
+  "Не бойтесь ошибаться, бойтесь не пробовать. — Джейсон Стейтем",
+  "Успех — это способность шагать от одной неудачи к другой, не теряя энтузиазма. — Уинстон Черчилль",
+  "Лучший способ предсказать будущее — создать его. — Питер Друкер",
+  "Ваше время ограничено, не тратьте его, живя чужой жизнью. — Стив Джобс",
+  "Сложнее всего начать действовать, все остальное зависит только от упорства. — Амелия Эрхарт",
+  "Жизнь — это то, что с тобой происходит, пока ты строишь планы. — Джон Леннон",
+  "Через 20 лет вы будете больше жалеть о том, что не сделали, чем о том, что сделали. — Марк Твен",
+  "Стремитесь не к успеху, а к ценностям, которые он дает. — Альберт Эйнштейн",
+  "Свобода ничего не стоит, если она не включает в себя свободу ошибаться. — Махатма Ганди",
+  "Единственный способ делать великие дела — любить то, что вы делаете. — Стив Джобс",
+  "Никогда не поздно стать тем, кем тебе хочется быть. — Джордж Элиот",
+  "Победа — это еще не все, все — это постоянное желание побеждать. — Винс Ломбарди",
+  "Вы никогда не пересечете океан, если не наберетесь смелости потерять из виду берег. — Христофор Колумб",
+  "Два самых важных дня в твоей жизни: день, когда ты появился на свет, и день, когда понял зачем. — Марк Твен"
+];
+
 const Ticker: React.FC<TickerProps> = ({ onClick }) => {
   const [items, setItems] = useState<string[]>([]);
 
-  const fetchDailyQuotes = async () => {
-    const today = new Date().toDateString();
-    const stored = localStorage.getItem('daily_quotes');
-    
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed.date === today && parsed.quotes.length > 0) {
-        setItems(parsed.quotes);
-        return;
-      }
-    }
-
-    try {
-      // Fetch from external source
-      const res = await fetch('https://dummyjson.com/quotes?limit=15');
-      const data = await res.json();
-      const newQuotes = data.quotes.map((q: any) => `${q.quote} — ${q.author}`);
-      
-      localStorage.setItem('daily_quotes', JSON.stringify({
-        date: today,
-        quotes: newQuotes
-      }));
-      setItems(newQuotes);
-    } catch (e) {
-      console.error("Failed to fetch quotes", e);
-      // Fallback to local service
-      const fallback = getAllQuotes().map(q => q.text).sort(() => Math.random() - 0.5).slice(0, 15);
-      setItems(fallback);
-    }
-  };
-
   useEffect(() => {
-    fetchDailyQuotes();
+    // Shuffle and pick
+    const shuffled = [...RUSSIAN_QUOTES].sort(() => 0.5 - Math.random());
+    setItems(shuffled);
   }, []);
 
   if (items.length === 0) return null;

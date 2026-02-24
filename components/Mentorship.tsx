@@ -7,7 +7,7 @@ import { logger, SystemLog } from '../services/logger';
 import { 
   Loader2, ArrowUp, Mic, MicOff, 
   Terminal, Volume2, VolumeX, Sparkles, X, Menu, Cpu,
-  Paperclip, SlidersHorizontal, Wand2, Activity, Play, Settings2, AudioLines
+  Paperclip, SlidersHorizontal, Wand2, Activity, Play, Settings2, AudioLines, History
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -44,6 +44,7 @@ interface MentorshipProps {
   session: any; 
   onNavigate?: (view: any) => void; 
   onStartLiveAudio: () => void;
+  onOpenHistory: () => void; // New prop
 }
 
 const VOICES = [
@@ -58,7 +59,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
     onAddTask, onUpdateTask, onAddThought, onUpdateThought, onAddProject, onUpdateProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
-    hasAiKey, onConnectAI, userName, voiceTrigger, session, onStartLiveAudio
+    hasAiKey, onConnectAI, userName, voiceTrigger, session, onStartLiveAudio, onOpenHistory
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -478,6 +479,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
+         <button onClick={onOpenHistory} className="p-2 rounded-xl backdrop-blur-md border bg-black/20 text-white/50 border-white/10 hover:text-white transition-all"><History size={16} /></button>
          <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><SlidersHorizontal size={16} /></button>
          <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
       </div>

@@ -108,9 +108,14 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
   if (isFullscreen) {
       const progress = ((activeTimer.duration * 60 - activeTimer.remaining) / (activeTimer.duration * 60)) * 100;
       return (
-          <div className={`fixed inset-0 z-[200] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-center animate-in fade-in duration-500 transition-transform ${isLandscape ? 'rotate-90' : ''}`}>
+          <div className={`fixed z-[200] bg-[#09090b]/95 backdrop-blur-3xl flex flex-col items-center justify-between animate-in fade-in duration-500 transition-all
+            ${isLandscape 
+              ? 'w-[100vh] h-[100vw] rotate-90 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' 
+              : 'inset-0'
+            }
+          `}>
               {/* Header Controls */}
-              <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-50">
+              <div className="w-full p-8 flex justify-between items-start z-50">
                   <div className="flex gap-4">
                       {timers.map(t => (
                           <button 
@@ -133,9 +138,9 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
               </div>
 
               {/* Main Timer Display */}
-              <div className="relative flex flex-col items-center z-10 w-full px-10">
+              <div className="flex-1 flex flex-col items-center justify-center z-10 w-full px-10">
                   <div className="text-[12px] font-black text-[var(--accent)] uppercase tracking-[0.5em] mb-4 opacity-80 animate-pulse">{activeTimer.label}</div>
-                  <div className="text-[15vw] leading-none font-bold text-white tracking-tighter drop-shadow-2xl whitespace-nowrap tabular-nums">
+                  <div className="text-[20vmin] leading-none font-bold text-white tracking-tighter drop-shadow-2xl whitespace-nowrap tabular-nums">
                       {formatTime(activeTimer.remaining)}
                   </div>
               </div>
@@ -144,7 +149,7 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ onClose }) => {
               <div className="absolute bottom-0 left-0 h-2 bg-[var(--accent)] transition-all duration-1000" style={{ width: `${progress}%` }}></div>
 
               {/* Controls */}
-              <div className="absolute bottom-20 flex gap-8 z-50">
+              <div className="pb-20 flex gap-8 z-50">
                   <button onClick={() => resetTimer(activeTimer.id)} className="p-6 rounded-full border border-white/20 text-white/50 hover:text-white hover:border-white transition-all">
                       <RotateCcw size={32} />
                   </button>

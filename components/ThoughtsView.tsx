@@ -135,7 +135,8 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
   const openMenu = () => { const menuBtn = document.getElementById('sidebar-trigger'); if(menuBtn) menuBtn.click(); };
 
   const filteredThoughts = thoughts.filter(t => {
-    const cat = t.category || 'Входящие';
+    if (t.type === 'quote' || t.category === 'Wisdom') return false; // Exclude quotes (Wisdom Archive)
+    const cat = t.category || 'Мысли';
     const matchesCategory = activeCategory === 'Все' || cat === activeCategory;
     const matchesTag = activeTag ? t.tags?.includes(activeTag) : true;
     return matchesCategory && matchesTag;

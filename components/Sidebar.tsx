@@ -1,5 +1,5 @@
 import React from 'react';
-import { ViewState, ChatSession } from '../types';
+import { ViewState } from '../types';
 import { 
   LayoutDashboard, 
   MessageSquare, 
@@ -10,9 +10,10 @@ import {
   Settings, 
   History, 
   Activity, 
-  Plus,
   LogOut,
-  X
+  X,
+  Mic,
+  Clock
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
@@ -22,9 +23,10 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenHistory: () => void;
   onVoiceChat: () => void;
+  onStartFocus: () => void; // New prop
   userName: string;
-  isOpen: boolean;       // New prop for mobile state
-  onClose: () => void;   // New prop to close sidebar
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -33,17 +35,19 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings, 
   onOpenHistory, 
   onVoiceChat,
+  onStartFocus,
   userName,
   isOpen,
   onClose
 }) => {
 
   const menuItems = [
-    { id: 'dashboard', label: 'Обзор', icon: <LayoutDashboard size={20} /> },
-    { id: 'chat', label: 'Ассистент', icon: <MessageSquare size={20} /> },
-    { id: 'planner', label: 'Планнер', icon: <Calendar size={20} /> },
+    { id: 'dashboard', label: 'Дашборд', icon: <LayoutDashboard size={20} /> },
+    { id: 'chat', label: 'Чат', icon: <MessageSquare size={20} /> },
+    { id: 'live', label: 'Live Режим', icon: <Mic size={20} />, action: onVoiceChat },
+    { id: 'planner', label: 'Задачи', icon: <Calendar size={20} /> },
     { id: 'projects', label: 'Проекты', icon: <Folder size={20} /> },
-    { id: 'thoughts', label: 'Мысли', icon: <Zap size={20} /> },
+    { id: 'thoughts', label: 'Память', icon: <Zap size={20} /> },
     { id: 'journal', label: 'Дневник', icon: <BookOpen size={20} /> },
     { id: 'analytics', label: 'Аналитика', icon: <Activity size={20} /> },
   ];
@@ -53,9 +57,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     window.location.reload();
   };
 
-  const handleNavClick = (view: ViewState) => {
-    onNavigate(view);
-    onClose(); // Close sidebar on mobile after selection
+  const handleItemClick = (item: any) => {
+    if (item.action) {
+      item.action();
+    } else {
+      onNavigate(item.id as ViewState);
+    }
+    onClose();
   };
 
   return (
@@ -114,7 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             return (
               <button
                 key={item.id}
-                onClick={() => handleNavClick(item.id as ViewState)}
+                onClick={() => handleItemClick(item)}
                 className={`
                   w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group relative overflow-hidden
                   ${isActive 
@@ -141,11 +149,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <button 
-            onClick={() => { onOpenHistory(); onClose(); }}
+            onClick={() => { onStartFocus(); onClose(); }}
             className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all group"
           >
-             <History size={20} className="group-hover:text-indigo-400 transition-colors" />
-             <span className="text-sm font-bold">История чатов</span>
+             <Clock size={20} className="group-hover:text-orange-400 transition-colors" />
+             <span className="text-sm font-bold">Фокус-Таймер</span>
           </button>
 
         </nav>

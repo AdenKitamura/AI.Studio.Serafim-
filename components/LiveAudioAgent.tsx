@@ -67,7 +67,7 @@ const tools: FunctionDeclaration[] = [
         content: { type: Type.STRING, description: "Основной текст идеи" },
         notes: { type: Type.STRING, description: "Дополнительные заметки" },
         tags: { type: Type.ARRAY, items: { type: Type.STRING } },
-        mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию replace." }
+        mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию append." }
       },
       required: ["action"]
     }
@@ -352,6 +352,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            result = { result: `Idea created.` };
                        } else if (args.action === 'update' && args.id) {
                            const existing = thoughts.find(t => t.id === args.id);
+                           if (!args.mode) args.mode = 'append';
                            let updateContent = args.content;
                            let updateNotes = args.notes;
                            
@@ -446,26 +447,45 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     processQueue();
   };
 
-  const processQueue = () => {
+  const processQueue = async () => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
 
-    while (playbackQueueRef.current.length > 0) {
-        const float32Data = playbackQueueRef.current.shift()!;
-        const buffer = ctx.createBuffer(1, float32Data.length, 24000);
-        buffer.copyToChannel(float32Data as any, 0);
-
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-
-        if (nextPlayTimeRef.current < ctx.currentTime) {
-            nextPlayTimeRef.current = ctx.currentTime + 0.05;
-        }
-
-        source.start(nextPlayTimeRef.current);
-        nextPlayTimeRef.current += buffer.duration;
+    if (ctx.state === 'suspended') {
+        await ctx.resume();
     }
+
+    if (playbackQueueRef.current.length === 0) return;
+
+    const chunks = [...playbackQueueRef.current];
+    playbackQueueRef.current = [];
+
+    // Calculate total length
+    let totalLen = 0;
+    for (const chunk of chunks) {
+        totalLen += chunk.length;
+    }
+
+    const combinedData = new Float32Array(totalLen);
+    let offset = 0;
+    for (const chunk of chunks) {
+        combinedData.set(chunk, offset);
+        offset += chunk.length;
+    }
+
+    const buffer = ctx.createBuffer(1, combinedData.length, 24000);
+    buffer.copyToChannel(combinedData, 0);
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+
+    if (nextPlayTimeRef.current < ctx.currentTime) {
+        nextPlayTimeRef.current = ctx.currentTime + 0.05;
+    }
+
+    source.start(nextPlayTimeRef.current);
+    nextPlayTimeRef.current += buffer.duration;
 
     // Update UI state
     setIsSpeaking(true);
@@ -475,7 +495,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     const timeUntilEnd = (nextPlayTimeRef.current - ctx.currentTime) * 1000;
     silenceTimeoutRef.current = setTimeout(() => {
         setIsSpeaking(false);
-    }, timeUntilEnd + 100); // Small buffer
+    }, timeUntilEnd + 200); // Increased buffer slightly
   };
 
   const stopLiveSession = () => {

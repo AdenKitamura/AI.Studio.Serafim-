@@ -252,7 +252,7 @@ const App = () => {
       persist('journal', newEntry);
   };
 
-  const handleStartFocus = (mins: number) => { setShowTimer(true); };
+  const handleStartFocus = (mins?: number) => { setShowTimer(true); };
   
   const hasAiKey = useMemo(() => {
      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
@@ -343,7 +343,8 @@ const App = () => {
         onNavigate={navigateTo} 
         onOpenSettings={() => setShowSettings(true)}
         onOpenHistory={() => setShowChatHistory(true)}
-        onVoiceChat={() => setShowLiveAgent(true)} // Changed to open Live Agent
+        onVoiceChat={() => setShowLiveAgent(true)} 
+        onStartFocus={handleStartFocus}
         userName={userName}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -497,7 +498,15 @@ const App = () => {
           <QuotesLibrary 
             myQuotes={thoughts} 
             onAddQuote={(text, author, cat) => { 
-                const q: Thought = { id: Date.now().toString(), content: text, author, type: 'quote', tags: [cat], createdAt: new Date().toISOString() }; 
+                const q: Thought = { 
+                  id: Date.now().toString(), 
+                  content: text, 
+                  notes: author, // Store author in notes
+                  type: 'quote', 
+                  tags: [cat], 
+                  category: 'Wisdom', // Explicit category for quotes
+                  createdAt: new Date().toISOString() 
+                }; 
                 setThoughts([q, ...thoughts]); 
                 persist('thoughts', q); 
             }} 
