@@ -295,33 +295,53 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
   const processAudioBlob = async (blob: Blob) => {
       setIsProcessingAudio(true);
+      logger.log('Audio', `Начало обработки. Размер: ${blob.size} байт, Тип: ${blob.type}`, 'info');
+
+      if (blob.size < 500) {
+          logger.log('Audio', 'Аудио слишком короткое, отмена.', 'warning');
+          setIsProcessingAudio(false);
+          return;
+      }
 
       try {
           const reader = new FileReader();
           reader.readAsDataURL(blob);
+          
           reader.onloadend = async () => {
               const result = reader.result as string;
-              const base64Audio = result.split(',')[1];
+              // ВАЖНО: Отрезаем "data:audio/webm;base64,"
+              const base64Audio = result.split(',')[1]; 
               
               if (!base64Audio) {
-                  logger.log('Audio', 'Failed to convert to Base64', 'error');
+                  logger.log('Audio', 'Ошибка: не удалось получить Base64', 'error');
                   setIsProcessingAudio(false);
                   return;
               }
 
-              logger.log('Audio', `Sending to AI...`, 'info');
-              const text = await transcribeAudio(base64Audio, mimeTypeRef.current || blob.type);
+              logger.log('Audio', 'Отправка в Gemini для транскрибации...', 'info');
               
-              if (text && text.length > 0) {
-                  logger.log('Audio', `Recognized: "${text}"`, 'success');
-                  handleSend(text);
+              // Вызываем функцию из geminiService
+              const text = await transcribeAudio(base64Audio, blob.type);
+              
+              if (text && text.trim().length > 0) {
+                  logger.log('Audio', `Распознано: "${text}"`, 'success');
+                  // Отправляем текст в чат (или вставляем в инпут)
+                  handleSend(text); 
               } else {
-                  logger.log('Audio', 'No speech detected by AI', 'warning');
+                  logger.log('Audio', 'Gemini вернул пустой текст', 'warning');
               }
               setIsProcessingAudio(false);
           };
-      } catch (e) {
-          logger.log('Audio', 'Processing Failed', 'error');
+
+          reader.onerror = (e) => {
+              console.error("FileReader error:", e);
+              logger.log('Audio', 'Ошибка чтения файла', 'error');
+              setIsProcessingAudio(false);
+          }
+
+      } catch (e: any) {
+          console.error("Audio Processing Error:", e);
+          logger.log('Audio', `Сбой обработки: ${e.message}`, 'error');
           setIsProcessingAudio(false);
       }
   };

@@ -353,53 +353,45 @@ export const polishText = async (text: string): Promise<string> => {
 };
 
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        console.error("API Key missing in transcribeAudio");
-        return "";
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
     try {
-        let cleanMime = mimeType;
-        if (mimeType.includes(';')) {
-            cleanMime = mimeType.split(';')[0].trim();
-        }
-        
-        if (!cleanMime) cleanMime = 'audio/mp4';
+        const apiKey = process.env.VITE_GOOGLE_API_KEY || localStorage.getItem('google_api_key') || '';
+        const ai = new GoogleGenAI({ apiKey });
 
-        console.log(`Sending audio to Gemini. Mime: ${cleanMime}, Length: ${base64Audio.length}`);
+        // Важно: если mimeType пустой, ставим дефолтный (обычно это Chrome)
+        const finalMimeType = mimeType || 'audio/webm';
+
+        console.log(`📡 Отправка аудио в Gemini... MIME: ${finalMimeType}`);
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash-exp", 
-            contents: [{
-                parts: [
-                    {
-                        inlineData: {
-                            mimeType: cleanMime, 
-                            data: base64Audio
+            // Используем Flash, он быстрый и отлично понимает звук
+            model: 'gemini-1.5-flash', 
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        { 
+                            // Жесткий промпт, чтобы он не умничал, а только транскрибировал
+                            text: 'Ты — профессиональный транскрибатор. Точно переведи это аудио в текст. Верни ТОЛЬКО распознанный текст без кавычек, комментариев и форматирования. Если на аудио тишина или шум — верни пустоту.' 
+                        },
+                        {
+                            inlineData: {
+                                mimeType: finalMimeType,
+                                data: base64Audio
+                            }
                         }
-                    },
-                    {
-                        text: "Transcribe the spoken language in this audio exactly. Return ONLY the text. If you hear speech, write it down. Ignore background noise."
-                    }
-                ]
-            }],
-            config: {
-                safetySettings: SAFETY_SETTINGS
-            }
+                    ]
+                }
+            ]
         });
-        
-        const resultText = response.text?.trim();
-        if (!resultText) {
-            console.warn("Gemini returned empty transcription");
-            return "";
-        }
-        return resultText;
 
-    } catch (e: any) {
-        console.error("Transcription Error Full:", e);
-        if (e.message) console.error("Error Message:", e.message);
-        return "";
+        const transcribedText = response.text || '';
+        console.log(`✅ Транскрибация успешна: ${transcribedText}`);
+        
+        return transcribedText;
+
+    } catch (error: any) {
+        console.error("❌ Ошибка Gemini transcribeAudio:", error);
+        // Пробрасываем ошибку дальше, чтобы увидеть ее в логах компонента
+        throw error; 
     }
 };
