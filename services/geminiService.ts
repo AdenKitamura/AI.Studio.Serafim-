@@ -129,33 +129,21 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   // 3. Recent Thoughts
   const recentThoughts = (context.thoughts || []).slice(0, 10).map((t: Thought) => `- ${t.content} (ID: ${t.id})`).join('\n');
 
-  // 4. GLOBAL CHAT HISTORY (Last 3 days context)
+// 4. СМАРТ-ИСТОРИЯ (GLOBAL CONTEXT)
   let globalHistory = '';
   if (context.sessions && Array.isArray(context.sessions)) {
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      
-      // Get messages from all OTHER sessions in the last 3 days
-      const recentMessages = context.sessions
-          .flatMap((s: ChatSession) => {
-              // Ignore empty sessions or current empty session if implied
-              if (!s.messages || s.messages.length === 0) return [];
-              return s.messages.map(m => ({
-                  ...m,
-                  sessionTitle: s.title
-              }));
-          })
-          .filter((m: any) => isAfter(new Date(m.timestamp), threeDaysAgo))
-          .sort((a: any, b: any) => a.timestamp - b.timestamp); // Sort Chronologically
+      // Собираем только конспекты (summary) из ДРУГИХ чатов
+      const pastSummaries = context.sessions
+          .filter((s: ChatSession) => s.id !== context.activeSessionId) // Исключаем текущий чат
+          .filter((s: ChatSession) => s.summary && s.summary.trim().length > 0) // Берем только те, где есть конспект
+          .map((s: ChatSession) => `[Сессия: ${s.title}]\n${s.summary}`)
+          .join('\n\n');
 
-      if (recentMessages.length > 0) {
-          // Limit to reduce token cost if user talks A LOT (e.g. keep last 200 turns across all chats)
-          const limitedHistory = recentMessages.slice(-150); 
-          
+      if (pastSummaries.length > 0) {
           globalHistory = `
-GLOBAL CONTEXT (Последние разговоры из других чатов за 3 дня):
-Это контекст того, что пользователь обсуждал с тобой ранее в других сессиях. Используй это, чтобы помнить события, но не повторяйся.
-${limitedHistory.map((m: any) => `[${format(new Date(m.timestamp), 'dd MMM HH:mm')}] ${m.role === 'user' ? 'Пользователь' : 'Серафим'}: ${m.content.substring(0, 500)}`).join('\n')}
+GLOBAL CONTEXT (Выжимка из прошлых бесед):
+Ниже приведены сжатые факты из предыдущих сессий. Используй их, чтобы понимать контекст жизни пользователя, но не повторяй их без необходимости.
+${pastSummaries}
 --------------------------------------------------
 `;
       }
@@ -241,6 +229,41 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
     } catch (e) {
         console.error("Speech Generation Error:", e);
         return null;
+    }
+};
+
+export const generateSessionSummary = async (messages: ChatMessage[]): Promise<string> => {
+    // Если сообщений мало, нет смысла тратить токены на сжатие
+    if (messages.length < 4) return ""; 
+
+    const apiKey = getApiKey();
+    if (!apiKey) return "";
+    
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Берем только текст, чтобы не гонять лишний JSON
+    const rawText = messages.map(m => `${m.role === 'user' ? 'Юзер' : 'Серафим'}: ${m.content}`).join('\n');
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview", // Используем самую дешевую модель для черновой работы
+            contents: `
+                Твоя задача — сжать этот диалог. 
+                Выдели 3-5 самых важных фактов, идей или решений, к которым пришли пользователь и ИИ.
+                Напиши максимально кратко, тезисно, без воды. Это нужно для сохранения в долгосрочную память.
+                
+                Диалог:
+                ${rawText}
+            `,
+            config: { 
+                temperature: 0.2, // Низкая температура для сухих фактов
+                safetySettings: SAFETY_SETTINGS 
+            }
+        });
+        return response.text?.trim() || "";
+    } catch (e) {
+        console.error("Summary Generation Error:", e);
+        return "";
     }
 };
 

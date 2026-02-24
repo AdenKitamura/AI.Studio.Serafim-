@@ -137,6 +137,7 @@ export interface ChatSession {
   messages: ChatMessage[];
   lastInteraction: number;
   createdAt: string;
+  summary?: string;
 }
 
 export interface Memory {

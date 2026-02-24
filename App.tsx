@@ -26,6 +26,8 @@ import {
 import { Session } from '@supabase/supabase-js';
 import LiveAudioAgent from './components/LiveAudioAgent';
 
+import { generateSessionSummary } from './services/geminiService';
+
 declare global {
   interface Window {
     deferredPrompt: any;
@@ -206,9 +208,41 @@ const App = () => {
 
   }, [currentTheme, iconWeight, geminiModel]);
 
+import { generateSessionSummary } from './services/geminiService';
+
+// ... (imports)
+
+const App = () => {
+  // ... (state)
+
   // --- HANDLERS ---
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
   const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };
+
+  // NEW: Handle Session Switching with Background Summarization
+  const handleSelectSession = async (newId: string) => {
+      const oldSessionId = activeSessionId;
+      setActiveSessionId(newId); // Мгновенно переключаем UI
+
+      // А В ФОНЕ (не блокируя интерфейс) жмем старую сессию:
+      if (oldSessionId && oldSessionId !== newId) {
+          const oldSession = sessions.find(s => s.id === oldSessionId);
+          // Сжимаем, только если там больше 4 сообщений и еще нет саммари (или оно устарело, но пока просто если нет)
+          if (oldSession && oldSession.messages.length >= 4 && !oldSession.summary) {
+              logger.log('Memory', `Compressing session ${oldSession.title}...`, 'info');
+              // Запускаем без await, чтобы не блочить UI, но нам нужен результат для сохранения
+              // Поэтому делаем это в отдельном промисе
+              generateSessionSummary(oldSession.messages).then(summary => {
+                  if (summary) {
+                      const updatedSession = { ...oldSession, summary };
+                      setSessions(prev => prev.map(s => s.id === oldSessionId ? updatedSession : s));
+                      persist('chat_sessions', updatedSession);
+                      logger.log('Memory', 'Session compressed and saved.', 'success');
+                  }
+              });
+          }
+      }
+  };
 
   const handleAddTask = (task: Task) => { 
       setTasks(prev => [task, ...prev]); 
@@ -420,7 +454,7 @@ const App = () => {
           {view === 'chat' && (
             <Mentorship 
               tasks={tasks} thoughts={thoughts} journal={journal} projects={projects} habits={habits} memories={memories}
-              sessions={sessions} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId}
+              sessions={sessions} activeSessionId={activeSessionId} onSelectSession={handleSelectSession}
               onUpdateMessages={(msgs) => { 
                   const sessionIndex = sessions.findIndex(s => s.id === activeSessionId);
                   if (sessionIndex === -1) return;
@@ -564,7 +598,7 @@ const App = () => {
           sessions={sessions} 
           activeSessionId={activeSessionId}
           projects={projects}
-          onSelectSession={(id) => { setActiveSessionId(id); navigateTo('chat'); setShowChatHistory(false); }}
+          onSelectSession={(id) => { handleSelectSession(id); navigateTo('chat'); setShowChatHistory(false); }}
           onNewSession={(title, projectId) => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
              setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false);
