@@ -26,6 +26,7 @@ interface LiveAudioAgentProps {
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
   onDeleteTask: (id: string) => void;
+  onLiveTextStream?: (text: string) => void;
 }
 
 const getApiKey = () => {
@@ -131,7 +132,7 @@ const tools: FunctionDeclaration[] = [
 const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ 
   onClose, userName, 
   tasks, thoughts, journal, projects, habits, memories,
-  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus
+  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus, onLiveTextStream
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
@@ -296,6 +297,13 @@ ${memoryContext}
               playbackQueueRef.current = [];
               isPlayingRef.current = false;
               setIsSpeaking(false);
+            }
+
+            const textPart = message.serverContent?.modelTurn?.parts?.find(p => p.text);
+            if (textPart && textPart.text) {
+                if (onLiveTextStream) {
+                    onLiveTextStream(textPart.text);
+                }
             }
 
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;

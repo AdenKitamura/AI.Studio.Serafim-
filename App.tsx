@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
@@ -64,6 +64,18 @@ const App = () => {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [voiceTrigger, setVoiceTrigger] = useState(0);
+  const [liveStreamText, setLiveStreamText] = useState<string>('');
+  const liveTextTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleLiveTextStream = (text: string) => {
+      setLiveStreamText(prev => {
+          const newText = prev + text;
+          return newText.length > 200 ? newText.slice(-200) : newText; // Keep last 200 chars
+      });
+      
+      if (liveTextTimeoutRef.current) clearTimeout(liveTextTimeoutRef.current);
+      liveTextTimeoutRef.current = setTimeout(() => setLiveStreamText(''), 4000);
+  };
 
   // --- NAVIGATION & HISTORY API ---
   useEffect(() => {
@@ -328,6 +340,7 @@ const App = () => {
           onAddTask={handleAddTask}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
+          onLiveTextStream={handleLiveTextStream}
           onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
           onUpdateThought={handleUpdateThought}
           onDeleteThought={handleDeleteThought}
@@ -338,6 +351,14 @@ const App = () => {
           onSetTheme={setCurrentTheme}
           onStartFocus={handleStartFocus}
         />
+      )}
+
+      {/* Live Text Stream Overlay */}
+      {showLiveAgent && liveStreamText && (
+          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] bg-black/60 backdrop-blur-md border border-white/10 px-6 py-3 rounded-full shadow-2xl pointer-events-none max-w-md w-full text-center animate-in fade-in slide-in-from-top-4">
+              <p className="text-emerald-400 text-sm font-mono tracking-wide mb-1">СЕРАФИМ ПИШЕТ...</p>
+              <p className="text-white/90 text-sm leading-relaxed">{liveStreamText}</p>
+          </div>
       )}
 
       {/* Hidden button for programmatic trigger from Dashboard */}
