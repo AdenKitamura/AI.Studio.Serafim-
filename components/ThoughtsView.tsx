@@ -36,7 +36,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
 
   // Derive categories from thoughts + defaults
   const categories = useMemo(() => {
-    const cats = new Set(['Все', 'Входящие']);
+    const cats = new Set(['Все', 'Мысли', 'Идеи', 'Хештеги', 'Zettelkasten']);
     thoughts.forEach(t => {
       if (t.category) cats.add(t.category);
     });
@@ -93,7 +93,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
     const allTags = [...new Set([...tags, ...contentTags])];
 
     const metadata = addType === 'link' ? { url: newUrl } : undefined;
-    const category = activeCategory === 'Все' ? 'Входящие' : activeCategory;
+    const category = activeCategory === 'Все' ? 'Мысли' : activeCategory;
 
     onAdd(newContent || newUrl, addType === 'link' ? 'link' : 'thought', allTags, { ...metadata, category });
     

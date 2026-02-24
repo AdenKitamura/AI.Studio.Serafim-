@@ -407,7 +407,8 @@ const App = () => {
               voiceTrigger={voiceTrigger}
               userName={userName}
               session={session}
-              onStartLiveAudio={() => setShowLiveAgent(true)} // Pass handler
+              onStartLiveAudio={() => setShowLiveAgent(true)} 
+              onOpenHistory={() => setShowChatHistory(true)}
             />
           )}
           {/* ... other views ... */}

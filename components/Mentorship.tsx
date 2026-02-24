@@ -44,7 +44,7 @@ interface MentorshipProps {
   session: any; 
   onNavigate?: (view: any) => void; 
   onStartLiveAudio: () => void;
-  onOpenHistory: () => void; // New prop
+  onOpenHistory: () => void;
 }
 
 const VOICES = [
