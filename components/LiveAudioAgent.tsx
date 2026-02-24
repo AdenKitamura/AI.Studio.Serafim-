@@ -67,8 +67,9 @@ const tools: FunctionDeclaration[] = [
       properties: {
         action: { type: Type.STRING, enum: ["create", "update", "delete"] },
         id: { type: Type.STRING, description: "ID идеи (обязательно для update/delete)" },
-        content: { type: Type.STRING, description: "Основной текст идеи" },
-        notes: { type: Type.STRING, description: "Дополнительные заметки" },
+        title: { type: Type.STRING, description: "Заголовок идеи (короткое название)" },
+        content: { type: Type.STRING, description: "Основной текст заметки/мысли (содержание)" },
+        sectionTitle: { type: Type.STRING, description: "Название раздела для заметки (по умолчанию 'Заметки')" },
         tags: { type: Type.ARRAY, items: { type: Type.STRING } },
         mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию append." }
       },
@@ -197,14 +198,14 @@ CORE BEHAVIORS:
 1. ACTIVE EDITING: You have full permission to modify, append, or delete content based on user intent. Do not ask "Should I change this?". If the user says "Rewrite this paragraph," just do it using the \`manage_thought\` tool.
 2. STREAMING FLOW: When generating new content, write progressively. Your text should flow naturally, like a stream of consciousness, but structured.
 3. STRUCTURED CREATION:
-   - If the user generates a new idea inside a thought, use \`manage_thought\` (action: create) to open a new text window/section.
+   - If the user generates a new idea inside a thought, use \`manage_thought\` (action: create) with \`title\` for the short name and \`content\` for the detailed body.
    - If the user mentions an action item (e.g., "I need to buy milk" or "Remind me to call"), IMMEDIATELY use the \`manage_task\` tool.
 4. DESTRUCTIVE ACTIONS: If the user says "Delete this" or "Clear this thought," use the \`manage_thought\` or \`manage_task\` tool with action 'delete'.
 
 ПРАВИЛА МАНИПУЛЯЦИИ ТЕКСТОМ (ОБЯЗАТЕЛЬНО):
 Ты не просто собеседник, ты — текстовый движок. 
-Если пользователь диктует новую мысль — ВЫЗОВИ manage_thought (action: create).
-Если пользователь говорит "добавь туда фразу X" — НАЙДИ ID мысли в контексте и ВЫЗОВИ manage_thought (action: update, mode: append).
+Если пользователь диктует новую мысль — ВЫЗОВИ manage_thought (action: create, title: "Короткое название", content: "Полный текст мысли").
+Если пользователь говорит "добавь туда фразу X" — НАЙДИ ID мысли в контексте и ВЫЗОВИ manage_thought (action: update, mode: append, content: "Фраза X").
 Если пользователь говорит "удали мысль про X" — НАЙДИ ID и ВЫЗОВИ manage_thought (action: delete).
 
 Не спрашивай "Добавить ли это?". Просто молча выполняй вызов функции (Tool Call) и голосом подтверждай "Сделано".
@@ -357,20 +358,62 @@ ${memoryContext}
                        break;
                      case 'manage_thought': // Renamed from create_idea
                        if (args.action === 'create') {
-                           onAddThought({ id: Date.now().toString(), content: args.content || 'Новая идея', notes: args.notes, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
-                           result = { result: `Idea created.` };
+                           const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая идея');
+                           const sectionTitle = args.sectionTitle || 'Заметки';
+                           const sectionContent = args.content || '';
+                           
+                           onAddThought({ 
+                               id: Date.now().toString(), 
+                               content: title, 
+                               notes: sectionContent, 
+                               sections: [{ id: 'default', title: sectionTitle, content: sectionContent }],
+                               type: 'idea', 
+                               tags: args.tags || [], 
+                               createdAt: new Date().toISOString() 
+                           });
+                           result = { result: `Idea "${title}" created.` };
                        } else if (args.action === 'update' && args.id) {
                            const existing = thoughts.find(t => t.id === args.id);
-                           if (!args.mode) args.mode = 'append';
-                           let updateContent = args.content;
-                           let updateNotes = args.notes;
-                           
-                           if (args.mode === 'append' && existing) {
-                               if (updateContent) updateContent = existing.content + ' ' + updateContent;
-                               if (updateNotes) updateNotes = (existing.notes || '') + '\n' + updateNotes;
+                           if (!existing) {
+                               result = { result: `Idea not found.` };
+                               break;
                            }
 
-                           const updates = cleanUpdates({ content: updateContent, notes: updateNotes, tags: args.tags });
+                           if (!args.mode) args.mode = 'append';
+                           
+                           let updates: Partial<Thought> = {};
+                           if (args.title) updates.content = args.title;
+                           if (args.tags) updates.tags = args.tags;
+
+                           if (args.content) {
+                               const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
+                               const targetSectionTitle = args.sectionTitle || 'Заметки';
+                               let targetSectionIndex = sections.findIndex(s => s.title === targetSectionTitle);
+                               
+                               if (targetSectionIndex === -1 && !args.sectionTitle) {
+                                   targetSectionIndex = 0; // Default to first section
+                               }
+
+                               if (targetSectionIndex !== -1) {
+                                   const section = sections[targetSectionIndex];
+                                   let newContent = args.content;
+                                   if (args.mode === 'append') {
+                                       newContent = section.content + '\n' + args.content;
+                                   }
+                                   sections[targetSectionIndex] = { ...section, content: newContent };
+                               } else {
+                                   // Create new section
+                                   sections.push({
+                                       id: Date.now().toString(),
+                                       title: targetSectionTitle,
+                                       content: args.content
+                                   });
+                               }
+                               updates.sections = sections;
+                               // Sync notes for backward compatibility
+                               if (sections[0]) updates.notes = sections[0].content;
+                           }
+
                            onUpdateThought(args.id, updates);
                            result = { result: `Idea updated.` };
                        } else if (args.action === 'delete' && args.id) {

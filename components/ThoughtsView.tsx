@@ -195,7 +195,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
       <div className="sticky top-0 z-40 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] px-6 py-4 flex flex-col gap-4 transition-all duration-200 mt-2">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">Архив Идей</h2>
+            <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">Память</h2>
             <div className="p-1.5 rounded-full bg-[var(--bg-item)] border border-[var(--border-color)] text-[var(--text-muted)]">
               <Lightbulb size={16} />
             </div>
