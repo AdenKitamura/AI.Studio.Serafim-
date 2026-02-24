@@ -28,8 +28,10 @@ interface MentorshipProps {
   onDeleteSession: (id: string) => void;
   onAddTask: (task: Task) => void;
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
+  onDeleteTask: (id: string) => void;
   onAddThought: (thought: Thought) => void;
   onUpdateThought: (id: string, updates: Partial<Thought>) => void;
+  onDeleteThought: (id: string) => void;
   onAddProject: (project: Project) => void;
   onUpdateProject: (id: string, updates: Partial<Project>) => void;
   onAddHabit: (habit: Habit) => void;

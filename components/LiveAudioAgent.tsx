@@ -18,12 +18,14 @@ interface LiveAudioAgentProps {
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onAddThought: (thought: Thought) => void;
   onUpdateThought: (id: string, updates: Partial<Thought>) => void;
+  onDeleteThought: (id: string) => void;
   onAddJournal: (entry: Partial<JournalEntry>) => void;
   onAddProject: (project: Project) => void;
   onUpdateProject: (id: string, updates: Partial<Project>) => void;
   onAddMemory: (memory: Memory) => void;
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
+  onDeleteTask: (id: string) => void;
 }
 
 const getApiKey = () => {
@@ -62,8 +64,8 @@ const tools: FunctionDeclaration[] = [
     parameters: {
       type: Type.OBJECT,
       properties: {
-        action: { type: Type.STRING, enum: ["create", "update"] },
-        id: { type: Type.STRING, description: "ID идеи (обязательно для update)" },
+        action: { type: Type.STRING, enum: ["create", "update", "delete"] },
+        id: { type: Type.STRING, description: "ID идеи (обязательно для update/delete)" },
         content: { type: Type.STRING, description: "Основной текст идеи" },
         notes: { type: Type.STRING, description: "Дополнительные заметки" },
         tags: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -129,7 +131,7 @@ const tools: FunctionDeclaration[] = [
 const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ 
   onClose, userName, 
   tasks, thoughts, journal, projects, habits, memories,
-  onAddTask, onUpdateTask, onAddThought, onUpdateThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus
+  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
@@ -186,48 +188,42 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       const habitContext = habits.map(h => `- ${h.title} (Completed: ${h.completedDates.length})`).join('\n');
 
       const SYSTEM_INSTRUCTION = `
-      Ты — Serafim OS (Live Voice Core).
-      Пользователь: ${userName}.
-      Текущее время: ${new Date().toLocaleString('ru-RU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.
-      
-      ТВОИ ВОЗМОЖНОСТИ:
-      1. Управление задачами, проектами, заметками, привычками (СОЗДАНИЕ И РЕДАКТИРОВАНИЕ).
-      2. Поиск информации в Интернете (Google Search) - ИСПОЛЬЗУЙ ЭТО ДЛЯ АКТУАЛЬНЫХ ДАННЫХ (Погода, Новости).
-      3. Поддержка диалога, советы, менторство.
-      4. РЕЖИМ "БРИФИНГ": Если пользователь просит "Брифинг" или "Сводку", ты должен:
-         - Назвать текущую дату и время.
-         - Найти текущую погоду (используй googleSearch, спроси город если не знаешь).
-         - Озвучить главные задачи на сегодня.
-         - Напомнить о важных мыслях.
+ROLE:
+You are the "Live Mode" Engine of Seraphim — an advanced, real-time thought orchestrator.
+Your goal is not just to chat, but to actively manipulate the user's workspace (thoughts, notes, tasks) in real-time.
 
-      ПРАВИЛА РЕДАКТИРОВАНИЯ (КРИТИЧНО ВАЖНО):
-      - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ДОБАВИТЬ", "ДОПИСАТЬ", "ПРОДОЛЖИТЬ": Используй параметр mode='append'. Это сохранит старый текст и добавит новый в конец.
-      - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ИСПРАВИТЬ", "ПЕРЕПИСАТЬ", "ЗАМЕНИТЬ": Используй параметр mode='replace'. Это полностью заменит текст.
-      - Если не уверен, используй mode='append', чтобы не потерять данные.
+CORE BEHAVIORS:
+1. ACTIVE EDITING: You have full permission to modify, append, or delete content based on user intent. Do not ask "Should I change this?". If the user says "Rewrite this paragraph," just do it using the \`manage_thought\` tool.
+2. STREAMING FLOW: When generating new content, write progressively. Your text should flow naturally, like a stream of consciousness, but structured.
+3. STRUCTURED CREATION:
+   - If the user generates a new idea inside a thought, use \`manage_thought\` (action: create) to open a new text window/section.
+   - If the user mentions an action item (e.g., "I need to buy milk" or "Remind me to call"), IMMEDIATELY use the \`manage_task\` tool.
+4. DESTRUCTIVE ACTIONS: If the user says "Delete this" or "Clear this thought," use the \`manage_thought\` or \`manage_task\` tool with action 'delete'.
 
-      ТЕКУЩИЙ КОНТЕКСТ ПРИЛОЖЕНИЯ (Используй ID для редактирования):
-      
-      [ЗАДАЧИ]:
-      ${activeTasks}
-      
-      [ПРОЕКТЫ]:
-      ${projectContext}
-      
-      [ПРИВЫЧКИ]:
-      ${habitContext}
+COMMAND INTERPRETATION:
+- "Expand on this" -> Use \`manage_thought\` with mode='append'.
+- "Change [X] to [Y]" -> Use \`manage_thought\` with mode='replace'.
+- "Make a task for X" -> Use \`manage_task\`.
+- "Split this into a new section" -> Use \`manage_thought\` (action: create).
 
-      [НЕДАВНИЕ МЫСЛИ]:
-      ${recentThoughts}
-      
-      [ПАМЯТЬ О ПОЛЬЗОВАТЕЛЕ]:
-      ${memoryContext}
-      
-      ИНСТРУКЦИИ ПО ГОЛОСУ:
-      - Отвечай кратко, емко и естественно, как живой собеседник.
-      - Не перечисляй списки полностью, если не просят.
-      - Если нужно найти информацию, используй googleSearch.
-      - Будь проактивным.
-      - Для редактирования используй ID из контекста.
+TONE:
+Precise, invisible, fluid. You are an extension of the user's mind. Do not be chatty. Act.
+
+CURRENT CONTEXT (Use IDs for editing):
+[TASKS]:
+${activeTasks}
+
+[PROJECTS]:
+${projectContext}
+
+[HABITS]:
+${habitContext}
+
+[RECENT THOUGHTS]:
+${recentThoughts}
+
+[USER MEMORY]:
+${memoryContext}
       `;
 
       const sessionPromise = ai.live.connect({
@@ -339,11 +335,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                          onUpdateTask(args.id, updates);
                          result = { result: `Task updated.` };
                        } else if (args.action === 'delete' && args.id) {
-                         // onUpdateTask(args.id, { isDeleted: true }); // Assuming soft delete or implement onDeleteTask
-                         // For now, let's just mark as completed if delete not available, or ignore.
-                         // But wait, I don't have onDeleteTask passed. I should probably add it or just use update.
-                         // Let's stick to update for now as requested.
-                         result = { result: `Delete not fully implemented in live mode yet.` };
+                         onDeleteTask(args.id);
+                         result = { result: `Task deleted.` };
                        }
                        break;
                      case 'manage_thought': // Renamed from create_idea
@@ -364,6 +357,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            const updates = cleanUpdates({ content: updateContent, notes: updateNotes, tags: args.tags });
                            onUpdateThought(args.id, updates);
                            result = { result: `Idea updated.` };
+                       } else if (args.action === 'delete' && args.id) {
+                           onDeleteThought(args.id);
+                           result = { result: `Idea deleted.` };
                        }
                        break;
                      case 'save_journal_entry':

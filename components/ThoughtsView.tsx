@@ -40,8 +40,12 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
     thoughts.forEach(t => {
       if (t.category) cats.add(t.category);
     });
+    // Ensure active category is visible even if no thoughts exist yet
+    if (activeCategory && activeCategory !== 'Все') {
+      cats.add(activeCategory);
+    }
     return Array.from(cats);
-  }, [thoughts]);
+  }, [thoughts, activeCategory]);
 
   // Auto-save effect
   useEffect(() => {
@@ -108,7 +112,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         fileName: file.name, 
         fileType: file.type, 
         fileData: reader.result,
-        category: activeCategory === 'Все' ? 'Входящие' : activeCategory
+        category: activeCategory === 'Все' ? 'Мысли' : activeCategory
       }); 
       setIsAdding(false); 
     };
