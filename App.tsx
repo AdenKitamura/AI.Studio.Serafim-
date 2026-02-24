@@ -169,6 +169,20 @@ const App = () => {
     } else {
       setIsDataReady(false);
     }
+
+    // ДОБАВЛЯЕМ СЛУШАТЕЛЬ СЕТИ
+    const handleOnline = () => {
+      logger.log('System', 'Internet restored. Syncing...', 'info');
+      if (userId) {
+        dbService.syncAllTables(); // Как только появился инет - пушим всё в облако
+      }
+    };
+  
+    window.addEventListener('online', handleOnline);
+  
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
   }, [userId, authLoading]);
 
   // Theme Application
