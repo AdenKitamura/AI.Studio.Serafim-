@@ -60,7 +60,7 @@ const VOICES = [
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
-    onAddTask, onUpdateTask, onAddThought, onUpdateThought, onAddProject, onUpdateProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
+    onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddProject, onUpdateProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
     hasAiKey, onConnectAI, userName, voiceTrigger, session, onStartLiveAudio, onOpenHistory
 }) => {
   const [input, setInput] = useState('');
@@ -498,8 +498,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
           memories={memories}
           onAddTask={onAddTask}
           onUpdateTask={onUpdateTask}
+          onDeleteTask={onDeleteTask}
           onAddThought={onAddThought}
           onUpdateThought={onUpdateThought}
+          onDeleteThought={onDeleteThought}
           onAddJournal={onAddJournal}
           onAddProject={onAddProject}
           onUpdateProject={onUpdateProject}

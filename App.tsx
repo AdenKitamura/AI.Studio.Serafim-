@@ -214,6 +214,10 @@ const App = () => {
     const updatedThought = thoughts.find(t => t.id === id);
     if (updatedThought) { const newThought = { ...updatedThought, ...updates }; setThoughts(prev => prev.map(t => t.id === id ? newThought : t)); persist('thoughts', newThought); }
   };
+  const handleDeleteThought = (id: string) => {
+    setThoughts(prev => prev.filter(t => t.id !== id));
+    remove('thoughts', id);
+  };
   const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); };
   const handleToggleHabit = (id: string, date: string) => {
     const habit = habits.find(h => h.id === id);
@@ -323,8 +327,10 @@ const App = () => {
           memories={memories}
           onAddTask={handleAddTask}
           onUpdateTask={handleUpdateTask}
+          onDeleteTask={handleDeleteTask}
           onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
           onUpdateThought={handleUpdateThought}
+          onDeleteThought={handleDeleteThought}
           onAddJournal={handleAddJournalEntry}
           onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
           onUpdateProject={handleUpdateProject}
@@ -393,8 +399,10 @@ const App = () => {
               onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
+              onDeleteTask={handleDeleteTask}
               onAddThought={t => { setThoughts(prev => [t, ...prev]); persist('thoughts', t); }}
               onUpdateThought={handleUpdateThought}
+              onDeleteThought={handleDeleteThought}
               onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
               onUpdateProject={handleUpdateProject}
               onAddHabit={handleAddHabit}
