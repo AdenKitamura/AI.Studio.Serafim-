@@ -1,18 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
 
-// --- КОНФИГУРАЦИЯ SUPABASE ---
-// URL проекта извлечен из вашего ключа (uuvxszzmurrmulfdjkea)
-const supabaseUrl = 'https://uuvxszzmurrmulfdjkea.supabase.co';
+// 1. Пытаемся получить ключи из переменных окружения (Vite, Next.js или CRA)
+const supabaseUrl = 
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 
+  process.env.REACT_APP_SUPABASE_URL || 
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 
+  '';
 
-// Ваш Anon Key
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1dnhzenptdXJybXVsZmRqa2VhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MTI5MDcsImV4cCI6MjA4MzI4ODkwN30.EXfnbARF4EgNIKl-KiBbr_0tEF3gAD2i3_tao0DGfHI';
+const supabaseAnonKey = 
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || 
+  process.env.REACT_APP_SUPABASE_ANON_KEY || 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+  '';
 
-console.log('🔌 Serafim OS: Connecting to Supabase at', supabaseUrl);
-
+// 2. Проверяем, нашлись ли ключи
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('⚠️ CRITICAL: Supabase config is missing!');
+  console.error('⚠️ CRITICAL: Supabase keys are missing! Check your .env file or Vercel settings.');
+} else {
+  console.log('🔌 Serafim OS: Supabase connected securely.');
 }
 
+// 3. Создаем клиент (ЛОГИКА ОСТАЕТСЯ ПРЕЖНЕЙ)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
