@@ -558,6 +558,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
           projects={projects}
           habits={habits}
           memories={memories}
+          chatHistory={activeSession?.messages.slice(-20)}
+          onLiveSessionEnd={(summary) => {
+              if (summary && activeSession) {
+                  const summaryMsg: ChatMessage = {
+                      id: Date.now().toString(),
+                      role: 'model',
+                      content: `🎙️ **Итоги голосовой сессии:**\n${summary}`,
+                      timestamp: Date.now()
+                  };
+                  onUpdateMessages([...activeSession.messages, summaryMsg]);
+              }
+          }}
           onAddTask={onAddTask}
           onUpdateTask={onUpdateTask}
           onDeleteTask={onDeleteTask}

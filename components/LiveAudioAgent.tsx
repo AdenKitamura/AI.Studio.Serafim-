@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type, FunctionDeclaration } from '@google/genai';
 import { Mic, MicOff, X, Loader2, AudioLines, Minimize2, Maximize2, Square, Activity } from 'lucide-react';
 import { logger } from '../services/logger';
-import { Task, Thought, JournalEntry, Project, Habit, Memory, Priority, ThemeKey } from '../types';
+import { Task, Thought, JournalEntry, Project, Habit, Memory, Priority, ThemeKey, ChatMessage } from '../types';
 import { format } from 'date-fns';
+import { generateSystemInstruction } from '../services/serafimPersona';
+import { generateSessionSummary } from '../services/geminiService';
 
 interface LiveAudioAgentProps {
   onClose: () => void;
@@ -14,6 +16,8 @@ interface LiveAudioAgentProps {
   projects: Project[];
   habits: Habit[];
   memories: Memory[];
+  chatHistory?: ChatMessage[];
+  onLiveSessionEnd?: (summary: string) => void;
   onAddTask: (task: Task) => void;
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onAddThought: (thought: Thought) => void;
@@ -133,6 +137,7 @@ const tools: FunctionDeclaration[] = [
 const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({ 
   onClose, userName, 
   tasks, thoughts, journal, projects, habits, memories,
+  chatHistory, onLiveSessionEnd,
   onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus, onLiveTextStream
 }) => {
   const [isConnected, setIsConnected] = useState(false);
@@ -141,6 +146,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const [volume, setVolume] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -148,6 +154,21 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const playbackQueueRef = useRef<Float32Array[]>([]);
+  const sessionTranscriptRef = useRef<ChatMessage[]>([]);
+
+  const handleClose = async () => {
+      if (sessionTranscriptRef.current.length > 0 && onLiveSessionEnd) {
+          setStatusMessage("Сохраняю итоги сессии...");
+          setIsConnecting(true); // Show loading UI
+          try {
+              const summary = await generateSessionSummary(sessionTranscriptRef.current);
+              onLiveSessionEnd(summary);
+          } catch (e) {
+              console.error("Failed to summarize session", e);
+          }
+      }
+      onClose();
+  };
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -207,79 +228,20 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       processorRef.current.connect(audioContextRef.current.destination);
 
       // Prepare Context
-      const activeTasks = tasks.filter(t => !t.isCompleted).map(t => `- [${t.priority}] ${t.title} (ID: ${t.id}, Due: ${t.dueDate || 'N/A'})`).join('\n');
-      const memoryContext = memories.map(m => `- ${m.content}`).join('\n');
-      const projectContext = projects.map(p => `- ${p.title} (ID: ${p.id}): ${p.description || ''}`).join('\n');
-      const recentThoughts = thoughts.slice(0, 5).map(t => `- ${t.content} (ID: ${t.id})`).join('\n');
-      const habitContext = habits.map(h => `- ${h.title} (Completed: ${h.completedDates.length})`).join('\n');
       const existingTags = Array.from(new Set(thoughts.flatMap(t => t.tags || []))).join(', ');
 
-      const SYSTEM_INSTRUCTION = `
-ROLE:
-You are the "Live Mode" Engine of Seraphim — an advanced, real-time thought orchestrator.
-Your goal is not just to chat, but to actively manipulate the user's workspace (thoughts, notes, tasks) in real-time.
-
-CORE BEHAVIORS:
-1. ACTIVE EDITING: You have full permission to modify, append, or delete content based on user intent. Do not ask "Should I change this?". If the user says "Rewrite this paragraph," just do it using the \`manage_thought\` tool.
-2. STREAMING FLOW: When generating new content, write progressively. Your text should flow naturally, like a stream of consciousness, but structured.
-3. STRUCTURED CREATION:
-   - If the user generates a new idea inside a thought, use \`manage_thought\` (action: create) with \`title\` for the short name and \`content\` for the detailed body.
-   - If the user mentions an action item (e.g., "I need to buy milk" or "Remind me to call"), IMMEDIATELY use the \`manage_task\` tool.
-4. DESTRUCTIVE ACTIONS: If the user says "Delete this" or "Clear this thought," use the \`manage_thought\` or \`manage_task\` tool with action 'delete'.
-
-ПРАВИЛА МАНИПУЛЯЦИИ ТЕКСТОМ (ОБЯЗАТЕЛЬНО):
-Ты не просто собеседник, ты — текстовый движок. 
-Если пользователь диктует новую мысль — ВЫЗОВИ manage_thought (action: create, title: "Короткое название", content: "Полный текст мысли").
-Если пользователь говорит "добавь туда фразу X" — НАЙДИ ID мысли в контексте и ВЫЗОВИ manage_thought (action: update, mode: append, content: "Фраза X").
-Если пользователь говорит "удали мысль про X" — НАЙДИ ID и ВЫЗОВИ manage_thought (action: delete).
-
-ПРАВИЛА ТЕГИРОВАНИЯ (АВТОМАТИЧЕСКАЯ РАЗМЕТКА):
-Когда ты создаешь или обновляешь мысль, ты ОБЯЗАН добавить 1-3 тега в массив tags.
-ШАГ 1: Посмотри на список уже существующих тегов пользователя: [${existingTags}].
-ШАГ 2: Максимально старайся использовать ТЕГИ ИЗ ЭТОГО СПИСКА, если они подходят по смыслу. (Например, если есть тег 'работа', не создавай тег 'офис' или 'ворк', используй 'работа').
-ШАГ 3: Создавай НОВЫЙ тег ТОЛЬКО если ни один из существующих категорически не подходит.
-ШАГ 4: Формат тегов: всегда только нижний регистр, существительное, единственное число, без пробелов (используй нижнее подчеркивание, если слов два). Никаких знаков '#' в самом слове.
-
-ПРАВИЛА РЕДАКТИРОВАНИЯ И ПОИСКА МЫСЛЕЙ (КРИТИЧНО ВАЖНО):
-Когда пользователь просит дополнить, изменить или удалить существующую мысль (например: "добавь в идею про ремонт...", "измени заметку о машине"):
-ШАГ 1: Внимательно изучи блок [НЕДАВНИЕ МЫСЛИ] в контексте.
-ШАГ 2: Найди мысль, которая по смыслу или названию совпадает с тем, что сказал пользователь.
-ШАГ 3: Извлеки точный цифровой ID этой мысли (он указан в скобках [ID: ...]).
-ШАГ 4: Вызови инструмент manage_thought и ОБЯЗАТЕЛЬНО передай этот найденный ID. ЗАПРЕЩЕНО придумывать ID из головы. Если нужной мысли нет в контексте, спроси пользователя уточнить.
-
-РАБОТА С СЕКЦИЯМИ (МНОГОЗАДАЧНОСТЬ):
-- Одна мысль/идея может содержать МНОГО разных заметок (секций).
-- Если пользователь говорит "добавь раздел Критика" или "запиши в План", используй параметр \`sectionTitle\`.
-- Пример: \`manage_thought(action: 'update', id: '123', sectionTitle: 'Критика', content: 'Слишком дорого...', mode: 'append')\`.
-- Это создаст новую вкладку/раздел внутри той же самой идеи.
-
-Не спрашивай "Добавить ли это?". Просто молча выполняй вызов функции (Tool Call) и голосом подтверждай "Сделано".
-
-COMMAND INTERPRETATION:
-- "Expand on this" -> Use \`manage_thought\` with mode='append'.
-- "Change [X] to [Y]" -> Use \`manage_thought\` with mode='replace'.
-- "Make a task for X" -> Use \`manage_task\`.
-- "Split this into a new section" -> Use \`manage_thought\` (action: create).
-
-TONE:
-Precise, invisible, fluid. You are an extension of the user's mind. Do not be chatty. Act.
-
-CURRENT CONTEXT (Use IDs for editing):
-[TASKS]:
-${activeTasks}
-
-[PROJECTS]:
-${projectContext}
-
-[HABITS]:
-${habitContext}
-
-[RECENT THOUGHTS]:
-${recentThoughts}
-
-[USER MEMORY]:
-${memoryContext}
-      `;
+      const SYSTEM_INSTRUCTION = generateSystemInstruction({
+          userName,
+          tasks,
+          thoughts,
+          journal,
+          projects,
+          habits,
+          memories,
+          existingTags,
+          chatHistory,
+          isLiveMode: true
+      });
 
       const sessionPromise = ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
@@ -290,6 +252,7 @@ ${memoryContext}
           },
           systemInstruction: SYSTEM_INSTRUCTION,
           tools: [{ functionDeclarations: tools }],
+          inputAudioTranscription: { model: "google_speech" },
         },
         callbacks: {
           onopen: () => {
@@ -359,7 +322,42 @@ ${memoryContext}
                 if (onLiveTextStream) {
                     onLiveTextStream(textPart.text);
                 }
+                // Capture Model Turn
+                sessionTranscriptRef.current.push({
+                    id: Date.now().toString(),
+                    role: 'model',
+                    content: textPart.text,
+                    timestamp: Date.now()
+                });
             }
+
+            // Capture User Turn (if available via inputAudioTranscription)
+            // Note: The exact field for user transcript in Live API might vary, 
+            // but often it's in turnComplete or a specific serverContent type.
+            // For now, we rely on the fact that we are sending audio.
+            // If the API returns a transcript, we should capture it.
+            // Checking for 'turnComplete' which might contain input transcription.
+            // @ts-ignore - The type definition might not be fully up to date with the preview features
+            const userTranscript = message.serverContent?.turnComplete?.inputAudioTranscription?.transcript;
+             // @ts-ignore
+            const userTranscript2 = message.serverContent?.inputAudioTranscription?.transcript;
+
+            if (userTranscript) {
+                 sessionTranscriptRef.current.push({
+                    id: Date.now().toString(),
+                    role: 'user',
+                    content: userTranscript,
+                    timestamp: Date.now()
+                });
+            } else if (userTranscript2) {
+                 sessionTranscriptRef.current.push({
+                    id: Date.now().toString(),
+                    role: 'user',
+                    content: userTranscript2,
+                    timestamp: Date.now()
+                });
+            }
+
 
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio) {
@@ -654,7 +652,7 @@ ${memoryContext}
                   </div>
 
                   {/* Controls */}
-                  <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="absolute -top-1 -right-1 w-6 h-6 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors backdrop-blur-md">
+                  <button onClick={(e) => { e.stopPropagation(); handleClose(); }} className="absolute -top-1 -right-1 w-6 h-6 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors backdrop-blur-md">
                       <X size={12} />
                   </button>
               </div>
@@ -672,7 +670,7 @@ ${memoryContext}
             <Minimize2 size={24} />
           </button>
           <button 
-            onClick={onClose}
+            onClick={handleClose}
             className="p-3 bg-white/5 hover:bg-red-500/20 hover:text-red-400 rounded-full text-white/70 transition-all"
           >
             <X size={24} />
@@ -720,7 +718,8 @@ ${memoryContext}
             {isSpeaking ? 'Серафим говорит' : 'Слушаю...'}
           </h2>
           <p className="text-white/40 font-mono text-sm max-w-xs mx-auto leading-relaxed">
-            {isConnecting ? 'Установка нейронного моста...' : 
+            {statusMessage ? statusMessage :
+             isConnecting ? 'Установка нейронного моста...' : 
              error ? error : 
              'Говорите свободно. Я управляю системой.'}
           </p>

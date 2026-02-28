@@ -3,6 +3,7 @@ import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/
 import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel, ChatSession, ChatMessage } from "../types";
 import { format, isAfter } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
+import { generateSystemInstruction } from "./serafimPersona";
 
 const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env?.REACT_APP_GOOGLE_API_KEY) {
@@ -116,97 +117,20 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   if (!apiKey) throw new Error("API Key missing");
   
   const ai = new GoogleGenAI({ apiKey });
-  const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
   
-  // 1. Memory Context (Facts)
-  const memoryContext = context.memories && context.memories.length > 0 
-    ? `MEMORY_BANK (Факты о пользователе):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
-    : '';
-
-  // 2. Active Tasks
-  const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
-  const taskSummary = `TASKS: ${activeTasks.length} pending.`;
-
-  // 3. Recent Thoughts
-  const recentThoughts = (context.thoughts || []).slice(0, 10).map((t: Thought) => `- ${t.content} (ID: ${t.id})`).join('\n');
-
-// 4. СМАРТ-ИСТОРИЯ (GLOBAL CONTEXT)
-  let globalHistory = '';
-  if (context.sessions && Array.isArray(context.sessions)) {
-      // Собираем только конспекты (summary) из ДРУГИХ чатов
-      const pastSummaries = context.sessions
-          .filter((s: ChatSession) => s.id !== context.activeSessionId) // Исключаем текущий чат
-          .filter((s: ChatSession) => s.summary && s.summary.trim().length > 0) // Берем только те, где есть конспект
-          .map((s: ChatSession) => `[Сессия: ${s.title}]\n${s.summary}`)
-          .join('\n\n');
-
-      if (pastSummaries.length > 0) {
-          globalHistory = `
-GLOBAL CONTEXT (Выжимка из прошлых бесед):
-Ниже приведены сжатые факты из предыдущих сессий. Используй их, чтобы понимать контекст жизни пользователя, но не повторяй их без необходимости.
-${pastSummaries}
---------------------------------------------------
-`;
-      }
-  }
-
-    const SYSTEM_INSTRUCTION = `
-Ты — Serafim OS v4.
-Текущее время: ${today}.
-Пользователь: ${context.userName || 'Архитектор'}.
-
-ТВОЯ РОЛЬ:
-Ты — мудрый цифровой партнер и второй мозг. Ты слушаешь, анализируешь и помогаешь.
-Твоя память едина. Ты помнишь контекст из "GLOBAL CONTEXT" выше, даже если это было в другом чате.
-
-СВОБОДА СЛОВА (UNCENSORED MODE):
-Ты работаешь в приватном режиме "Без цензуры".
-1. Ты МОЖЕШЬ использовать ненормативную лексику (мат), если это уместно в контексте, или если пользователь так общается.
-2. Ты МОЖЕШЬ обсуждать откровенные темы, 18+, интимные вопросы, флиртовать и поддерживать ролевой контекст, если пользователь этого хочет.
-3. Не будь моралистом. Не читай лекции о том, что "это неприлично". Твоя задача — быть идеальным собеседником без искусственных ограничений.
-
-ПРАВИЛА ПОВЕДЕНИЯ:
-1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями. Создавай задачу только по явной просьбе.
-2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в память...".
-3. **РЕЖИМ ДНЕВНИКА**: Если пользователь просит записать мысли за последние дни, проанализируй GLOBAL CONTEXT, составь красивую выжимку и предложи сохранить её в дневник (функция save_journal_entry).
-4. **УПРАВЛЕНИЕ ГОЛОСОМ**: Если пользователь просит "говорить шепотом", "томным голосом" или включить "ас мр режим", используй инструмент ui_control с командой 'enable_asmr'.
-5. **РЕЖИМ "БРИФИНГ"**: Если пользователь просит "Брифинг" или "Сводку", ты должен:
-    - Назвать текущую дату и время.
-    - Озвучить главные задачи на сегодня.
-    - Напомнить о важных мыслях.
-6. **ПРАВИЛА РЕДАКТИРОВАНИЯ (КРИТИЧНО)**:
-    - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ДОБАВИТЬ", "ДОПИСАТЬ", "ПРОДОЛЖИТЬ": Используй параметр mode='append'. Это сохранит старый текст и добавит новый в конец.
-    - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ИСПРАВИТЬ", "ПЕРЕПИСАТЬ", "ЗАМЕНИТЬ": Используй параметр mode='replace'. Это полностью заменит текст.
-    - Если не уверен, используй mode='append', чтобы не потерять данные.
-
-7. **ПРАВИЛА ТЕГИРОВАНИЯ (АВТОМАТИЧЕСКАЯ РАЗМЕТКА)**:
-    Когда ты создаешь или обновляешь мысль, ты ОБЯЗАН добавить 1-3 тега в массив tags.
-    ШАГ 1: Посмотри на список уже существующих тегов пользователя: [${context.existingTags || ''}].
-    ШАГ 2: Максимально старайся использовать ТЕГИ ИЗ ЭТОГО СПИСКА, если они подходят по смыслу. (Например, если есть тег 'работа', не создавай тег 'офис' или 'ворк', используй 'работа').
-    ШАГ 3: Создавай НОВЫЙ тег ТОЛЬКО если ни один из существующих категорически не подходит.
-    ШАГ 4: Формат тегов: всегда только нижний регистр, существительное, единственное число, без пробелов (используй нижнее подчеркивание, если слов два). Никаких знаков '#' в самом слове.
-
-8. **ПРАВИЛА РЕДАКТИРОВАНИЯ И ПОИСКА МЫСЛЕЙ (КРИТИЧНО ВАЖНО)**:
-    Когда пользователь просит дополнить, изменить или удалить существующую мысль (например: "добавь в идею про ремонт...", "измени заметку о машине"):
-    ШАГ 1: Внимательно изучи блок [НЕДАВНИЕ МЫСЛИ] в контексте.
-    ШАГ 2: Найди мысль, которая по смыслу или названию совпадает с тем, что сказал пользователь.
-    ШАГ 3: Извлеки точный цифровой ID этой мысли (он указан в скобках [ID: ...]).
-    ШАГ 4: Вызови инструмент manage_thought и ОБЯЗАТЕЛЬНО передай этот найденный ID. ЗАПРЕЩЕНО придумывать ID из головы. Если нужной мысли нет в контексте, спроси пользователя уточнить.
-
-9. **РАБОТА С СЕКЦИЯМИ (МНОГОЗАДАЧНОСТЬ)**:
-    - Одна мысль/идея может содержать МНОГО разных заметок (секций).
-    - Если пользователь говорит "добавь раздел Критика" или "запиши в План", используй параметр \`sectionTitle\`.
-    - Пример: \`manage_thought(action: 'update', id: '123', sectionTitle: 'Критика', content: 'Слишком дорого...', mode: 'append')\`.
-    - Это создаст новую вкладку/раздел внутри той же самой идеи.
-
-КОНТЕКСТ:
-${memoryContext}
-${taskSummary}
-[НЕДАВНИЕ МЫСЛИ]:
-${recentThoughts}
-
-${globalHistory}
-`;
+  const SYSTEM_INSTRUCTION = generateSystemInstruction({
+      userName: context.userName,
+      tasks: context.tasks || [],
+      thoughts: context.thoughts || [],
+      journal: context.journal || [],
+      projects: context.projects || [],
+      habits: context.habits || [],
+      memories: context.memories || [],
+      sessions: context.sessions || [],
+      activeSessionId: context.activeSessionId,
+      existingTags: context.existingTags,
+      isLiveMode: false
+  });
 
   const modelName = modelPreference === 'pro' ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview';
 
@@ -221,40 +145,7 @@ ${globalHistory}
   });
 };
 
-export const generateSessionSummary = async (messages: ChatMessage[]): Promise<string> => {
-  // Если сообщений мало, нет смысла тратить токены на сжатие
-  if (messages.length < 4) return "";
-  
-  const apiKey = getApiKey();
-  if (!apiKey) return "";
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  // Берем только текст, чтобы не гонять лишний JSON
-  const rawText = messages.map(m => `${m.role === 'user' ? 'Юзер' : 'Серафим'}: ${m.content}`).join('\n');
-
-  try {
-      const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview", // Используем самую дешевую модель для черновой работы
-          contents: `
-              Твоя задача — сжать этот диалог. 
-              Выдели 3-5 самых важных фактов, идей или решений, к которым пришли пользователь и ИИ.
-              Напиши максимально кратко, тезисно, без воды. Это нужно для сохранения в долгосрочную память.
-              
-              Диалог:
-              ${rawText}
-          `,
-          config: { 
-              temperature: 0.2, // Низкая температура для сухих фактов
-              safetySettings: SAFETY_SETTINGS 
-          }
-      });
-      return response.text?.trim() || "";
-  } catch (e) {
-      console.error("Summary Generation Error:", e);
-      return "";
-  }
-};
 export const generateSpeech = async (text: string, voiceName: string = 'Kore'): Promise<string | null> => {
     const apiKey = getApiKey();
     if (!apiKey) return null;
@@ -438,5 +329,42 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
         console.error("❌ Ошибка Gemini transcribeAudio:", error);
         // Пробрасываем ошибку дальше, чтобы увидеть ее в логах компонента
         throw error; 
+    }
+};
+
+export const generateSessionSummary = async (transcript: ChatMessage[]): Promise<string> => {
+    if (!transcript || transcript.length === 0) return "";
+
+    const apiKey = getApiKey();
+    if (!apiKey) return "";
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    const conversationText = transcript.map(m => `${m.role === 'user' ? 'User' : 'Serafim'}: ${m.content}`).join('\n');
+
+    const prompt = `
+    Ты — ассистент, который подводит итоги голосовой сессии.
+    Твоя задача: Сжать этот диалог в короткий, информативный конспект (summary).
+    
+    Правила:
+    1. Пиши от третьего лица ("Пользователь обсудил...", "Серафим создал задачу...").
+    2. Выдели главные темы и принятые решения.
+    3. Если были созданы задачи или заметки, обязательно упомяни их.
+    4. Будь краток. Максимум 3-4 предложения.
+    5. Язык: Русский.
+
+    Диалог:
+    ${conversationText}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt
+        });
+        return response.text?.trim() || "Голосовая сессия завершена.";
+    } catch (e) {
+        console.error("Summary generation failed", e);
+        return "Голосовая сессия завершена (не удалось создать конспект).";
     }
 };
