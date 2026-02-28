@@ -68,16 +68,19 @@ class DBService {
   private mapToSnakeCase(storeName: string, item: any): any {
     const res: any = { ...item };
     
-    // Explicitly handle date/boolean/foreign keys
-    if (item.dueDate) { res.due_date = item.dueDate; delete res.dueDate; }
-    if (item.isCompleted !== undefined) { res.is_completed = item.isCompleted; delete res.isCompleted; }
-    if (item.createdAt) { res.created_at = item.createdAt; delete res.createdAt; }
-    if (item.projectId) { res.project_id = item.projectId; delete res.projectId; }
-    if (item.columnId) { res.column_id = item.columnId; delete res.column_id; }
-    if (item.completedDates) { res.completed_dates = item.completedDates; delete res.completedDates; }
-    if (item.isArchived !== undefined) { res.is_archived = item.isArchived; delete res.isArchived; }
-    if (item.lastInteraction) { res.last_interaction = item.lastInteraction; delete res.lastInteraction; }
+    // Explicitly handle date/boolean/foreign keys using 'in' operator to handle null/false values
+    if ('dueDate' in item) { res.due_date = item.dueDate; delete res.dueDate; }
+    if ('isCompleted' in item) { res.is_completed = item.isCompleted; delete res.isCompleted; }
+    if ('createdAt' in item) { res.created_at = item.createdAt; delete res.createdAt; }
+    if ('projectId' in item) { res.project_id = item.projectId; delete res.projectId; }
+    if ('columnId' in item) { res.column_id = item.columnId; delete res.column_id; }
+    if ('completedDates' in item) { res.completed_dates = item.completedDates; delete res.completedDates; }
+    if ('isArchived' in item) { res.is_archived = item.isArchived; delete res.isArchived; }
+    if ('lastInteraction' in item) { res.last_interaction = item.lastInteraction; delete res.lastInteraction; }
     
+    // Remove attachments for now as the column is missing in Cloud DB
+    if ('attachments' in res) { delete res.attachments; }
+
     // CRITICAL: Explicitly ensure JSON fields for Projects are preserved during sync
     if (storeName === 'projects') {
         if (item.columns) res.columns = item.columns;
