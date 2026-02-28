@@ -70,6 +70,7 @@ class DBService {
     
     // Explicitly handle date/boolean/foreign keys using 'in' operator to handle null/false values
     if ('dueDate' in item) { res.due_date = item.dueDate; delete res.dueDate; }
+    if ('reminderTime' in item) { res.reminder_time = item.reminderTime; delete res.reminderTime; }
     if ('isCompleted' in item) { res.is_completed = item.isCompleted; delete res.isCompleted; }
     if ('createdAt' in item) { res.created_at = item.createdAt; delete res.createdAt; }
     if ('projectId' in item) { res.project_id = item.projectId; delete res.projectId; }
@@ -78,8 +79,8 @@ class DBService {
     if ('isArchived' in item) { res.is_archived = item.isArchived; delete res.isArchived; }
     if ('lastInteraction' in item) { res.last_interaction = item.lastInteraction; delete res.lastInteraction; }
     
-    // Remove attachments for now as the column is missing in Cloud DB
-    if ('attachments' in res) { delete res.attachments; }
+    // Attachments are now supported via JSONB column
+    // if ('attachments' in res) { delete res.attachments; }
 
     // CRITICAL: Explicitly ensure JSON fields for Projects are preserved during sync
     if (storeName === 'projects') {
@@ -93,6 +94,7 @@ class DBService {
   private mapFromSnakeCase(item: any): any {
     const res: any = { ...item };
     if (res.due_date) { res.dueDate = res.due_date; delete res.due_date; }
+    if (res.reminder_time) { res.reminderTime = res.reminder_time; delete res.reminder_time; }
     if (res.is_completed !== undefined) { res.isCompleted = res.is_completed; delete res.is_completed; }
     if (res.created_at) { res.createdAt = res.created_at; delete res.created_at; }
     if (res.project_id) { res.projectId = res.project_id; delete res.project_id; }

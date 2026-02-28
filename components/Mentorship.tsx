@@ -434,22 +434,62 @@ const Mentorship: React.FC<MentorshipProps> = ({
               break;
             case 'manage_thought':
               if (args.action === 'create') {
-                  onAddThought({ id: Date.now().toString(), content: args.content || 'Новая идея', notes: args.notes, type: 'idea', tags: args.tags || [], createdAt: new Date().toISOString() });
-                  logger.log('Tool', `Idea created.`, 'success');
+                  const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая идея');
+                  const sectionTitle = args.sectionTitle || 'Заметки';
+                  const sectionContent = args.content || '';
+                  
+                  onAddThought({ 
+                      id: Date.now().toString(), 
+                      content: title, 
+                      notes: sectionContent, 
+                      sections: [{ id: 'default', title: sectionTitle, content: sectionContent }],
+                      type: 'idea', 
+                      tags: args.tags || [], 
+                      createdAt: new Date().toISOString() 
+                  });
+                  logger.log('Tool', `Idea "${title}" created.`, 'success');
               } else if (args.action === 'update' && args.id) {
                   const existing = thoughts.find(t => t.id === args.id);
-                  let updateContent = args.content;
-                  let updateNotes = args.notes;
-
-                  if (args.mode === 'append' && existing) {
-                      if (updateContent) updateContent = existing.content + ' ' + updateContent;
-                      if (updateNotes) updateNotes = (existing.notes || '') + '\n' + updateNotes;
+                  if (!existing) {
+                      logger.log('Tool', `Idea not found.`, 'error');
+                      break;
                   }
 
-                  const updates: any = {};
-                  if (updateContent) updates.content = updateContent;
-                  if (updateNotes) updates.notes = updateNotes;
+                  if (!args.mode) args.mode = 'append'; // Default to append for safety
+                  
+                  let updates: Partial<Thought> = {};
+                  if (args.title) updates.content = args.title;
                   if (args.tags) updates.tags = args.tags;
+
+                  if (args.content) {
+                      const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
+                      const targetSectionTitle = args.sectionTitle || 'Заметки';
+                      let targetSectionIndex = sections.findIndex(s => s.title === targetSectionTitle);
+                      
+                      if (targetSectionIndex === -1 && !args.sectionTitle) {
+                          targetSectionIndex = 0; // Default to first section if no title specified
+                      }
+
+                      if (targetSectionIndex !== -1) {
+                          const section = sections[targetSectionIndex];
+                          let newContent = args.content;
+                          if (args.mode === 'append') {
+                              newContent = section.content + '\n' + args.content;
+                          }
+                          sections[targetSectionIndex] = { ...section, content: newContent };
+                      } else {
+                          // Create new section
+                          sections.push({
+                              id: Date.now().toString(),
+                              title: targetSectionTitle,
+                              content: args.content
+                          });
+                      }
+                      updates.sections = sections;
+                      // Sync notes for backward compatibility (first section)
+                      if (sections[0]) updates.notes = sections[0].content;
+                  }
+
                   onUpdateThought(args.id, updates);
                   logger.log('Tool', `Idea updated.`, 'success');
               }
