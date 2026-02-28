@@ -208,13 +208,6 @@ const App = () => {
 
   }, [currentTheme, iconWeight, geminiModel]);
 
-import { generateSessionSummary } from './services/geminiService';
-
-// ... (imports)
-
-const App = () => {
-  // ... (state)
-
   // --- HANDLERS ---
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
   const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };

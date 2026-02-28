@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Chat, Type, FunctionDeclaration, Modality } from "@google/genai";
-import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel, ChatSession } from "../types";
+import { Task, Thought, JournalEntry, Project, Habit, Memory, GeminiModel, ChatSession, ChatMessage } from "../types";
 import { format, isAfter } from "date-fns";
 import { ru } from 'date-fns/locale/ru';
 
@@ -200,6 +200,40 @@ ${globalHistory}
   });
 };
 
+export const generateSessionSummary = async (messages: ChatMessage[]): Promise<string> => {
+  // Если сообщений мало, нет смысла тратить токены на сжатие
+  if (messages.length < 4) return "";
+  
+  const apiKey = getApiKey();
+  if (!apiKey) return "";
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // Берем только текст, чтобы не гонять лишний JSON
+  const rawText = messages.map(m => `${m.role === 'user' ? 'Юзер' : 'Серафим'}: ${m.content}`).join('\n');
+
+  try {
+      const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview", // Используем самую дешевую модель для черновой работы
+          contents: `
+              Твоя задача — сжать этот диалог. 
+              Выдели 3-5 самых важных фактов, идей или решений, к которым пришли пользователь и ИИ.
+              Напиши максимально кратко, тезисно, без воды. Это нужно для сохранения в долгосрочную память.
+              
+              Диалог:
+              ${rawText}
+          `,
+          config: { 
+              temperature: 0.2, // Низкая температура для сухих фактов
+              safetySettings: SAFETY_SETTINGS 
+          }
+      });
+      return response.text?.trim() || "";
+  } catch (e) {
+      console.error("Summary Generation Error:", e);
+      return "";
+  }
+};
 export const generateSpeech = async (text: string, voiceName: string = 'Kore'): Promise<string | null> => {
     const apiKey = getApiKey();
     if (!apiKey) return null;
@@ -232,40 +266,7 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
     }
 };
 
-export const generateSessionSummary = async (messages: ChatMessage[]): Promise<string> => {
-    // Если сообщений мало, нет смысла тратить токены на сжатие
-    if (messages.length < 4) return ""; 
 
-    const apiKey = getApiKey();
-    if (!apiKey) return "";
-    
-    const ai = new GoogleGenAI({ apiKey });
-    
-    // Берем только текст, чтобы не гонять лишний JSON
-    const rawText = messages.map(m => `${m.role === 'user' ? 'Юзер' : 'Серафим'}: ${m.content}`).join('\n');
-
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview", // Используем самую дешевую модель для черновой работы
-            contents: `
-                Твоя задача — сжать этот диалог. 
-                Выдели 3-5 самых важных фактов, идей или решений, к которым пришли пользователь и ИИ.
-                Напиши максимально кратко, тезисно, без воды. Это нужно для сохранения в долгосрочную память.
-                
-                Диалог:
-                ${rawText}
-            `,
-            config: { 
-                temperature: 0.2, // Низкая температура для сухих фактов
-                safetySettings: SAFETY_SETTINGS 
-            }
-        });
-        return response.text?.trim() || "";
-    } catch (e) {
-        console.error("Summary Generation Error:", e);
-        return "";
-    }
-};
 
 export const generateProactiveMessage = async (context: any) => {
     const apiKey = getApiKey();
