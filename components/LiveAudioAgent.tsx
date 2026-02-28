@@ -61,7 +61,7 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "manage_thought",
-    description: "Управляет идеями и заметками (создание, обновление).",
+    description: "Управляет идеями и заметками. ОБЯЗАТЕЛЬНО генерируй 1-3 релевантных хештега в массив tags (на русском языке, строчными буквами, без решетки, например ['идеи', 'проект_х']). Семантически анализируй текст пользователя для подбора тегов.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -70,7 +70,7 @@ const tools: FunctionDeclaration[] = [
         title: { type: Type.STRING, description: "Заголовок идеи (короткое название)" },
         content: { type: Type.STRING, description: "Основной текст заметки/мысли (содержание)" },
         sectionTitle: { type: Type.STRING, description: "Название раздела для заметки (по умолчанию 'Заметки')" },
-        tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Массив хештегов (без #). Пример: ['работа', 'важное']" },
         mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию append." }
       },
       required: ["action"]
@@ -212,6 +212,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       const projectContext = projects.map(p => `- ${p.title} (ID: ${p.id}): ${p.description || ''}`).join('\n');
       const recentThoughts = thoughts.slice(0, 5).map(t => `- ${t.content} (ID: ${t.id})`).join('\n');
       const habitContext = habits.map(h => `- ${h.title} (Completed: ${h.completedDates.length})`).join('\n');
+      const existingTags = Array.from(new Set(thoughts.flatMap(t => t.tags || []))).join(', ');
 
       const SYSTEM_INSTRUCTION = `
 ROLE:
@@ -231,6 +232,13 @@ CORE BEHAVIORS:
 Если пользователь диктует новую мысль — ВЫЗОВИ manage_thought (action: create, title: "Короткое название", content: "Полный текст мысли").
 Если пользователь говорит "добавь туда фразу X" — НАЙДИ ID мысли в контексте и ВЫЗОВИ manage_thought (action: update, mode: append, content: "Фраза X").
 Если пользователь говорит "удали мысль про X" — НАЙДИ ID и ВЫЗОВИ manage_thought (action: delete).
+
+ПРАВИЛА ТЕГИРОВАНИЯ (АВТОМАТИЧЕСКАЯ РАЗМЕТКА):
+Когда ты создаешь или обновляешь мысль, ты ОБЯЗАН добавить 1-3 тега в массив tags.
+ШАГ 1: Посмотри на список уже существующих тегов пользователя: [${existingTags}].
+ШАГ 2: Максимально старайся использовать ТЕГИ ИЗ ЭТОГО СПИСКА, если они подходят по смыслу. (Например, если есть тег 'работа', не создавай тег 'офис' или 'ворк', используй 'работа').
+ШАГ 3: Создавай НОВЫЙ тег ТОЛЬКО если ни один из существующих категорически не подходит.
+ШАГ 4: Формат тегов: всегда только нижний регистр, существительное, единственное число, без пробелов (используй нижнее подчеркивание, если слов два). Никаких знаков '#' в самом слове.
 
 ПРАВИЛА РЕДАКТИРОВАНИЯ И ПОИСКА МЫСЛЕЙ (КРИТИЧНО ВАЖНО):
 Когда пользователь просит дополнить, изменить или удалить существующую мысль (например: "добавь в идею про ремонт...", "измени заметку о машине"):
@@ -406,7 +414,7 @@ ${memoryContext}
                                notes: sectionContent, 
                                sections: [{ id: 'default', title: sectionTitle, content: sectionContent }],
                                type: 'idea', 
-                               tags: args.tags || [], 
+                               tags: (args.tags || []).map((t: string) => t.toLowerCase().trim()), 
                                createdAt: new Date().toISOString() 
                            });
                            result = { result: `Idea "${title}" created.` };
@@ -421,7 +429,7 @@ ${memoryContext}
                            
                            let updates: Partial<Thought> = {};
                            if (args.title) updates.content = args.title;
-                           if (args.tags) updates.tags = args.tags;
+                           if (args.tags) updates.tags = args.tags.map((t: string) => t.toLowerCase().trim());
 
                            if (args.content) {
                                const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];

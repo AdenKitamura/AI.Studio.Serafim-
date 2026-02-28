@@ -4,7 +4,7 @@ import { Thought, Attachment } from '../types';
 import { 
   Brain, Lightbulb, Plus, Trash2, Quote as QuoteIcon, Library, Download, X, User, 
   Link as LinkIcon, File as FileIcon, Globe, Paperclip, Network, BookOpen, Save,
-  Image as ImageIcon, FileText, LayoutDashboard, Menu, Mic, Hash, Tag, Folder, ChevronDown
+  Image as ImageIcon, FileText, LayoutDashboard, Menu, Mic, Hash, Tag, Folder, ChevronDown, Search
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
@@ -19,8 +19,8 @@ interface ThoughtsViewProps {
 }
 
 const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, onDelete, onNavigate }) => {
-  const [activeCategory, setActiveCategory] = useState<string>('Все');
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [addType, setAddType] = useState<'thought' | 'link' | 'file'>('thought');
   const [viewingThought, setViewingThought] = useState<Thought | null>(null);
@@ -28,24 +28,29 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
   const [newContent, setNewContent] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [tagInput, setTagInput] = useState('');
-  const [newCategory, setNewCategory] = useState('');
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const diaryFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Derive categories from thoughts + defaults
-  const categories = useMemo(() => {
-    const cats = new Set(['Все', 'Мысли', 'Идеи', 'Хештеги', 'Zettelkasten']);
+  // Derive popular tags from thoughts
+  const popularTags = useMemo(() => {
+    const tagCounts: Record<string, number> = {};
     thoughts.forEach(t => {
-      if (t.category) cats.add(t.category);
+      if (t.tags) {
+        t.tags.forEach(tag => {
+          const normalizedTag = tag.toLowerCase().trim();
+          if (normalizedTag) {
+            tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+          }
+        });
+      }
     });
-    // Ensure active category is visible even if no thoughts exist yet
-    if (activeCategory && activeCategory !== 'Все') {
-      cats.add(activeCategory);
-    }
-    return Array.from(cats);
-  }, [thoughts, activeCategory]);
+    
+    return Object.entries(tagCounts)
+      .sort((a, b) => b[1] - a[1]) // Sort by frequency desc
+      .map(([tag]) => tag);
+  }, [thoughts]);
 
   // Auto-save effect
   useEffect(() => {
@@ -56,11 +61,10 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         content: viewingThought.content,
         notes: viewingThought.notes,
         tags: viewingThought.tags,
-        category: viewingThought.category,
         attachments: viewingThought.attachments,
         sections: viewingThought.sections
       });
-    }, 500); // Reduced to 500ms
+    }, 500);
 
     return () => clearTimeout(timeoutId);
   }, [viewingThought, onUpdate]);
@@ -80,7 +84,6 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
             content: viewingThought.content,
             notes: viewingThought.notes,
             tags: viewingThought.tags,
-            category: viewingThought.category,
             attachments: viewingThought.attachments,
             sections: viewingThought.sections
           });
@@ -97,9 +100,8 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
     const allTags = [...new Set([...tags, ...contentTags])];
 
     const metadata = addType === 'link' ? { url: newUrl } : undefined;
-    const category = activeCategory === 'Все' ? 'Мысли' : activeCategory;
 
-    onAdd(newContent || newUrl, addType === 'link' ? 'link' : 'thought', allTags, { ...metadata, category });
+    onAdd(newContent || newUrl, addType === 'link' ? 'link' : 'thought', allTags, { ...metadata });
     
     resetForm();
   };
@@ -112,7 +114,6 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         fileName: file.name, 
         fileType: file.type, 
         fileData: reader.result,
-        category: activeCategory === 'Все' ? 'Мысли' : activeCategory
       }); 
       setIsAdding(false); 
     };
@@ -139,11 +140,17 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
   const openMenu = () => { const menuBtn = document.getElementById('sidebar-trigger'); if(menuBtn) menuBtn.click(); };
 
   const filteredThoughts = thoughts.filter(t => {
-    if (t.type === 'quote' || t.category === 'Wisdom') return false; // Exclude quotes (Wisdom Archive)
-    const cat = t.category || 'Мысли';
-    const matchesCategory = activeCategory === 'Все' || cat === activeCategory;
+    if (t.type === 'quote') return false; // Exclude quotes (Wisdom Archive)
+    
     const matchesTag = activeTag ? t.tags?.includes(activeTag) : true;
-    return matchesCategory && matchesTag;
+    
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = !query || 
+      t.content.toLowerCase().includes(query) || 
+      t.notes?.toLowerCase().includes(query) ||
+      t.tags?.some(tag => tag.toLowerCase().includes(query));
+
+    return matchesTag && matchesSearch;
   });
 
   // Helper to render text with links
@@ -189,53 +196,77 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
     });
   };
 
+  const addTagToViewingThought = (tag: string) => {
+      if (!viewingThought) return;
+      const normalizedTag = tag.trim().toLowerCase();
+      if (!normalizedTag || viewingThought.tags?.includes(normalizedTag)) return;
+      
+      setViewingThought({
+          ...viewingThought,
+          tags: [...(viewingThought.tags || []), normalizedTag]
+      });
+  };
+
+  const removeTagFromViewingThought = (tagToRemove: string) => {
+      if (!viewingThought) return;
+      setViewingThought({
+          ...viewingThought,
+          tags: viewingThought.tags?.filter(t => t !== tagToRemove) || []
+      });
+  };
+
   return (
     <div className="flex flex-col h-full bg-[var(--bg-main)]">
-      {/* Header with Categories - Matching JournalView style */}
+      {/* Header with Search and Tags */}
       <div className="sticky top-0 z-40 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-color)] px-6 py-4 flex flex-col gap-4 transition-all duration-200 mt-2">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
+        <div className="flex justify-between items-center gap-4">
+          <div className="flex items-center gap-3 shrink-0">
             <h2 className="text-3xl font-black text-[var(--text-main)] tracking-tighter uppercase leading-none">Память</h2>
             <div className="p-1.5 rounded-full bg-[var(--bg-item)] border border-[var(--border-color)] text-[var(--text-muted)]">
               <Lightbulb size={16} />
             </div>
           </div>
-          <button onClick={() => { setAddType('thought'); setIsAdding(true); }} className="p-2 bg-[var(--accent)] rounded-full text-white shadow-lg hover:opacity-90 transition-all">
+          
+          {/* Search Bar */}
+          <div className="flex-1 max-w-md relative">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+             <input 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск мыслей..."
+                className="w-full bg-[var(--bg-item)] border border-[var(--border-color)] rounded-xl py-2 pl-10 pr-4 text-sm text-[var(--text-main)] outline-none focus:border-[var(--accent)] transition-all"
+             />
+             {searchQuery && (
+                 <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-main)]">
+                     <X size={14} />
+                 </button>
+             )}
+          </div>
+
+          <button onClick={() => { setAddType('thought'); setIsAdding(true); }} className="p-2 bg-[var(--accent)] rounded-full text-white shadow-lg hover:opacity-90 transition-all shrink-0">
             <Plus size={20} />
           </button>
         </div>
         
+        {/* Tags Cloud */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 items-center">
-          {categories.map(cat => (
+          <button 
+              onClick={() => setActiveTag(null)} 
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${!activeTag ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
+          >
+              <Globe size={12}/> ВСЕ
+          </button>
+          
+          {popularTags.map(tag => (
             <button 
-              key={cat} 
-              onClick={() => setActiveCategory(cat)} 
-              className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${activeCategory === cat ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
+              key={tag} 
+              onClick={() => setActiveTag(activeTag === tag ? null : tag)} 
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap border ${activeTag === tag ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
             >
-              {cat === 'Все' ? <Globe size={12}/> : cat === 'Входящие' ? <Library size={12}/> : <Folder size={12}/>} 
-              {cat}
+              <Hash size={10} className="opacity-50"/> {tag}
             </button>
           ))}
-          <button onClick={() => {
-             const name = prompt('Название новой категории:');
-             if (name) setActiveCategory(name);
-          }} className="px-3 py-2 rounded-xl bg-[var(--bg-item)] text-[var(--text-muted)] hover:text-[var(--text-main)] border border-[var(--border-color)]">
-            <Plus size={12} />
-          </button>
         </div>
-        
-        {/* Active Tag Filter Indicator */}
-        {activeTag && (
-          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-            <span className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Фильтр по тегу:</span>
-            <button 
-              onClick={() => setActiveTag(null)}
-              className="px-3 py-1 rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 flex items-center gap-2 text-xs font-bold hover:bg-[var(--accent)]/20 transition-all"
-            >
-              #{activeTag} <X size={12} />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Main Content - Masonry or List */}
@@ -248,7 +279,9 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                   <div className={`p-2 rounded-xl bg-[var(--bg-main)] border border-[var(--border-color)] ${t.type === 'link' ? 'text-blue-500' : t.type === 'file' ? 'text-amber-500' : 'text-[var(--accent)]'}`}>
                     {t.type === 'link' ? <LinkIcon size={14}/> : t.type === 'file' ? <FileIcon size={14}/> : <Lightbulb size={14}/>}
                   </div>
-                  <span className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">{t.category || 'Входящие'}</span>
+                  {t.tags && t.tags.length > 0 && (
+                      <span className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">#{t.tags[0]}</span>
+                  )}
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} className="opacity-0 group-hover:opacity-100 p-2 text-[var(--text-muted)] hover:text-rose-500 transition-all">
                   <Trash2 size={14}/>
@@ -276,7 +309,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                 </p>
               )}
               
-              {t.tags.length > 0 && (
+              {t.tags && t.tags.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-[var(--border-color)] flex flex-wrap gap-1">
                   {t.tags.map(tag => (
                     <span 
@@ -340,13 +373,6 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                   />
                   <div className="flex gap-2">
                     <input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="Теги (через запятую)..." className="flex-1 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-4 text-sm text-[var(--text-main)] focus:border-[var(--accent)] outline-none"/>
-                    <select 
-                      value={activeCategory} 
-                      onChange={(e) => setActiveCategory(e.target.value)}
-                      className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-4 text-sm text-[var(--text-main)] focus:border-[var(--accent)] outline-none"
-                    >
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
                   </div>
                   <button onClick={handleManualAdd} className="w-full py-4 bg-[var(--accent)] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent)]/20 active:scale-95 transition-all">
                     Добавить
@@ -369,9 +395,6 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                   <div>
                     <h2 className="text-lg font-black text-[var(--text-main)]">Дневник Идеи</h2>
                     <div className="flex items-center gap-2 mt-1">
-                       <span className="text-[10px] text-[var(--text-muted)] uppercase font-bold tracking-wider">
-                         {viewingThought.category || 'Входящие'}
-                       </span>
                        <span className="text-[10px] text-emerald-500 flex items-center gap-1 animate-pulse">
                          <Save size={10} /> Авто-сохранение
                        </span>
@@ -385,15 +408,6 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
               
               <div className="flex-1 overflow-y-auto p-6 max-w-3xl mx-auto w-full">
                 <div className="mb-6">
-                   <select 
-                      value={viewingThought.category || 'Входящие'} 
-                      onChange={(e) => setViewingThought({...viewingThought, category: e.target.value})}
-                      className="bg-[var(--bg-item)] border border-[var(--border-color)] rounded-lg px-3 py-1 text-xs text-[var(--text-muted)] mb-4 outline-none focus:border-[var(--accent)]"
-                    >
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                      <option value="Входящие">Входящие</option>
-                    </select>
-                    
                    <textarea 
                       value={viewingThought.content} 
                       onChange={handleContentChange} 
@@ -406,6 +420,29 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                         e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
                       }}
                    />
+                   
+                   {/* Tags Management Section */}
+                   <div className="mt-4 flex flex-wrap items-center gap-2">
+                       {viewingThought.tags?.map(tag => (
+                           <span key={tag} className="px-2 py-1 rounded-md bg-[var(--bg-item)] border border-[var(--border-color)] text-[10px] font-bold uppercase text-[var(--text-muted)] flex items-center gap-1 group">
+                               #{tag}
+                               <button onClick={() => removeTagFromViewingThought(tag)} className="hover:text-rose-500"><X size={10}/></button>
+                           </span>
+                       ))}
+                       <div className="relative flex items-center">
+                           <Hash size={12} className="absolute left-2 text-[var(--text-muted)]"/>
+                           <input 
+                               placeholder="Добавить тег..." 
+                               className="bg-transparent border border-[var(--border-color)] rounded-md pl-6 pr-2 py-1 text-[10px] font-bold uppercase text-[var(--text-main)] outline-none focus:border-[var(--accent)] w-32"
+                               onKeyDown={(e) => {
+                                   if (e.key === 'Enter') {
+                                       addTagToViewingThought(e.currentTarget.value);
+                                       e.currentTarget.value = '';
+                                   }
+                               }}
+                           />
+                       </div>
+                   </div>
                 </div>
 
                 {viewingThought.type === 'link' && (

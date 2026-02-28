@@ -405,10 +405,12 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
     try {
       if (!chatSessionRef.current) {
+        const existingTags = Array.from(new Set(thoughts.flatMap(t => t.tags || []))).join(', ');
         chatSessionRef.current = createMentorChat({ 
             tasks, thoughts, journal, projects, habits, memories, 
             sessions, 
-            isGoogleAuth: false, userName 
+            isGoogleAuth: false, userName,
+            existingTags
         }, getStoredModel());
       }
       const now = new Date();
@@ -444,7 +446,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       notes: sectionContent, 
                       sections: [{ id: 'default', title: sectionTitle, content: sectionContent }],
                       type: 'idea', 
-                      tags: args.tags || [], 
+                      tags: (args.tags || []).map((t: string) => t.toLowerCase().trim()), 
                       createdAt: new Date().toISOString() 
                   });
                   logger.log('Tool', `Idea "${title}" created.`, 'success');
@@ -459,7 +461,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                   
                   let updates: Partial<Thought> = {};
                   if (args.title) updates.content = args.title;
-                  if (args.tags) updates.tags = args.tags;
+                  if (args.tags) updates.tags = args.tags.map((t: string) => t.toLowerCase().trim());
 
                   if (args.content) {
                       const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
