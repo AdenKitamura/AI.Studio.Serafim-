@@ -167,16 +167,21 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const isPlayingRef = useRef(false);
   const nextPlayTimeRef = useRef(0);
 
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const isManualCloseRef = useRef(false);
+
   useEffect(() => {
-    startLiveSession();
+    connectToGemini();
     return () => {
+      isManualCloseRef.current = true;
       stopLiveSession();
     };
   }, []);
 
-  const startLiveSession = async () => {
+  const connectToGemini = async () => {
     try {
       setIsConnecting(true);
+      setError(null);
       const apiKey = getApiKey();
       if (!apiKey) throw new Error("API Key missing");
 
@@ -184,7 +189,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
       // Use default sample rate for better compatibility and less crackling
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      audioContextRef.current = new AudioContext(); 
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      
       if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
       } 
@@ -260,12 +268,13 @@ ${memoryContext}
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
           },
           systemInstruction: SYSTEM_INSTRUCTION,
-          tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
+          tools: [{ functionDeclarations: tools }],
         },
         callbacks: {
           onopen: () => {
             setIsConnected(true);
             setIsConnecting(false);
+            setReconnectAttempts(0); // Reset attempts on success
             logger.log('LiveAPI', 'Connected to Gemini Live', 'success');
 
             if (audioContextRef.current?.state === 'suspended') {
@@ -479,6 +488,16 @@ ${memoryContext}
           onclose: () => {
             setIsConnected(false);
             logger.log('LiveAPI', 'Disconnected', 'warning');
+            
+            // Auto-reconnect if not manually closed
+            if (!isManualCloseRef.current && reconnectAttempts < 5) {
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                logger.log('LiveAPI', `Reconnecting in ${delay}ms...`, 'info');
+                setTimeout(() => {
+                    setReconnectAttempts(prev => prev + 1);
+                    connectToGemini();
+                }, delay);
+            }
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
