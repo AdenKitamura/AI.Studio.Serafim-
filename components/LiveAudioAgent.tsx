@@ -253,7 +253,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
           },
           systemInstruction: SYSTEM_INSTRUCTION,
           tools: [{ functionDeclarations: tools }],
-          inputAudioTranscription: { model: "google_speech" },
+          // inputAudioTranscription: { model: "google_speech" }, 
         },
         callbacks: {
           onopen: () => {
