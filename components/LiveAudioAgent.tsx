@@ -156,6 +156,21 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const playbackQueueRef = useRef<Float32Array[]>([]);
   const sessionTranscriptRef = useRef<ChatMessage[]>([]);
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  const stopAudioPlayback = () => {
+      if (activeSourceRef.current) {
+          try {
+              activeSourceRef.current.stop();
+          } catch (e) {
+              // Ignore
+          }
+          activeSourceRef.current = null;
+      }
+      playbackQueueRef.current = [];
+      isPlayingRef.current = false;
+      setIsSpeaking(false);
+  };
 
   const handleClose = async () => {
       if (sessionTranscriptRef.current.length > 0 && onLiveSessionEnd) {
@@ -328,9 +343,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.interrupted) {
-              playbackQueueRef.current = [];
-              isPlayingRef.current = false;
-              setIsSpeaking(false);
+              stopAudioPlayback();
             }
 
             const textPart = message.serverContent?.modelTurn?.parts?.find(p => p.text);
@@ -635,7 +648,14 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    activeSourceRef.current = source;
     
+    source.onended = () => {
+        if (activeSourceRef.current === source) {
+            activeSourceRef.current = null;
+        }
+    };
+
     if (gainNodeRef.current) {
         source.connect(gainNodeRef.current);
     } else {
