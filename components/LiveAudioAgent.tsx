@@ -191,6 +191,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const isManualCloseRef = useRef(false);
 
+  const startTimeRef = useRef<number>(0);
+
   useEffect(() => {
     connectToGemini();
     return () => {
@@ -258,7 +260,15 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
           onopen: () => {
             setIsConnected(true);
             setIsConnecting(false);
-            setReconnectAttempts(0); // Reset attempts on success
+            startTimeRef.current = Date.now();
+            
+            // Only reset attempts if connection has been stable for 5 seconds
+            setTimeout(() => {
+                if (Date.now() - startTimeRef.current > 4000 && isConnected) {
+                    setReconnectAttempts(0);
+                }
+            }, 5000);
+            
             logger.log('LiveAPI', 'Connected to Gemini Live', 'success');
 
             if (audioContextRef.current?.state === 'suspended') {

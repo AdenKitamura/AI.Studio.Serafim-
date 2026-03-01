@@ -157,27 +157,31 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
   const renderContentWithLinks = (text: string) => {
     if (!text) return null;
     
-    // Split by URLs or Hashtags
-    const parts = text.split(/((?:https?:\/\/[^\s]+)|(?:#[\wа-яА-Я]+))/g);
-    
-    return parts.map((part, i) => {
-      if (part.match(/^https?:\/\//)) {
-        return <a key={i} href={part} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-500 hover:underline">{part}</a>;
-      }
-      if (part.match(/^#/)) {
-        const tag = part.substring(1).toLowerCase();
-        return (
-          <span 
-            key={i} 
-            onClick={(e) => { e.stopPropagation(); setActiveTag(tag); }}
-            className={`font-bold cursor-pointer hover:opacity-80 transition-colors ${activeTag === tag ? 'text-[var(--accent)] underline' : 'text-[var(--accent)]'}`}
-          >
-            {part}
-          </span>
-        );
-      }
-      return <span key={i}>{part}</span>;
-    });
+    try {
+        // Split by URLs or Hashtags
+        const parts = text.split(/((?:https?:\/\/[^\s]+)|(?:#[\wа-яА-Я]+))/g);
+        
+        return parts.map((part, i) => {
+          if (part.match(/^https?:\/\//)) {
+            return <a key={i} href={part} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-500 hover:underline">{part}</a>;
+          }
+          if (part.match(/^#/)) {
+            const tag = part.substring(1).toLowerCase();
+            return (
+              <span 
+                key={i} 
+                onClick={(e) => { e.stopPropagation(); setActiveTag(tag); }}
+                className={`font-bold cursor-pointer hover:opacity-80 transition-colors ${activeTag === tag ? 'text-[var(--accent)] underline' : 'text-[var(--accent)]'}`}
+              >
+                {part}
+              </span>
+            );
+          }
+          return <span key={i}>{part}</span>;
+        });
+    } catch (e) {
+        return <span>{text}</span>;
+    }
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
