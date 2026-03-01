@@ -495,13 +495,18 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                   </div>
 
                   {(() => {
-                    const sections = viewingThought.sections || [{ id: 'default', title: 'Заметки', content: viewingThought.notes || '' }];
+                    const sections = (viewingThought.sections && viewingThought.sections.length > 0) 
+                        ? viewingThought.sections 
+                        : [{ id: 'default', title: 'Заметки', content: viewingThought.notes || '' }];
+                    
                     const activeSection = sections.find(s => s.id === activeSectionId) || sections[0];
                     
+                    if (!activeSection) return null; // Extra safety
+
                     return (
                       <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <input 
-                          value={activeSection.title}
+                          value={activeSection.title || ''}
                           onChange={(e) => {
                             const newSections = sections.map(s => s.id === activeSection.id ? { ...s, title: e.target.value } : s);
                             setViewingThought({ ...viewingThought, sections: newSections });
@@ -510,7 +515,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                           placeholder="НАЗВАНИЕ РАЗДЕЛА"
                         />
                         <textarea 
-                          value={activeSection.content} 
+                          value={activeSection.content || ''} 
                           onChange={(e) => {
                             const newSections = sections.map(s => s.id === activeSection.id ? { ...s, content: e.target.value } : s);
                             setViewingThought({ 
@@ -527,8 +532,12 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                              onClick={() => {
                                if (confirm('Удалить этот раздел?')) {
                                  const newSections = sections.filter(s => s.id !== activeSection.id);
+                                 // Ensure we don't end up with empty sections
+                                 if (newSections.length === 0) {
+                                     newSections.push({ id: 'default', title: 'Заметки', content: '' });
+                                 }
                                  setViewingThought({ ...viewingThought, sections: newSections });
-                                 if (newSections.length > 0) setActiveSectionId(newSections[0].id);
+                                 setActiveSectionId(newSections[0].id);
                                }
                              }}
                              className="text-[10px] text-[var(--text-muted)] hover:text-rose-500 uppercase font-bold tracking-widest"

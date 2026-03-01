@@ -188,10 +188,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const isPlayingRef = useRef(false);
   const nextPlayTimeRef = useRef(0);
 
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const isManualCloseRef = useRef(false);
-
+  const reconnectAttemptsRef = useRef(0);
   const startTimeRef = useRef<number>(0);
+  const isManualCloseRef = useRef(false);
 
   useEffect(() => {
     connectToGemini();
@@ -264,8 +263,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             
             // Only reset attempts if connection has been stable for 5 seconds
             setTimeout(() => {
-                if (Date.now() - startTimeRef.current > 4000 && isConnected) {
-                    setReconnectAttempts(0);
+                if (Date.now() - startTimeRef.current > 4000) {
+                    reconnectAttemptsRef.current = 0;
                 }
             }, 5000);
             
@@ -519,13 +518,20 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             logger.log('LiveAPI', 'Disconnected', 'warning');
             
             // Auto-reconnect if not manually closed
-            if (!isManualCloseRef.current && reconnectAttempts < 5) {
-                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
-                logger.log('LiveAPI', `Reconnecting in ${delay}ms...`, 'info');
-                setTimeout(() => {
-                    setReconnectAttempts(prev => prev + 1);
-                    connectToGemini();
-                }, delay);
+            const connectionDuration = Date.now() - startTimeRef.current;
+            
+            if (!isManualCloseRef.current && reconnectAttemptsRef.current < 5) {
+                // If connection was very short (< 2s), treat as immediate failure
+                reconnectAttemptsRef.current += 1;
+                
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
+                logger.log('LiveAPI', `Reconnecting in ${delay}ms... (Attempt ${reconnectAttemptsRef.current})`, 'info');
+                setTimeout(connectToGemini, delay);
+            } else if (reconnectAttemptsRef.current >= 5) {
+                 logger.log('LiveAPI', 'Max reconnect attempts reached', 'error');
+                 handleClose(); 
+            } else {
+                 handleClose();
             }
           },
           onerror: (err: any) => {
@@ -538,9 +544,16 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       sessionRef.current = await sessionPromise;
 
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Не удалось запустить Live API");
+      logger.log('LiveAPI', `Connection failed: ${err.message}`, 'error');
+      setError(err.message);
       setIsConnecting(false);
+      
+      // Retry on initial connection fail too
+      if (!isManualCloseRef.current && reconnectAttemptsRef.current < 5) {
+          reconnectAttemptsRef.current += 1;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 10000);
+          setTimeout(connectToGemini, delay);
+      }
     }
   };
 
