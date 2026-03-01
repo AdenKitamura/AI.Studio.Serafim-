@@ -150,6 +150,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
@@ -213,6 +214,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!audioContextRef.current) {
         audioContextRef.current = new AudioContext();
+        gainNodeRef.current = audioContextRef.current.createGain();
+        gainNodeRef.current.connect(audioContextRef.current.destination);
       }
       
       if (audioContextRef.current.state === 'suspended') {
@@ -469,9 +472,23 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
                            onUpdateThought(args.id, updates);
                            result = { result: `Idea updated.` };
-                       } else if (args.action === 'delete' && args.id) {
-                           onDeleteThought(args.id);
-                           result = { result: `Idea deleted.` };
+                       } else if (args.action === 'delete') {
+                           let targetId = args.id;
+                           // Fallback: Find by title/content if ID not found
+                           if (!targetId || !thoughts.find(t => t.id === targetId)) {
+                               const match = thoughts.find(t => 
+                                   t.content.toLowerCase().includes(args.title?.toLowerCase() || '') ||
+                                   t.content.toLowerCase().includes(args.content?.toLowerCase() || '')
+                               );
+                               if (match) targetId = match.id;
+                           }
+
+                           if (targetId) {
+                               onDeleteThought(targetId);
+                               result = { result: `Idea deleted.` };
+                           } else {
+                               result = { result: `Error: Idea not found. Please provide exact ID or title.` };
+                           }
                        }
                        break;
                      case 'save_journal_entry':
@@ -610,7 +627,12 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    
+    if (gainNodeRef.current) {
+        source.connect(gainNodeRef.current);
+    } else {
+        source.connect(ctx.destination);
+    }
 
     if (nextPlayTimeRef.current < ctx.currentTime) {
         nextPlayTimeRef.current = ctx.currentTime + 0.05;
