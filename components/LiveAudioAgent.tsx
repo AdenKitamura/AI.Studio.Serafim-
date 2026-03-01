@@ -499,12 +499,39 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            result = { result: `Idea updated.` };
                        } else if (args.action === 'delete') {
                            let targetId = args.id;
+                           
+                           // Helper to normalize string
+                           const norm = (s: string) => s ? s.toLowerCase().trim() : '';
+                           const searchTitle = norm(args.title);
+                           const searchContent = norm(args.content);
+
                            // Fallback: Find by title/content if ID not found
                            if (!targetId || !thoughts.find(t => t.id === targetId)) {
-                               const match = thoughts.find(t => 
-                                   t.content.toLowerCase().includes(args.title?.toLowerCase() || '') ||
-                                   t.content.toLowerCase().includes(args.content?.toLowerCase() || '')
-                               );
+                               let match = null;
+                               
+                               // 1. Try Exact Match on Content (Title)
+                               if (searchTitle) {
+                                   match = thoughts.find(t => norm(t.content) === searchTitle);
+                                   
+                                   // 2. Try "Contains" but stricter (must be significant length)
+                                   if (!match && searchTitle.length > 2) {
+                                       // Find all matches
+                                       const matches = thoughts.filter(t => norm(t.content).includes(searchTitle));
+                                       // Pick the best one (shortest content usually means closest match to title)
+                                       if (matches.length > 0) {
+                                           match = matches.sort((a, b) => a.content.length - b.content.length)[0];
+                                       }
+                                   }
+                               }
+                               
+                               // 3. Fallback to searchContent if title didn't work
+                               if (!match && searchContent && searchContent.length > 2) {
+                                    const matches = thoughts.filter(t => norm(t.content).includes(searchContent));
+                                    if (matches.length > 0) {
+                                        match = matches.sort((a, b) => a.content.length - b.content.length)[0];
+                                    }
+                               }
+
                                if (match) targetId = match.id;
                            }
 
