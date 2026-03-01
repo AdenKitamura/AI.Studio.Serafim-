@@ -437,6 +437,7 @@ const App = () => {
           onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
           onSetTheme={setCurrentTheme}
           onStartFocus={handleStartFocus}
+          onToggleHabit={handleToggleHabit}
         />
       )}
 

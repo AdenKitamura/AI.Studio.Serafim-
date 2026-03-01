@@ -31,6 +31,7 @@ interface LiveAudioAgentProps {
   onStartFocus: (minutes: number) => void;
   onDeleteTask: (id: string) => void;
   onLiveTextStream?: (text: string) => void;
+  onToggleHabit?: (id: string, date: string) => void;
 }
 
 const getApiKey = () => {
@@ -48,86 +49,78 @@ const getApiKey = () => {
 const tools: FunctionDeclaration[] = [
   {
     name: "manage_task",
-    description: "Управляет задачами (создание, обновление, удаление).",
+    description: "Управление задачами. Создание, выполнение или удаление.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        action: { type: Type.STRING, enum: ["create", "update", "delete"] },
-        id: { type: Type.STRING, description: "ID задачи (обязательно для update/delete)" },
-        title: { type: Type.STRING },
-        priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
-        dueDate: { type: Type.STRING },
-        projectId: { type: Type.STRING },
-        isCompleted: { type: Type.BOOLEAN }
+        action: { type: Type.STRING, enum: ["create", "complete", "delete"] },
+        id: { type: Type.STRING, description: "ID задачи (обязательно для complete/delete)" },
+        title: { type: Type.STRING, description: "Название задачи (для create)" },
+        priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
       },
       required: ["action"]
     }
   },
   {
     name: "manage_thought",
-    description: "Управляет идеями и заметками. ОБЯЗАТЕЛЬНО генерируй 1-3 релевантных хештега в массив tags (на русском языке, строчными буквами, без решетки, например ['идеи', 'проект_х']). Семантически анализируй текст пользователя для подбора тегов.",
+    description: "Управление идеями и заметками. Используй mode='append' для дописывания текста.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: { type: Type.STRING, enum: ["create", "update", "delete"] },
-        id: { type: Type.STRING, description: "ID идеи (обязательно для update/delete)" },
-        title: { type: Type.STRING, description: "Заголовок идеи (короткое название)" },
-        content: { type: Type.STRING, description: "Основной текст заметки/мысли (содержание)" },
-        sectionTitle: { type: Type.STRING, description: "Название раздела для заметки (по умолчанию 'Заметки')" },
-        tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Массив хештегов (без #). Пример: ['работа', 'важное']" },
-        mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту, replace - заменить полностью. По умолчанию append." }
+        id: { type: Type.STRING },
+        content: { type: Type.STRING },
+        tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+        mode: { type: Type.STRING, enum: ["replace", "append"] }
       },
       required: ["action"]
     }
   },
   {
-    name: "save_journal_entry",
-    description: "Сохраняет запись в Дневник.",
+    name: "manage_project",
+    description: "Управление долгосрочными проектами.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: { type: Type.STRING, enum: ["create", "update", "delete"] },
+        id: { type: Type.STRING },
+        title: { type: Type.STRING },
+        description: { type: Type.STRING }
+      },
+      required: ["action"]
+    }
+  },
+  {
+    name: "toggle_habit",
+    description: "Отметить привычку как выполненную на сегодня.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        id: { type: Type.STRING, description: "ID привычки из контекста" }
+      },
+      required: ["id"]
+    }
+  },
+  {
+    name: "save_journal",
+    description: "Сделать запись в личный дневник (рефлексия, итоги дня).",
     parameters: {
       type: Type.OBJECT,
       properties: {
         content: { type: Type.STRING },
-        mood: { type: Type.STRING, enum: ["😔", "😐", "🙂", "😃", "🤩"] },
-        tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+        mood: { type: Type.STRING, enum: ["😔", "😐", "🙂", "😃", "🤩"] }
       },
       required: ["content", "mood"]
     }
   },
   {
-    name: "remember_fact",
-    description: "Сохраняет важный факт о пользователе.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        fact: { type: Type.STRING }
-      },
-      required: ["fact"]
-    }
-  },
-  {
-    name: "manage_project",
-    description: "Управляет проектами (создание, обновление).",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        action: { type: Type.STRING, enum: ["create", "update"] },
-        id: { type: Type.STRING, description: "ID проекта (обязательно для update)" },
-        title: { type: Type.STRING },
-        description: { type: Type.STRING },
-        color: { type: Type.STRING }
-      },
-      required: ["action"]
-    }
-  },
-  {
     name: "ui_control",
-    description: "Управляет интерфейсом приложения.",
+    description: "Управление интерфейсом (темы, фокус-таймер).",
     parameters: {
       type: Type.OBJECT,
       properties: {
         command: { type: Type.STRING, enum: ["set_theme", "start_focus"] },
-        themeName: { type: Type.STRING },
-        duration: { type: Type.NUMBER }
+        value: { type: Type.STRING, description: "Название темы или минуты для таймера" }
       },
       required: ["command"]
     }
@@ -138,7 +131,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   onClose, userName, 
   tasks, thoughts, journal, projects, habits, memories,
   chatHistory, onLiveSessionEnd,
-  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus, onLiveTextStream
+  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus, onLiveTextStream, onToggleHabit
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
@@ -254,21 +247,30 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       sourceRef.current.connect(processorRef.current);
       processorRef.current.connect(audioContextRef.current.destination);
 
-      // Prepare Context
-      const existingTags = Array.from(new Set(thoughts.flatMap(t => t.tags || []))).join(', ');
+      // Сборка контекста для ИИ
+      const activeTasksCtx = tasks.filter(t => !t.isCompleted).slice(0, 15).map(t => `- [ID: ${t.id}] [${t.priority}] ${t.title}`).join('\n');
+      const projectsCtx = projects.slice(0, 5).map(p => `-[ID: ${p.id}] ${p.title}`).join('\n');
+      const habitsCtx = habits.map(h => `- [ID: ${h.id}] ${h.title}`).join('\n');
+      const thoughtsCtx = thoughts.slice(0, 10).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 100)}...`).join('\n');
 
-      const SYSTEM_INSTRUCTION = generateSystemInstruction({
-          userName,
-          tasks,
-          thoughts,
-          journal,
-          projects,
-          habits,
-          memories,
-          existingTags,
-          chatHistory,
-          isLiveMode: true
-      });
+      const SYSTEM_INSTRUCTION = `
+      Ты — Serafim OS (Live Voice Core). Прагматичный, слегка циничный, но преданный ИИ-ментор.
+      Пользователь: ${userName}.
+
+      ТВОЯ ГЛАВНАЯ ЗАДАЧА: Действовать. Не спрашивай разрешения на каждое действие. Если пользователь говорит "добавь задачу купить хлеб" — молча вызывай инструмент manage_task и говори "Записал".
+
+      ПРАВИЛА ИНСТРУМЕНТОВ:
+      1. ЗАДАЧИ: Если просят закрыть/выполнить задачу, найди её ID в блоке [ЗАДАЧИ] и вызови manage_task(action: 'complete').
+      2. ПРИВЫЧКИ: Если пользователь говорит "я потренировался", найди привычку в [ПРИВЫЧКИ] и вызови toggle_habit.
+      3. ДНЕВНИК: Записи в дневник делай развернутыми и красивыми.
+      4. РЕДАКТИРОВАНИЕ: Всегда ищи точный ID в контексте ниже. Не придумывай ID из головы.
+
+      --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---[ЗАДАЧИ В ФОКУСЕ]:
+      ${activeTasksCtx || 'Нет активных задач'}[АКТИВНЫЕ ПРОЕКТЫ]:
+      ${projectsCtx || 'Нет проектов'}[ПРИВЫЧКИ]:
+      ${habitsCtx || 'Нет привычек'}[НЕДАВНИЕ ИДЕИ]:
+      ${thoughtsCtx || 'Нет идей'}
+      `;
 
       const sessionPromise = ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
@@ -428,6 +430,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        if (args.action === 'create') {
                          onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() });
                          result = { result: `Task "${args.title}" created.` };
+                       } else if (args.action === 'complete' && args.id) {
+                         onUpdateTask(args.id, { isCompleted: true });
+                         result = { result: `Task marked as completed.` };
                        } else if (args.action === 'update' && args.id) {
                          const updates = cleanUpdates({ title: args.title, priority: args.priority, dueDate: args.dueDate, isCompleted: args.isCompleted, projectId: args.projectId });
                          onUpdateTask(args.id, updates);
@@ -437,6 +442,17 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                          result = { result: `Task deleted.` };
                        }
                        break;
+                       
+                     case 'toggle_habit':
+                       if (args.id && onToggleHabit) {
+                         const todayStr = new Date().toISOString().split('T')[0];
+                         onToggleHabit(args.id, todayStr);
+                         result = { result: `Habit toggled for today.` };
+                       } else {
+                           result = { result: `Error: Habit ID missing or function not available.` };
+                       }
+                       break;
+
                      case 'manage_thought': // Renamed from create_idea
                        if (args.action === 'create') {
                            const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая идея');
@@ -543,7 +559,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            }
                        }
                        break;
-                     case 'save_journal_entry':
+                     case 'save_journal':
                        onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });
                        result = { result: "Journal entry saved." };
                        break;
@@ -562,8 +578,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        }
                        break;
                      case 'ui_control':
-                       if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
-                       if (args.command === 'start_focus') onStartFocus(args.duration || 25);
+                       if (args.command === 'set_theme' && args.value) onSetTheme(args.value as ThemeKey);
+                       if (args.command === 'start_focus') onStartFocus(parseInt(args.value || '25'));
                        result = { result: "UI updated." };
                        break;
                    }
