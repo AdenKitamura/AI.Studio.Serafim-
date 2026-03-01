@@ -187,6 +187,82 @@ const App = () => {
     };
   }, [userId, authLoading]);
 
+  // --- REALTIME SYNC ---
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase.channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+        const { table, eventType, new: newRecord, old: oldRecord } = payload;
+        
+        const handleUpdate = async () => {
+             if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                 const item = dbService.mapFromSnakeCase(newRecord);
+                 await dbService.saveItem(table, item, false); // Update local DB without pushing back
+                 
+                 // Update React State
+                 switch(table) {
+                     case 'tasks': setTasks(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [...prev, item];
+                     }); break;
+                     case 'thoughts': setThoughts(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [item, ...prev];
+                     }); break;
+                     case 'journal': setJournal(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [item, ...prev];
+                     }); break;
+                     case 'projects': setProjects(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [...prev, item];
+                     }); break;
+                     case 'habits': setHabits(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [...prev, item];
+                     }); break;
+                     case 'chat_sessions': setSessions(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [...prev, item];
+                     }); break;
+                     case 'memories': setMemories(prev => {
+                         const exists = prev.find(p => p.id === item.id);
+                         if (exists) return prev.map(p => p.id === item.id ? item : p);
+                         return [...prev, item];
+                     }); break;
+                 }
+             } else if (eventType === 'DELETE') {
+                 const id = oldRecord.id;
+                 await dbService.deleteItem(table, id, false);
+                 
+                 switch(table) {
+                     case 'tasks': setTasks(prev => prev.filter(p => p.id !== id)); break;
+                     case 'thoughts': setThoughts(prev => prev.filter(p => p.id !== id)); break;
+                     case 'journal': setJournal(prev => prev.filter(p => p.id !== id)); break;
+                     case 'projects': setProjects(prev => prev.filter(p => p.id !== id)); break;
+                     case 'habits': setHabits(prev => prev.filter(p => p.id !== id)); break;
+                     case 'chat_sessions': setSessions(prev => prev.filter(p => p.id !== id)); break;
+                     case 'memories': setMemories(prev => prev.filter(p => p.id !== id)); break;
+                 }
+             }
+        };
+        
+        handleUpdate();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
   // Theme Application
   useEffect(() => {
     const validTheme = themes[currentTheme] ? currentTheme : 'emerald';

@@ -91,7 +91,7 @@ class DBService {
     return res;
   }
   
-  private mapFromSnakeCase(item: any): any {
+  public mapFromSnakeCase(item: any): any {
     const res: any = { ...item };
     if (res.due_date) { res.dueDate = res.due_date; delete res.due_date; }
     if (res.reminder_time) { res.reminderTime = res.reminder_time; delete res.reminder_time; }
@@ -145,7 +145,7 @@ class DBService {
     });
   }
 
-  async saveItem(storeName: string, item: any): Promise<void> {
+  async saveItem(storeName: string, item: any, syncCloud = true): Promise<void> {
     const db = await this.initDB();
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
@@ -154,10 +154,12 @@ class DBService {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-    await this.pushToCloud(storeName, item);
+    if (syncCloud) {
+        await this.pushToCloud(storeName, item);
+    }
   }
 
-  async deleteItem(storeName: string, id: string): Promise<void> {
+  async deleteItem(storeName: string, id: string, syncCloud = true): Promise<void> {
     const db = await this.initDB();
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
@@ -166,7 +168,9 @@ class DBService {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-    this.deleteFromCloud(storeName, id);
+    if (syncCloud) {
+        this.deleteFromCloud(storeName, id);
+    }
   }
 
   async saveAll(storeName: string, items: any[], syncCloud = true): Promise<void> {
