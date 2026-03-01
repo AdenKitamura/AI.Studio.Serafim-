@@ -310,14 +310,18 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
               // Base64 encode
               const buffer = new Uint8Array(pcm16.buffer);
               let binary = '';
-              for (let i = 0; i < buffer.byteLength; i++) {
+              const len = buffer.byteLength;
+              for (let i = 0; i < len; i++) {
                 binary += String.fromCharCode(buffer[i]);
               }
               const base64Data = btoa(binary);
 
               sessionPromise.then((session) => {
                 session.sendRealtimeInput({
-                  media: { data: base64Data, mimeType: `audio/pcm;rate=${targetSampleRate}` }
+                  media: {
+                    mimeType: `audio/pcm;rate=${targetSampleRate}`,
+                    data: base64Data
+                  }
                 });
               });
             };
@@ -586,9 +590,13 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       bytes[i] = binaryString.charCodeAt(i);
     }
     
+    // Create Int16Array from the bytes (PCM data)
     const int16Data = new Int16Array(bytes.buffer);
+    
+    // Convert to Float32 for Web Audio API
     const float32Data = new Float32Array(int16Data.length);
     for (let i = 0; i < int16Data.length; i++) {
+      // Normalize 16-bit integer to float range [-1.0, 1.0]
       float32Data[i] = int16Data[i] / 32768.0;
     }
 
