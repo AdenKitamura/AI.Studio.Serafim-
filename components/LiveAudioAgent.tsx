@@ -167,9 +167,17 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
           }
           activeSourceRef.current = null;
       }
+      
+      // Reset scheduling
+      if (audioContextRef.current) {
+          nextPlayTimeRef.current = audioContextRef.current.currentTime;
+      }
+      
       playbackQueueRef.current = [];
       isPlayingRef.current = false;
       setIsSpeaking(false);
+      
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
   };
 
   const handleClose = async () => {
