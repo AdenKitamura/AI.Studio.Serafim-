@@ -8,6 +8,17 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     
+    // Diagnostic check before login
+    try {
+        const { error } = await supabase.auth.getSession();
+        if (error) throw error;
+    } catch (e: any) {
+        console.error('Connection Check Failed:', e);
+        alert(`Ошибка подключения к серверу: ${e.message || 'Неизвестная ошибка'}. Проверьте интернет или статус проекта.`);
+        setLoading(false);
+        return;
+    }
+
     const redirectUrl = window.location.origin;
 
     // REQUEST SCOPES for Tasks & Calendar.

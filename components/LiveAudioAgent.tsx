@@ -248,10 +248,17 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       processorRef.current.connect(audioContextRef.current.destination);
 
       // Сборка контекста для ИИ
-      const activeTasksCtx = tasks.filter(t => !t.isCompleted).slice(0, 15).map(t => `- [ID: ${t.id}] [${t.priority}] ${t.title}`).join('\n');
-      const projectsCtx = projects.slice(0, 5).map(p => `-[ID: ${p.id}] ${p.title}`).join('\n');
-      const habitsCtx = habits.map(h => `- [ID: ${h.id}] ${h.title}`).join('\n');
-      const thoughtsCtx = thoughts.slice(0, 10).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 100)}...`).join('\n');
+      const activeTasksList = tasks.filter(t => !t.isCompleted).slice(0, 15).map(t => `- [ID: ${t.id}] [${t.priority}] ${t.title}`).join('\n');
+      const activeTasksCtx = activeTasksList || 'Задач нет';
+
+      const projectsList = projects.slice(0, 5).map(p => `-[ID: ${p.id}] ${p.title}`).join('\n');
+      const projectsCtx = projectsList || 'Проектов нет';
+
+      const habitsList = habits.map(h => `- [ID: ${h.id}] ${h.title}`).join('\n');
+      const habitsCtx = habitsList || 'Привычек нет';
+
+      const thoughtsList = thoughts.slice(0, 10).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 100)}...`).join('\n');
+      const thoughtsCtx = thoughtsList || 'Идей нет';
 
       const SYSTEM_INSTRUCTION = `
       Ты — Serafim OS (Live Voice Core). Прагматичный, слегка циничный, но преданный ИИ-ментор.
@@ -266,10 +273,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       4. РЕДАКТИРОВАНИЕ: Всегда ищи точный ID в контексте ниже. Не придумывай ID из головы.
 
       --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---[ЗАДАЧИ В ФОКУСЕ]:
-      ${activeTasksCtx || 'Нет активных задач'}[АКТИВНЫЕ ПРОЕКТЫ]:
-      ${projectsCtx || 'Нет проектов'}[ПРИВЫЧКИ]:
-      ${habitsCtx || 'Нет привычек'}[НЕДАВНИЕ ИДЕИ]:
-      ${thoughtsCtx || 'Нет идей'}
+      ${activeTasksCtx}[АКТИВНЫЕ ПРОЕКТЫ]:
+      ${projectsCtx}[ПРИВЫЧКИ]:
+      ${habitsCtx}[НЕДАВНИЕ ИДЕИ]:
+      ${thoughtsCtx}
       `;
 
       const sessionPromise = ai.live.connect({
