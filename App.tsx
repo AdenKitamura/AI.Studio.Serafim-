@@ -15,7 +15,7 @@ import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
 import Login from './components/Login'; 
 import Sidebar from './components/Sidebar'; 
-import BackgroundGlow from './components/BackgroundGlow';
+import { FallingPattern } from '@/components/ui/falling-pattern';
 import { themes } from './themes';
 import { dbService } from './services/dbService';
 import { supabase } from './services/supabaseClient';
@@ -411,7 +411,9 @@ const App = () => {
     <div 
       className="h-[100dvh] w-full overflow-hidden bg-transparent relative selection:bg-[var(--accent)]/30 flex flex-col md:flex-row"
     >
-      <BackgroundGlow />
+      <div className="absolute inset-0 -z-10 opacity-60">
+        <FallingPattern />
+      </div>
       
       {/* Global Live Agent */}
       {showLiveAgent && (
