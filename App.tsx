@@ -277,6 +277,12 @@ const App = () => {
     root.style.setProperty('--app-font', `"JetBrains Mono", monospace`);
     root.style.setProperty('--icon-weight', iconWeight);
     body.setAttribute('data-theme-type', theme.type);
+
+    if (theme.type === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
     
     localStorage.setItem('sb_theme', validTheme);
     localStorage.setItem('sb_icon_weight', iconWeight);
