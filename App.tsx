@@ -294,6 +294,21 @@ const App = () => {
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
   const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };
 
+  const handleUpdateMemory = (id: string, updates: Partial<Memory>) => {
+    setMemories(prev => {
+      const existing = prev.find(m => m.id === id);
+      if (!existing) return prev;
+      const updated = { ...existing, ...updates };
+      persist('memories', updated);
+      return prev.map(m => m.id === id ? updated : m);
+    });
+  };
+
+  const handleDeleteMemory = (id: string) => {
+    setMemories(prev => prev.filter(m => m.id !== id));
+    remove('memories', id);
+  };
+
   // NEW: Handle Session Switching with Background Summarization
   const handleSelectSession = async (newId: string) => {
       const oldSessionId = activeSessionId;
@@ -443,6 +458,8 @@ const App = () => {
           onAddProject={p => { setProjects(prev => [p, ...prev]); persist('projects', p); }}
           onUpdateProject={handleUpdateProject}
           onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
+          onUpdateMemory={handleUpdateMemory}
+          onDeleteMemory={handleDeleteMemory}
           onSetTheme={setCurrentTheme}
           onStartFocus={handleStartFocus}
           onToggleHabit={handleToggleHabit}
@@ -524,6 +541,8 @@ const App = () => {
               onUpdateProject={handleUpdateProject}
               onAddHabit={handleAddHabit}
               onAddMemory={m => { setMemories(prev => [m, ...prev]); persist('memories', m); }}
+              onUpdateMemory={handleUpdateMemory}
+              onDeleteMemory={handleDeleteMemory}
               onAddJournal={handleAddJournalEntry} 
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}

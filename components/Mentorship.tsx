@@ -36,6 +36,8 @@ interface MentorshipProps {
   onUpdateProject: (id: string, updates: Partial<Project>) => void;
   onAddHabit: (habit: Habit) => void;
   onAddMemory: (memory: Memory) => void;
+  onUpdateMemory: (id: string, updates: Partial<Memory>) => void;
+  onDeleteMemory: (id: string) => void;
   onAddJournal: (entry: Partial<JournalEntry>) => void; 
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
@@ -60,7 +62,7 @@ const VOICES = [
 const Mentorship: React.FC<MentorshipProps> = ({ 
     tasks, thoughts, journal, projects, habits, memories,
     sessions, activeSessionId, onUpdateMessages, 
-    onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddProject, onUpdateProject, onAddMemory, onAddJournal, onSetTheme, onStartFocus,
+    onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddProject, onUpdateProject, onAddMemory, onUpdateMemory, onDeleteMemory, onAddJournal, onSetTheme, onStartFocus,
     hasAiKey, onConnectAI, userName, voiceTrigger, session, onStartLiveAudio, onOpenHistory
 }) => {
   const [input, setInput] = useState('');
@@ -516,7 +518,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });
                       break;
                     case 'remember_fact':
-                      if (args.fact) onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() });
+                      if (args.fact) onAddMemory({ id: Date.now().toString(), content: args.fact, type: 'short_term', createdAt: new Date().toISOString() });
                       break;
                     case 'manage_project':
                       onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
@@ -606,6 +608,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
           onAddProject={onAddProject}
           onUpdateProject={onUpdateProject}
           onAddMemory={onAddMemory}
+          onUpdateMemory={onUpdateMemory}
+          onDeleteMemory={onDeleteMemory}
           onSetTheme={onSetTheme}
           onStartFocus={onStartFocus}
         />

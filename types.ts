@@ -143,6 +143,8 @@ export interface ChatSession {
 export interface Memory {
   id: string;
   content: string;
+  type: 'short_term' | 'long_term';
+  importance?: number; // 1-5
   createdAt: string;
 }
 

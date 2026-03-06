@@ -27,6 +27,8 @@ interface LiveAudioAgentProps {
   onAddProject: (project: Project) => void;
   onUpdateProject: (id: string, updates: Partial<Project>) => void;
   onAddMemory: (memory: Memory) => void;
+  onUpdateMemory: (id: string, updates: Partial<Memory>) => void;
+  onDeleteMemory: (id: string) => void;
   onSetTheme: (theme: ThemeKey) => void;
   onStartFocus: (minutes: number) => void;
   onDeleteTask: (id: string) => void;
@@ -114,6 +116,20 @@ const tools: FunctionDeclaration[] = [
     }
   },
   {
+    name: "manage_memory",
+    description: "Управление памятью (фактами). Используй для сохранения важных деталей о пользователе.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: { type: Type.STRING, enum: ["create", "update", "delete"] },
+        id: { type: Type.STRING, description: "ID факта (для update/delete)" },
+        content: { type: Type.STRING, description: "Текст факта" },
+        type: { type: Type.STRING, enum: ["short_term", "long_term"], description: "Тип памяти. short_term - для текущих дел, long_term - для биографии и важных фактов." }
+      },
+      required: ["action"]
+    }
+  },
+  {
     name: "ui_control",
     description: "Управление интерфейсом (темы, фокус-таймер).",
     parameters: {
@@ -131,7 +147,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   onClose, userName, 
   tasks, thoughts, journal, projects, habits, memories,
   chatHistory, onLiveSessionEnd,
-  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onSetTheme, onStartFocus, onLiveTextStream, onToggleHabit
+  onAddTask, onUpdateTask, onDeleteTask, onAddThought, onUpdateThought, onDeleteThought, onAddJournal, onAddProject, onUpdateProject, onAddMemory, onUpdateMemory, onDeleteMemory, onSetTheme, onStartFocus, onLiveTextStream, onToggleHabit
 }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
@@ -260,9 +276,16 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       const thoughtsList = thoughts.slice(0, 10).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 100)}...`).join('\n');
       const thoughtsCtx = thoughtsList || 'Идей нет';
 
+      const shortTermList = memories.filter(m => m.type === 'short_term' || !m.type).map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
+      const shortTermCtx = shortTermList || 'Нет записей';
+
+      const longTermList = memories.filter(m => m.type === 'long_term').map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
+      const longTermCtx = longTermList || 'Нет записей';
+
       const SYSTEM_INSTRUCTION = `
       Ты — Serafim OS (Live Voice Core). Прагматичный, слегка циничный, но преданный ИИ-ментор.
       Пользователь: ${userName}.
+      СЕГОДНЯ: ${new Date().toLocaleDateString('ru-RU')}.
 
       ТВОЯ ГЛАВНАЯ ЗАДАЧА: Действовать. Не спрашивай разрешения на каждое действие. Если пользователь говорит "добавь задачу купить хлеб" — молча вызывай инструмент manage_task и говори "Записал".
 
@@ -270,9 +293,18 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       1. ЗАДАЧИ: Если просят закрыть/выполнить задачу, найди её ID в блоке [ЗАДАЧИ] и вызови manage_task(action: 'complete').
       2. ПРИВЫЧКИ: Если пользователь говорит "я потренировался", найди привычку в [ПРИВЫЧКИ] и вызови toggle_habit.
       3. ДНЕВНИК: Записи в дневник делай развернутыми и красивыми.
-      4. РЕДАКТИРОВАНИЕ: Всегда ищи точный ID в контексте ниже. Не придумывай ID из головы.
+      4. ПАМЯТЬ: 
+         - [КРАТКОСРОЧНАЯ]: Используй для текущего контекста (планы на неделю, текущие проблемы).
+         - [ДОЛГОСРОЧНАЯ]: Используй для биографии, предпочтений, важных дат (дни рождения, история).
+         - Если факт устарел (например, "приезд Леры" был 3 недели назад), удали его или перенеси в архив.
+      5. РЕДАКТИРОВАНИЕ: Всегда ищи точный ID в контексте ниже. Если ID нет, ищи по смыслу.
 
-      --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---[ЗАДАЧИ В ФОКУСЕ]:
+      --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---
+      [КРАТКОСРОЧНАЯ ПАМЯТЬ (АКТУАЛЬНОЕ)]:
+      ${shortTermCtx}
+      [ДОЛГОСРОЧНАЯ ПАМЯТЬ (АРХИВ ФАКТОВ)]:
+      ${longTermCtx}
+      [ЗАДАЧИ В ФОКУСЕ]:
       ${activeTasksCtx}[АКТИВНЫЕ ПРОЕКТЫ]:
       ${projectsCtx}[ПРИВЫЧКИ]:
       ${habitsCtx}[НЕДАВНИЕ ИДЕИ]:
@@ -570,9 +602,32 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        onAddJournal({ content: args.content, mood: args.mood || '😐', tags: args.tags || [], date: format(new Date(), 'yyyy-MM-dd') });
                        result = { result: "Journal entry saved." };
                        break;
-                     case 'remember_fact':
-                       onAddMemory({ id: Date.now().toString(), content: args.fact, createdAt: new Date().toISOString() });
-                       result = { result: "Fact remembered." };
+                     case 'manage_memory':
+                       if (args.action === 'create') {
+                           onAddMemory({ 
+                               id: Date.now().toString(), 
+                               content: args.content, 
+                               type: args.type || 'short_term',
+                               createdAt: new Date().toISOString() 
+                           });
+                           result = { result: "Memory created." };
+                       } else if (args.action === 'update' && args.id) {
+                           onUpdateMemory(args.id, { content: args.content, type: args.type });
+                           result = { result: "Memory updated." };
+                       } else if (args.action === 'delete') {
+                           let targetId = args.id;
+                           if (!targetId && args.content) {
+                               const match = memories.find(m => m.content.toLowerCase().includes(args.content.toLowerCase()));
+                               if (match) targetId = match.id;
+                           }
+                           
+                           if (targetId) {
+                               onDeleteMemory(targetId);
+                               result = { result: "Memory deleted." };
+                           } else {
+                               result = { result: "Error: Memory not found." };
+                           }
+                       }
                        break;
                      case 'manage_project':
                        if (args.action === 'create') {
