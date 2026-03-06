@@ -44,15 +44,15 @@ const tools: FunctionDeclaration[] = [
     }
   },
   {
-    name: "manage_thought",
-    description: "Управляет идеями и заметками. ОБЯЗАТЕЛЬНО генерируй 1-3 релевантных хештега в массив tags (на русском языке, строчными буквами, без решетки, например ['идеи', 'проект_х']). Семантически анализируй текст пользователя для подбора тегов.",
+    name: "manage_note",
+    description: "Управляет заметками. ОБЯЗАТЕЛЬНО генерируй 1-3 релевантных хештега в массив tags (на русском языке, строчными буквами, без решетки, например ['идеи', 'проект_х']). Семантически анализируй текст пользователя для подбора тегов.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        action: { type: Type.STRING, enum: ["create", "update"] },
-        id: { type: Type.STRING, description: "ID идеи (обязательно для update)" },
-        title: { type: Type.STRING, description: "Заголовок идеи (для create)" },
-        content: { type: Type.STRING, description: "Текст заметки" },
+        action: { type: Type.STRING, enum: ["create", "update", "delete"] },
+        id: { type: Type.STRING, description: "ID заметки (обязательно для update/delete, если не указаны title/content для поиска)" },
+        title: { type: Type.STRING, description: "Заголовок заметки (для create или поиска)" },
+        content: { type: Type.STRING, description: "Текст заметки (для create/update или поиска)" },
         sectionTitle: { type: Type.STRING, description: "Название раздела/секции (например: 'Критика', 'План', 'Ссылки'). Если не указано - 'Заметки'." },
         tags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Массив хештегов (без #). Пример: ['работа', 'важное']" },
         mode: { type: Type.STRING, enum: ["replace", "append"], description: "append - добавить к тексту секции, replace - заменить текст секции." }
@@ -121,7 +121,7 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
   const SYSTEM_INSTRUCTION = generateSystemInstruction({
       userName: context.userName,
       tasks: context.tasks || [],
-      thoughts: context.thoughts || [],
+      notes: context.thoughts || [],
       journal: context.journal || [],
       projects: context.projects || [],
       habits: context.habits || [],

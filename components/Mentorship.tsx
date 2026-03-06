@@ -429,24 +429,35 @@ const Mentorship: React.FC<MentorshipProps> = ({
             contents = { parts: [{ text: cleanInput || "Analyze image" }, { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }] };
         }
 
-        const response: any = await chatSessionRef.current.sendMessage({ message: contents });
+        const responseStream = await chatSessionRef.current.sendMessageStream({ message: contents });
+        
+        // Create a placeholder message for the model
+        const modelMsgId = (Date.now() + 1).toString();
+        let fullResponseText = "";
+        
+        // Initial empty message
+        const initialModelMsg: ChatMessage = { id: modelMsgId, role: 'model', content: "", timestamp: Date.now() };
+        onUpdateMessages([...newHistory, initialModelMsg]);
 
-        if (response.functionCalls) {
-            setIsProcessingTool(true);
-            for (const fc of response.functionCalls) {
-                // ... (Tool handling logic remains same, just ensuring it's inside try)
-                const args = fc.args as any;
-                // ... (Tool logic omitted for brevity, assuming it's safe or handled by inner try/catch)
-                // We need to keep the tool logic here. Since I can't use "..." in replacement, I must include it.
-                // To save tokens/complexity, I will just copy the tool logic from the original file if I can, 
-                // but since I am replacing the WHOLE handleSend, I must include it all.
-                // Wait, I can use a smaller target content to just wrap the beginning and end?
-                // No, handleSend is one block.
-                // I will try to target specific parts or rewrite the whole thing.
-                // Let's rewrite the whole thing to be safe.
+        for await (const chunk of responseStream) {
+            const chunkText = chunk.text;
+            if (chunkText) {
+                fullResponseText += chunkText;
                 
-                // ... (Tool logic)
-                 switch (fc.name) {
+                // Update the message in real-time
+                const updatedMsg: ChatMessage = { id: modelMsgId, role: 'model', content: fullResponseText, timestamp: Date.now() };
+                onUpdateMessages([...newHistory, updatedMsg]);
+            }
+        }
+        
+        const aggregatedResponse = await responseStream.response;
+
+        if (aggregatedResponse.functionCalls) {
+            setIsProcessingTool(true);
+            for (const fc of aggregatedResponse.functionCalls) {
+                const args = fc.args as any;
+                try {
+                  switch (fc.name) {
                     case 'manage_task':
                       if (args.action === 'create') {
                         const newTask: Task = { id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() };
@@ -454,9 +465,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
                         logger.log('Tool', `Task created: ${args.title}`, 'success');
                       }
                       break;
-                    case 'manage_thought':
+                    case 'manage_note':
                       if (args.action === 'create') {
-                          const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая идея');
+                          const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая заметка');
                           const sectionTitle = args.sectionTitle || 'Заметки';
                           const sectionContent = args.content || '';
                           
@@ -469,49 +480,63 @@ const Mentorship: React.FC<MentorshipProps> = ({
                               tags: (args.tags || []).map((t: string) => t.toLowerCase().trim()), 
                               createdAt: new Date().toISOString() 
                           });
-                          logger.log('Tool', `Idea "${title}" created.`, 'success');
-                      } else if (args.action === 'update' && args.id) {
-                          const existing = thoughts.find(t => t.id === args.id);
-                          if (!existing) {
-                              logger.log('Tool', `Idea not found.`, 'error');
-                              break;
-                          }
+                          logger.log('Tool', `Note "${title}" created.`, 'success');
+                      } else if (args.action === 'update' || args.action === 'delete') {
+                          let targetId = args.id;
+                          if (!targetId && (args.title || args.content)) {
+                               const search = (args.title || args.content).toLowerCase();
+                               const match = thoughts.find(t => 
+                                   t.content.toLowerCase().includes(search) || 
+                                   (t.notes && t.notes.toLowerCase().includes(search))
+                               );
+                               if (match) targetId = match.id;
+                           }
 
-                          if (!args.mode) args.mode = 'append'; 
-                          
-                          let updates: Partial<Thought> = {};
-                          if (args.title) updates.content = args.title;
-                          if (args.tags) updates.tags = args.tags.map((t: string) => t.toLowerCase().trim());
-
-                          if (args.content) {
-                              const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
-                              const targetSectionTitle = args.sectionTitle || 'Заметки';
-                              let targetSectionIndex = sections.findIndex(s => s.title === targetSectionTitle);
-                              
-                              if (targetSectionIndex === -1 && !args.sectionTitle) {
-                                  targetSectionIndex = 0; 
-                              }
-
-                              if (targetSectionIndex !== -1) {
-                                  const section = sections[targetSectionIndex];
-                                  let newContent = args.content;
-                                  if (args.mode === 'append') {
-                                      newContent = section.content + '\n' + args.content;
-                                  }
-                                  sections[targetSectionIndex] = { ...section, content: newContent };
+                          if (targetId) {
+                              if (args.action === 'delete') {
+                                  onDeleteThought(targetId);
+                                  logger.log('Tool', `Note deleted.`, 'success');
                               } else {
-                                  sections.push({
-                                      id: Date.now().toString(),
-                                      title: targetSectionTitle,
-                                      content: args.content
-                                  });
-                              }
-                              updates.sections = sections;
-                              if (sections[0]) updates.notes = sections[0].content;
-                          }
+                                  const existing = thoughts.find(t => t.id === targetId);
+                                  if (existing) {
+                                      if (!args.mode) args.mode = 'append'; 
+                                      let updates: Partial<Thought> = {};
+                                      if (args.title) updates.content = args.title;
+                                      if (args.tags) updates.tags = args.tags.map((t: string) => t.toLowerCase().trim());
 
-                          onUpdateThought(args.id, updates);
-                          logger.log('Tool', `Idea updated.`, 'success');
+                                      if (args.content) {
+                                          const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
+                                          const targetSectionTitle = args.sectionTitle || 'Заметки';
+                                          let targetSectionIndex = sections.findIndex(s => s.title === targetSectionTitle);
+                                          
+                                          if (targetSectionIndex === -1 && !args.sectionTitle) {
+                                              targetSectionIndex = 0; 
+                                          }
+
+                                          if (targetSectionIndex !== -1) {
+                                              const section = sections[targetSectionIndex];
+                                              let newContent = args.content;
+                                              if (args.mode === 'append') {
+                                                  newContent = section.content + '\n' + args.content;
+                                              }
+                                              sections[targetSectionIndex] = { ...section, content: newContent };
+                                          } else {
+                                              sections.push({
+                                                  id: Date.now().toString(),
+                                                  title: targetSectionTitle,
+                                                  content: args.content
+                                              });
+                                          }
+                                          updates.sections = sections;
+                                          if (sections[0]) updates.notes = sections[0].content;
+                                      }
+                                      onUpdateThought(targetId, updates);
+                                      logger.log('Tool', `Note updated.`, 'success');
+                                  }
+                              }
+                          } else {
+                              logger.log('Tool', `Note not found (search: ${args.title || args.content || args.id})`, 'error');
+                          }
                       }
                       break;
                     case 'save_journal_entry':
@@ -529,16 +554,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       if (args.command === 'enable_asmr') applyASMR(); 
                       break;
                   }
+                } catch (e: any) {
+                    logger.log('Tool', `Error: ${e.message}`, 'error');
+                }
             }
             setIsProcessingTool(false);
         }
 
-        const responseText = response.text || "Готово.";
-        const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', content: responseText, timestamp: Date.now() };
-        onUpdateMessages([...newHistory, modelMsg]);
-
-        if (autoVoice) {
-            setTimeout(() => playGeminiAudio(responseText), 100);
+        if (autoVoice && fullResponseText) {
+            setTimeout(() => playGeminiAudio(fullResponseText), 100);
         }
 
     } catch (e: any) {

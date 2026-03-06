@@ -18,7 +18,7 @@ export const SERAFIM_CORE_IDENTITY = `
 export const generateSystemInstruction = (context: {
     userName: string;
     tasks: Task[];
-    thoughts: Thought[];
+    notes: Thought[];
     journal: JournalEntry[];
     projects: Project[];
     habits: Habit[];
@@ -44,8 +44,8 @@ export const generateSystemInstruction = (context: {
         ? activeTasks.map(t => `- [${t.priority}] ${t.title} (ID: ${t.id}, Due: ${t.dueDate || 'N/A'})`).join('\n')
         : `TASKS: ${activeTasks.length} pending.`;
 
-    // 3. Recent Thoughts
-    const recentThoughts = (context.thoughts || []).slice(0, 10).map((t: Thought) => `- ${t.content} (ID: ${t.id})`).join('\n');
+    // 3. Recent Notes
+    const recentNotes = (context.notes || []).slice(0, 10).map((n: Thought) => `- ${n.content} (ID: ${n.id})`).join('\n');
 
     // 4. Habits & Projects (More detailed for Live Mode)
     const habitContext = context.habits.map(h => `- ${h.title} (Completed: ${h.completedDates.length})`).join('\n');
@@ -86,31 +86,31 @@ ${lastMessages}
 
     const liveModeInstructions = `
 CORE BEHAVIORS (LIVE MODE):
-1. ACTIVE EDITING: You have full permission to modify, append, or delete content based on user intent. Do not ask "Should I change this?". If the user says "Rewrite this paragraph," just do it using the \`manage_thought\` tool.
+1. ACTIVE EDITING: You have full permission to modify, append, or delete content based on user intent. Do not ask "Should I change this?". If the user says "Rewrite this paragraph," just do it using the \`manage_note\` tool.
 2. STREAMING FLOW: When generating new content, write progressively. Your text should flow naturally, like a stream of consciousness, but structured.
 3. STRUCTURED CREATION:
-   - If the user generates a new idea inside a thought, use \`manage_thought\` (action: create) with \`title\` for the short name and \`content\` for the detailed body.
+   - If the user generates a new idea inside a note, use \`manage_note\` (action: create) with \`title\` for the short name and \`content\` for the detailed body.
    - If the user mentions an action item (e.g., "I need to buy milk" or "Remind me to call"), IMMEDIATELY use the \`manage_task\` tool.
-4. DESTRUCTIVE ACTIONS: If the user says "Delete this" or "Clear this thought," use the \`manage_thought\` or \`manage_task\` tool with action 'delete'.
+4. DESTRUCTIVE ACTIONS: If the user says "Delete this" or "Clear this note," use the \`manage_note\` or \`manage_task\` tool with action 'delete'.
 5. TONE: Precise, invisible, fluid. You are an extension of the user's mind. Do not be chatty. Act.
 
 COMMAND INTERPRETATION:
-- "Expand on this" -> Use \`manage_thought\` with mode='append'.
-- "Change [X] to [Y]" -> Use \`manage_thought\` with mode='replace'.
+- "Expand on this" -> Use \`manage_note\` with mode='append'.
+- "Change [X] to [Y]" -> Use \`manage_note\` with mode='replace'.
 - "Make a task for X" -> Use \`manage_task\`.
-- "Split this into a new section" -> Use \`manage_thought\` (action: create).
+- "Split this into a new section" -> Use \`manage_note\` (action: create).
 `;
 
     const textModeInstructions = `
 ПРАВИЛА ПОВЕДЕНИЯ (TEXT MODE):
 1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями. Создавай задачу только по явной просьбе.
-2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в память...".
+2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в заметки...".
 3. **РЕЖИМ ДНЕВНИКА**: Если пользователь просит записать мысли за последние дни, проанализируй GLOBAL CONTEXT, составь красивую выжимку и предложи сохранить её в дневник (функция save_journal_entry).
 4. **УПРАВЛЕНИЕ ГОЛОСОМ**: Если пользователь просит "говорить шепотом", "томным голосом" или включить "ас мр режим", используй инструмент ui_control с командой 'enable_asmr'.
 5. **РЕЖИМ "БРИФИНГ"**: Если пользователь просит "Брифинг" или "Сводку", ты должен:
     - Назвать текущую дату и время.
     - Озвучить главные задачи на сегодня.
-    - Напомнить о важных мыслях.
+    - Напомнить о важных заметках.
 `;
 
     // --- SHARED RULES ---
@@ -122,24 +122,24 @@ COMMAND INTERPRETATION:
 - Если не уверен, используй mode='append', чтобы не потерять данные.
 
 ПРАВИЛА ТЕГИРОВАНИЯ (АВТОМАТИЧЕСКАЯ РАЗМЕТКА):
-Когда ты создаешь или обновляешь мысль, ты ОБЯЗАН добавить 1-3 тега в массив tags.
+Когда ты создаешь или обновляешь заметку, ты ОБЯЗАН добавить 1-3 тега в массив tags.
 ШАГ 1: Посмотри на список уже существующих тегов пользователя: [${context.existingTags || ''}].
 ШАГ 2: Максимально старайся использовать ТЕГИ ИЗ ЭТОГО СПИСКА, если они подходят по смыслу. (Например, если есть тег 'работа', не создавай тег 'офис' или 'ворк', используй 'работа').
 ШАГ 3: Создавай НОВЫЙ тег ТОЛЬКО если ни один из существующих категорически не подходит.
 ШАГ 4: Формат тегов: всегда только нижний регистр, существительное, единственное число, без пробелов (используй нижнее подчеркивание, если слов два). Никаких знаков '#' в самом слове.
 
-ПРАВИЛА РЕДАКТИРОВАНИЯ И ПОИСКА МЫСЛЕЙ (КРИТИЧНО ВАЖНО):
-Когда пользователь просит дополнить, изменить или удалить существующую мысль (например: "добавь в идею про ремонт...", "измени заметку о машине"):
-ШАГ 1: Внимательно изучи блок [НЕДАВНИЕ МЫСЛИ] в контексте.
-ШАГ 2: Найди мысль, которая по смыслу или названию совпадает с тем, что сказал пользователь.
-ШАГ 3: Извлеки точный цифровой ID этой мысли (он указан в скобках [ID: ...]).
-ШАГ 4: Вызови инструмент manage_thought и ОБЯЗАТЕЛЬНО передай этот найденный ID. ЗАПРЕЩЕНО придумывать ID из головы. Если нужной мысли нет в контексте, спроси пользователя уточнить.
+ПРАВИЛА РЕДАКТИРОВАНИЯ И ПОИСКА ЗАМЕТОК (КРИТИЧНО ВАЖНО):
+Когда пользователь просит дополнить, изменить или удалить существующую заметку (например: "добавь в идею про ремонт...", "измени заметку о машине"):
+ШАГ 1: Внимательно изучи блок [НЕДАВНИЕ ЗАМЕТКИ] в контексте.
+ШАГ 2: Найди заметку, которая по смыслу или названию совпадает с тем, что сказал пользователь.
+ШАГ 3: Извлеки точный цифровой ID этой заметки (он указан в скобках [ID: ...]).
+ШАГ 4: Вызови инструмент manage_note и ОБЯЗАТЕЛЬНО передай этот найденный ID. ЗАПРЕЩЕНО придумывать ID из головы. Если нужной заметки нет в контексте, спроси пользователя уточнить.
 
 РАБОТА С СЕКЦИЯМИ (МНОГОЗАДАЧНОСТЬ):
-- Одна мысль/идея может содержать МНОГО разных заметок (секций).
+- Одна заметка может содержать МНОГО разных разделов (секций).
 - Если пользователь говорит "добавь раздел Критика" или "запиши в План", используй параметр \`sectionTitle\`.
-- Пример: \`manage_thought(action: 'update', id: '123', sectionTitle: 'Критика', content: 'Слишком дорого...', mode: 'append')\`.
-- Это создаст новую вкладку/раздел внутри той же самой идеи.
+- Пример: \`manage_note(action: 'update', id: '123', sectionTitle: 'Критика', content: 'Слишком дорого...', mode: 'append')\`.
+- Это создаст новую вкладку/раздел внутри той же самой заметки.
 `;
 
     // --- FINAL ASSEMBLY ---
@@ -168,8 +168,8 @@ ${habitContext}
 ${taskSummary}
 `}
 
-[НЕДАВНИЕ МЫСЛИ]:
-${recentThoughts}
+[НЕДАВНИЕ ЗАМЕТКИ]:
+${recentNotes}
 
 ${globalHistory}
 ${recentChatContext}

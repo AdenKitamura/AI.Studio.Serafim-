@@ -64,14 +64,15 @@ const tools: FunctionDeclaration[] = [
     }
   },
   {
-    name: "manage_thought",
-    description: "Управление идеями и заметками. Используй mode='append' для дописывания текста.",
+    name: "manage_note",
+    description: "Управление заметками (ранее 'идеи'). Используй mode='append' для дописывания текста.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         action: { type: Type.STRING, enum: ["create", "update", "delete"] },
-        id: { type: Type.STRING },
-        content: { type: Type.STRING },
+        id: { type: Type.STRING, description: "ID заметки (если есть)" },
+        title: { type: Type.STRING, description: "Заголовок заметки (для поиска или создания)" },
+        content: { type: Type.STRING, description: "Текст заметки" },
         tags: { type: Type.ARRAY, items: { type: Type.STRING } },
         mode: { type: Type.STRING, enum: ["replace", "append"] }
       },
@@ -273,8 +274,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       const habitsList = habits.map(h => `- [ID: ${h.id}] ${h.title}`).join('\n');
       const habitsCtx = habitsList || 'Привычек нет';
 
-      const thoughtsList = thoughts.slice(0, 10).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 100)}...`).join('\n');
-      const thoughtsCtx = thoughtsList || 'Идей нет';
+      const thoughtsList = thoughts.slice(0, 15).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 150)}...`).join('\n');
+      const thoughtsCtx = thoughtsList || 'Заметок нет';
 
       const shortTermList = memories.filter(m => m.type === 'short_term' || !m.type).map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
       const shortTermCtx = shortTermList || 'Нет записей';
@@ -297,7 +298,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
          - [КРАТКОСРОЧНАЯ]: Используй для текущего контекста (планы на неделю, текущие проблемы).
          - [ДОЛГОСРОЧНАЯ]: Используй для биографии, предпочтений, важных дат (дни рождения, история).
          - Если факт устарел (например, "приезд Леры" был 3 недели назад), удали его или перенеси в архив.
-      5. РЕДАКТИРОВАНИЕ: Всегда ищи точный ID в контексте ниже. Если ID нет, ищи по смыслу.
+      5. ЗАМЕТКИ (Notes):
+         - Если пользователь просит "отредактировать заметку про...", ищи её в блоке [ЗАМЕТКИ].
+         - Если ID не назван, ищи по смыслу текста.
+         - Используй manage_note.
 
       --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---
       [КРАТКОСРОЧНАЯ ПАМЯТЬ (АКТУАЛЬНОЕ)]:
@@ -307,7 +311,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       [ЗАДАЧИ В ФОКУСЕ]:
       ${activeTasksCtx}[АКТИВНЫЕ ПРОЕКТЫ]:
       ${projectsCtx}[ПРИВЫЧКИ]:
-      ${habitsCtx}[НЕДАВНИЕ ИДЕИ]:
+      ${habitsCtx}[ЗАМЕТКИ (NOTES)]:
       ${thoughtsCtx}
       `;
 
@@ -492,10 +496,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        }
                        break;
 
-                     case 'manage_thought': // Renamed from create_idea
+                     case 'manage_note': // Renamed from manage_thought
                        if (args.action === 'create') {
-                           const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая идея');
-                           const sectionTitle = args.sectionTitle || 'Заметки';
+                           const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая заметка');
+                           const sectionTitle = 'Заметки';
                            const sectionContent = args.content || '';
                            
                            onAddThought({ 
@@ -507,11 +511,28 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                                tags: (args.tags || []).map((t: string) => t.toLowerCase().trim()), 
                                createdAt: new Date().toISOString() 
                            });
-                           result = { result: `Idea "${title}" created.` };
-                       } else if (args.action === 'update' && args.id) {
-                           const existing = thoughts.find(t => t.id === args.id);
+                           result = { result: `Note "${title}" created.` };
+                       } else if (args.action === 'update') {
+                           let targetId = args.id;
+                           
+                           // Fuzzy search if ID is missing
+                           if (!targetId && (args.title || args.content)) {
+                               const search = (args.title || args.content).toLowerCase();
+                               const match = thoughts.find(t => 
+                                   t.content.toLowerCase().includes(search) || 
+                                   (t.notes && t.notes.toLowerCase().includes(search))
+                               );
+                               if (match) targetId = match.id;
+                           }
+
+                           if (!targetId) {
+                               result = { result: `Note not found. Please specify ID or unique content.` };
+                               break;
+                           }
+
+                           const existing = thoughts.find(t => t.id === targetId);
                            if (!existing) {
-                               result = { result: `Idea not found.` };
+                               result = { result: `Note not found.` };
                                break;
                            }
 
@@ -523,10 +544,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
                            if (args.content) {
                                const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
-                               const targetSectionTitle = args.sectionTitle || 'Заметки';
+                               const targetSectionTitle = 'Заметки';
                                let targetSectionIndex = sections.findIndex(s => s.title === targetSectionTitle);
                                
-                               if (targetSectionIndex === -1 && !args.sectionTitle) {
+                               if (targetSectionIndex === -1) {
                                    targetSectionIndex = 0; // Default to first section
                                }
 
@@ -537,64 +558,30 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                                        newContent = section.content + '\n' + args.content;
                                    }
                                    sections[targetSectionIndex] = { ...section, content: newContent };
-                               } else {
-                                   // Create new section
-                                   sections.push({
-                                       id: Date.now().toString(),
-                                       title: targetSectionTitle,
-                                       content: args.content
-                                   });
                                }
                                updates.sections = sections;
-                               // Sync notes for backward compatibility
                                if (sections[0]) updates.notes = sections[0].content;
                            }
 
-                           onUpdateThought(args.id, updates);
-                           result = { result: `Idea updated.` };
+                           onUpdateThought(targetId, updates);
+                           result = { result: `Note updated.` };
                        } else if (args.action === 'delete') {
                            let targetId = args.id;
                            
-                           // Helper to normalize string
-                           const norm = (s: string) => s ? s.toLowerCase().trim() : '';
-                           const searchTitle = norm(args.title);
-                           const searchContent = norm(args.content);
-
-                           // Fallback: Find by title/content if ID not found
-                           if (!targetId || !thoughts.find(t => t.id === targetId)) {
-                               let match = null;
-                               
-                               // 1. Try Exact Match on Content (Title)
-                               if (searchTitle) {
-                                   match = thoughts.find(t => norm(t.content) === searchTitle);
-                                   
-                                   // 2. Try "Contains" but stricter (must be significant length)
-                                   if (!match && searchTitle.length > 2) {
-                                       // Find all matches
-                                       const matches = thoughts.filter(t => norm(t.content).includes(searchTitle));
-                                       // Pick the best one (shortest content usually means closest match to title)
-                                       if (matches.length > 0) {
-                                           match = matches.sort((a, b) => a.content.length - b.content.length)[0];
-                                       }
-                                   }
-                               }
-                               
-                               // 3. Fallback to searchContent if title didn't work
-                               if (!match && searchContent && searchContent.length > 2) {
-                                    const matches = thoughts.filter(t => norm(t.content).includes(searchContent));
-                                    if (matches.length > 0) {
-                                        match = matches.sort((a, b) => a.content.length - b.content.length)[0];
-                                    }
-                               }
-
+                           if (!targetId && (args.title || args.content)) {
+                               const search = (args.title || args.content).toLowerCase();
+                               const match = thoughts.find(t => 
+                                   t.content.toLowerCase().includes(search) || 
+                                   (t.notes && t.notes.toLowerCase().includes(search))
+                               );
                                if (match) targetId = match.id;
                            }
 
                            if (targetId) {
                                onDeleteThought(targetId);
-                               result = { result: `Idea deleted.` };
+                               result = { result: `Note deleted.` };
                            } else {
-                               result = { result: `Error: Idea not found. Please provide exact ID or title.` };
+                               result = { result: `Error: Note not found.` };
                            }
                        }
                        break;
