@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 1. Пытаемся получить ключи из переменных окружения (Vite, Next.js или CRA)
-const supabaseUrl = 
+let supabaseUrl = 
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 
   process.env.REACT_APP_SUPABASE_URL || 
   process.env.NEXT_PUBLIC_SUPABASE_URL || 
@@ -12,6 +12,11 @@ const supabaseAnonKey =
   process.env.REACT_APP_SUPABASE_ANON_KEY || 
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
   '';
+
+// Ensure URL starts with https://
+if (supabaseUrl && !supabaseUrl.startsWith('http')) {
+    supabaseUrl = `https://${supabaseUrl}`;
+}
 
 // 2. Проверяем, нашлись ли ключи
 if (!supabaseUrl || !supabaseAnonKey) {
