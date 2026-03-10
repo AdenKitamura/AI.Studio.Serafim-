@@ -453,6 +453,17 @@ const Mentorship: React.FC<MentorshipProps> = ({
         
         const aggregatedResponse = await responseStream.response;
 
+        // Extract Google Search grounding metadata
+        const chunks = aggregatedResponse.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (chunks && chunks.length > 0) {
+            const links = chunks.map((c: any) => c.web?.uri || c.web?.title).filter(Boolean);
+            if (links.length > 0) {
+                fullResponseText += "\n\n**Источники:**\n" + links.map((l: string) => `- [${l}](${l})`).join('\n');
+                const updatedMsg: ChatMessage = { id: modelMsgId, role: 'model', content: fullResponseText, timestamp: Date.now() };
+                onUpdateMessages([...newHistory, updatedMsg]);
+            }
+        }
+
         if (aggregatedResponse.functionCalls) {
             setIsProcessingTool(true);
             for (const fc of aggregatedResponse.functionCalls) {

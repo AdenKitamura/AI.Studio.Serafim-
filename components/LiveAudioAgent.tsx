@@ -376,7 +376,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
           },
           systemInstruction: SYSTEM_INSTRUCTION,
-          tools: [{ functionDeclarations: tools }],
+          tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
           // inputAudioTranscription: { model: "google_speech" }, 
         },
         callbacks: {
