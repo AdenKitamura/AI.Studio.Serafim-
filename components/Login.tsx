@@ -14,33 +14,54 @@ const Login = () => {
         if (error) throw error;
     } catch (e: any) {
         console.error('Connection Check Failed:', e);
-        alert(`Ошибка подключения к серверу: ${e.message || 'Неизвестная ошибка'}. Проверьте интернет или статус проекта.`);
-        setLoading(false);
-        return;
+        // Don't block login, just warn
     }
 
     const redirectUrl = window.location.origin;
 
-    // REQUEST SCOPES for Tasks & Calendar.
-    // NOTE: This might show "App not verified" warning from Google. 
-    // User must click "Advanced" -> "Proceed to App (unsafe)" to allow syncing.
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl,
-        scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-    
-    if (error) {
+    try {
+        // Use skipBrowserRedirect to get the URL first
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: redirectUrl,
+            skipBrowserRedirect: true, // Get URL instead of auto-redirect
+            scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent',
+            },
+          },
+        });
+        
+        if (error) throw error;
+
+        if (data?.url) {
+            console.log('Auth URL generated:', data.url);
+            // Manually navigate
+            window.location.href = data.url;
+        } else {
+            throw new Error('No auth URL returned');
+        }
+
+    } catch (error: any) {
       console.error('Login Error:', error.message);
       setLoading(false);
       alert('Ошибка входа: ' + error.message);
     }
+  };
+
+  const checkConnection = async () => {
+      try {
+          const start = Date.now();
+          const { data, error } = await supabase.from('tasks').select('count').limit(1); // Try a simple query
+          const time = Date.now() - start;
+          
+          if (error) throw error;
+          alert(`✅ Соединение с базой есть! (Пинг: ${time}мс)\nПроект активен.`);
+      } catch (e: any) {
+          alert(`❌ Ошибка соединения: ${e.message}\n\nВозможные причины:\n1. Проект Supabase на паузе (зайдите в Dashboard).\n2. VPN/Прокси блокирует доступ.\n3. Неверный URL проекта.`);
+      }
   };
 
   return (
@@ -94,6 +115,13 @@ const Login = () => {
           </div>
         </button>
         
+        <button 
+            onClick={checkConnection}
+            className="mt-4 text-[10px] text-zinc-500 hover:text-white underline decoration-zinc-700 hover:decoration-white transition-colors"
+        >
+            [DIAGNOSTIC MODE]
+        </button>
+
         <p className="mt-8 text-[9px] text-zinc-600 font-medium max-w-xs text-center leading-relaxed">
           Включает синхронизацию Google Tasks и Calendar. Если увидите предупреждение безопасности — нажмите "Advanced" &rarr; "Proceed".
         </p>

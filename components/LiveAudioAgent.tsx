@@ -226,6 +226,23 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const startTimeRef = useRef<number>(0);
   const isManualCloseRef = useRef(false);
 
+  // --- REFS FOR STALE CLOSURE FIX ---
+  const tasksRef = useRef(tasks);
+  const thoughtsRef = useRef(thoughts);
+  const projectsRef = useRef(projects);
+  const habitsRef = useRef(habits);
+  const memoriesRef = useRef(memories);
+  const journalRef = useRef(journal);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+    thoughtsRef.current = thoughts;
+    projectsRef.current = projects;
+    habitsRef.current = habits;
+    memoriesRef.current = memories;
+    journalRef.current = journal;
+  }, [tasks, thoughts, projects, habits, memories, journal]);
+
   useEffect(() => {
     connectToGemini();
     return () => {
@@ -265,23 +282,30 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       processorRef.current.connect(audioContextRef.current.destination);
 
       // Сборка контекста для ИИ
-      const activeTasksList = tasks.filter(t => !t.isCompleted).slice(0, 15).map(t => `- [ID: ${t.id}] [${t.priority}] ${t.title}`).join('\n');
+      const activeTasksList = tasksRef.current.filter(t => !t.isCompleted).slice(0, 15).map(t => `- [ID: ${t.id}] [${t.priority}] ${t.title}`).join('\n');
       const activeTasksCtx = activeTasksList || 'Задач нет';
 
-      const projectsList = projects.slice(0, 5).map(p => `-[ID: ${p.id}] ${p.title}`).join('\n');
+      const projectsList = projectsRef.current.slice(0, 5).map(p => `-[ID: ${p.id}] ${p.title}`).join('\n');
       const projectsCtx = projectsList || 'Проектов нет';
 
-      const habitsList = habits.map(h => `- [ID: ${h.id}] ${h.title}`).join('\n');
+      const habitsList = habitsRef.current.map(h => `- [ID: ${h.id}] ${h.title}`).join('\n');
       const habitsCtx = habitsList || 'Привычек нет';
 
-      const thoughtsList = thoughts.slice(0, 15).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 150)}...`).join('\n');
+      const thoughtsList = thoughtsRef.current.slice(0, 15).map(t => `- [ID: ${t.id}] ${t.content.substring(0, 150)}...`).join('\n');
       const thoughtsCtx = thoughtsList || 'Заметок нет';
 
-      const shortTermList = memories.filter(m => m.type === 'short_term' || !m.type).map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
+      const shortTermList = memoriesRef.current.filter(m => m.type === 'short_term' || !m.type).map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
       const shortTermCtx = shortTermList || 'Нет записей';
 
-      const longTermList = memories.filter(m => m.type === 'long_term').map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
+      const longTermList = memoriesRef.current.filter(m => m.type === 'long_term').map(m => `- [ID: ${m.id}] ${m.content}`).join('\n');
       const longTermCtx = longTermList || 'Нет записей';
+
+      const journalList = journalRef.current.slice(0, 3).map(j => `- [${j.date}] ${j.mood} ${j.content.substring(0, 150)}...`).join('\n');
+      const journalCtx = journalList || 'Дневник пуст';
+
+      const existingTags = Array.from(new Set(thoughtsRef.current.flatMap(t => t.tags || [])))
+        .map(t => t.toLowerCase())
+        .join(', ');
 
       const SYSTEM_INSTRUCTION = `
       Ты — Serafim OS (Live Voice Core). Прагматичный, слегка циничный, но преданный ИИ-ментор.
@@ -293,7 +317,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       ПРАВИЛА ИНСТРУМЕНТОВ:
       1. ЗАДАЧИ: Если просят закрыть/выполнить задачу, найди её ID в блоке [ЗАДАЧИ] и вызови manage_task(action: 'complete').
       2. ПРИВЫЧКИ: Если пользователь говорит "я потренировался", найди привычку в [ПРИВЫЧКИ] и вызови toggle_habit.
-      3. ДНЕВНИК: Записи в дневник делай развернутыми и красивыми.
+      3. ДНЕВНИК: Записи в дневник делай развернутыми и красивыми. Анализируй прошлые записи из блока [ДНЕВНИК], если пользователь просит.
       4. ПАМЯТЬ: 
          - [КРАТКОСРОЧНАЯ]: Используй для текущего контекста (планы на неделю, текущие проблемы).
          - [ДОЛГОСРОЧНАЯ]: Используй для биографии, предпочтений, важных дат (дни рождения, история).
@@ -302,6 +326,11 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
          - Если пользователь просит "отредактировать заметку про...", ищи её в блоке [ЗАМЕТКИ].
          - Если ID не назван, ищи по смыслу текста.
          - Используй manage_note.
+      6. ПРАВИЛА ТЕГИРОВАНИЯ (ДЛЯ ЗАМЕТОК):
+         - Когда создаешь или обновляешь заметку, добавь 1-3 тега.
+         - ТВОЙ СЛОВАРЬ СУЩЕСТВУЮЩИХ ТЕГОВ: [${existingTags}].
+         - МАКСИМАЛЬНО используй теги из словаря. Создавай новый тег, ТОЛЬКО если ни один из словаря не подходит.
+         - Формат тегов: нижний регистр, одно слово (или через подчеркивание), без символа #.
 
       --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---
       [КРАТКОСРОЧНАЯ ПАМЯТЬ (АКТУАЛЬНОЕ)]:
@@ -309,10 +338,15 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       [ДОЛГОСРОЧНАЯ ПАМЯТЬ (АРХИВ ФАКТОВ)]:
       ${longTermCtx}
       [ЗАДАЧИ В ФОКУСЕ]:
-      ${activeTasksCtx}[АКТИВНЫЕ ПРОЕКТЫ]:
-      ${projectsCtx}[ПРИВЫЧКИ]:
-      ${habitsCtx}[ЗАМЕТКИ (NOTES)]:
+      ${activeTasksCtx}
+      [АКТИВНЫЕ ПРОЕКТЫ]:
+      ${projectsCtx}
+      [ПРИВЫЧКИ]:
+      ${habitsCtx}
+      [ЗАМЕТКИ (NOTES)]:
       ${thoughtsCtx}
+      [ДНЕВНИК (ПОСЛЕДНИЕ ЗАПИСИ)]:
+      ${journalCtx}
       `;
 
       const sessionPromise = ai.live.connect({
@@ -518,7 +552,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            // Fuzzy search if ID is missing
                            if (!targetId && (args.title || args.content)) {
                                const search = (args.title || args.content).toLowerCase();
-                               const match = thoughts.find(t => 
+                               const match = thoughtsRef.current.find(t => 
                                    t.content.toLowerCase().includes(search) || 
                                    (t.notes && t.notes.toLowerCase().includes(search))
                                );
@@ -530,7 +564,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                                break;
                            }
 
-                           const existing = thoughts.find(t => t.id === targetId);
+                           const existing = thoughtsRef.current.find(t => t.id === targetId);
                            if (!existing) {
                                result = { result: `Note not found.` };
                                break;
@@ -555,7 +589,12 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                                    const section = sections[targetSectionIndex];
                                    let newContent = args.content;
                                    if (args.mode === 'append') {
-                                       newContent = section.content + '\n' + args.content;
+                                       // Prevent duplication if AI sent the whole text again
+                                       if (args.content && !section.content.includes(args.content)) {
+                                           newContent = section.content + '\n' + args.content;
+                                       } else {
+                                           newContent = args.content; // Fallback
+                                       }
                                    }
                                    sections[targetSectionIndex] = { ...section, content: newContent };
                                }
@@ -570,7 +609,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            
                            if (!targetId && (args.title || args.content)) {
                                const search = (args.title || args.content).toLowerCase();
-                               const match = thoughts.find(t => 
+                               const match = thoughtsRef.current.find(t => 
                                    t.content.toLowerCase().includes(search) || 
                                    (t.notes && t.notes.toLowerCase().includes(search))
                                );
@@ -604,7 +643,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        } else if (args.action === 'delete') {
                            let targetId = args.id;
                            if (!targetId && args.content) {
-                               const match = memories.find(m => m.content.toLowerCase().includes(args.content.toLowerCase()));
+                               const match = memoriesRef.current.find(m => m.content.toLowerCase().includes(args.content.toLowerCase()));
                                if (match) targetId = match.id;
                            }
                            
