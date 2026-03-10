@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, ThemeKey, FontFamily, IconWeight, TextureType, GeminiModel } from '../types';
 import Settings from './Settings';
+import SystemUpdates from './SystemUpdates';
 import { 
   X, Settings as SettingsIcon, HardDrive, 
-  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity, Globe, PlugZap
+  CheckCircle, LogOut, User, Terminal, Wifi, Cloud, Activity, Globe, PlugZap, GitPullRequest
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { logger, SystemLog } from '../services/logger';
@@ -34,7 +35,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     appState, userName, currentTheme, setTheme, geminiModel, setGeminiModel,
     onClose, onImport, customization, session, hasAiKey
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'settings' | 'console'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'settings' | 'console' | 'updates'>('general');
+  const [devMode, setDevMode] = useState(localStorage.getItem('serafim_dev_mode') === 'true');
+  const [devClicks, setDevClicks] = useState(0);
   const [storageInfo, setStorageInfo] = useState<{ used: string, total: string, percent: number, rawQuota: number } | null>(null);
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [connectionStatus, setConnectionStatus] = useState({
@@ -163,6 +166,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                 <button onClick={() => setActiveTab('console')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'console' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
                     <Terminal size={14} /> Консоль
                 </button>
+                {devMode && (
+                  <button onClick={() => setActiveTab('updates')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'updates' ? 'bg-[var(--bg-main)] text-[var(--text-main)] shadow-md border border-[var(--border-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+                      <GitPullRequest size={14} /> Обновления
+                  </button>
+                )}
             </div>
         </div>
 
@@ -175,7 +183,20 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                     
                     {/* User Card */}
                     <div className="glass-panel p-6 rounded-[2rem] text-center border border-[var(--border-color)]">
-                        <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in">
+                        <div 
+                          className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto border border-emerald-500/20 mb-4 animate-in zoom-in cursor-pointer"
+                          onClick={() => {
+                            const newClicks = devClicks + 1;
+                            setDevClicks(newClicks);
+                            if (newClicks >= 5) {
+                              const newDevMode = !devMode;
+                              setDevMode(newDevMode);
+                              localStorage.setItem('serafim_dev_mode', newDevMode.toString());
+                              setDevClicks(0);
+                              alert(newDevMode ? 'Developer Mode Enabled' : 'Developer Mode Disabled');
+                            }
+                          }}
+                        >
                             <CheckCircle size={40} className="text-emerald-500" />
                         </div>
                         <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Identity</h2>
@@ -324,6 +345,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                       </div>
                   </div>
 
+              </div>
+            )}
+
+            {/* --- UPDATES TAB --- */}
+            {activeTab === 'updates' && devMode && (
+              <div className="p-6 h-full overflow-y-auto no-scrollbar pb-32">
+                <SystemUpdates />
               </div>
             )}
         </div>

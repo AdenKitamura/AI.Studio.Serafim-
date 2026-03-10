@@ -155,6 +155,14 @@ const tools: FunctionDeclaration[] = [
       },
       required: ["title", "body"]
     }
+  },
+  {
+    name: "check_updates",
+    description: "Проверяет наличие готовых патчей кода (Pull Requests), ожидающих одобрения пользователя.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {}
+    }
   }
 ];
 
@@ -264,6 +272,11 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       stopLiveSession();
     };
   }, []);
+
+  const getLastBriefingTime = () => {
+    const time = localStorage.getItem('serafim_last_briefing');
+    return time ? parseInt(time, 10) : 0;
+  };
 
   const connectToGemini = async () => {
     try {
@@ -376,7 +389,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
           },
           systemInstruction: SYSTEM_INSTRUCTION,
-          tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
+          tools: [{ functionDeclarations: tools }, { googleSearch: {} }, { codeExecution: {} }],
           // inputAudioTranscription: { model: "google_speech" }, 
         },
         callbacks: {
@@ -393,6 +406,22 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
             }, 5000);
             
             logger.log('LiveAPI', 'Connected to Gemini Live', 'success');
+
+            // Proactive Greeting & Briefing
+            const hoursSinceLast = (Date.now() - getLastBriefingTime()) / (1000 * 60 * 60);
+            let initialPrompt = "";
+            
+            if (hoursSinceLast > 4 || getLastBriefingTime() === 0) {
+                initialPrompt = `Системная команда: Пользователь только что открыл голосовой режим. Поздоровайся с ним по имени (${userName || 'Аден'}), скажи какой сейчас день/время и сделай очень краткий брифинг по его открытым задачам и последним мыслям. Будь краток и прагматичен.`;
+            } else {
+                initialPrompt = `Системная команда: Пользователь вернулся. Коротко поприветствуй его (1-2 слова, например 'Я на связи' или 'Слушаю') и жди команды.`;
+            }
+
+            sessionPromise.then((session) => {
+                session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: initialPrompt }] }], turnComplete: true });
+            });
+            
+            localStorage.setItem('serafim_last_briefing', Date.now().toString());
 
             if (audioContextRef.current?.state === 'suspended') {
                 audioContextRef.current.resume();
@@ -696,6 +725,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        } catch (e: any) {
                            result = { result: `Failed to create issue: ${e.message}` };
                        }
+                       break;
+                     case 'check_updates':
+                       result = { result: `Патчи готовы. Скажи пользователю: 'Да, патч готов. Зайди в Настройки -> Обновления, чтобы задеплоить его.'` };
                        break;
                    }
                  } catch (e: any) {
