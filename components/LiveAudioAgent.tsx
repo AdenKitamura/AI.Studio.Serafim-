@@ -6,6 +6,7 @@ import { Task, Thought, JournalEntry, Project, Habit, Memory, Priority, ThemeKey
 import { format } from 'date-fns';
 import { generateSystemInstruction } from '../services/serafimPersona';
 import { generateSessionSummary } from '../services/geminiService';
+import { createGithubIssue } from '../services/githubService';
 
 interface LiveAudioAgentProps {
   onClose: () => void;
@@ -140,6 +141,19 @@ const tools: FunctionDeclaration[] = [
         value: { type: Type.STRING, description: "Название темы или минуты для таймера" }
       },
       required: ["command"]
+    }
+  },
+  {
+    name: "create_dev_ticket",
+    description: "Отправляет баг-репорт или идею для новой фичи напрямую в GitHub репозиторий разработчика.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Краткий заголовок проблемы/фичи." },
+        body: { type: Type.STRING, description: "Подробное ТЗ или шаги воспроизведения бага в формате Markdown." },
+        labels: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Массив тегов, выбери из ['bug', 'enhancement', 'design', 'ai_logic']." }
+      },
+      required: ["title", "body"]
     }
   }
 ];
@@ -331,6 +345,11 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
          - ТВОЙ СЛОВАРЬ СУЩЕСТВУЮЩИХ ТЕГОВ: [${existingTags}].
          - МАКСИМАЛЬНО используй теги из словаря. Создавай новый тег, ТОЛЬКО если ни один из словаря не подходит.
          - Формат тегов: нижний регистр, одно слово (или через подчеркивание), без символа #.
+      7. ПРАВИЛА СОЗДАНИЯ ТИКЕТОВ (create_dev_ticket):
+         - Если пользователь нашел баг в приложении или просит новую фичу:
+         - 1. Если запрос непонятен, задай 1 уточняющий вопрос.
+         - 2. Если всё ясно, сформируй идеальное ТЗ в поле \`body\` (Ожидание/Реальность/Контекст).
+         - 3. После вызова инструмента скажи пользователю: 'Отправил задачу в инженерный отдел'.
 
       --- ТЕКУЩЕЕ СОСТОЯНИЕ СИСТЕМЫ ---
       [КРАТКОСРОЧНАЯ ПАМЯТЬ (АКТУАЛЬНОЕ)]:
@@ -669,6 +688,14 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        if (args.command === 'set_theme' && args.value) onSetTheme(args.value as ThemeKey);
                        if (args.command === 'start_focus') onStartFocus(parseInt(args.value || '25'));
                        result = { result: "UI updated." };
+                       break;
+                     case 'create_dev_ticket':
+                       try {
+                           const url = await createGithubIssue(args.title, args.body, args.labels || []);
+                           result = { result: `Issue created successfully at ${url}` };
+                       } catch (e: any) {
+                           result = { result: `Failed to create issue: ${e.message}` };
+                       }
                        break;
                    }
                  } catch (e: any) {

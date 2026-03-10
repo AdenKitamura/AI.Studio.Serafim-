@@ -109,6 +109,19 @@ const tools: FunctionDeclaration[] = [
       },
       required: ["command"]
     }
+  },
+  {
+    name: "create_dev_ticket",
+    description: "Отправляет баг-репорт или идею для новой фичи напрямую в GitHub репозиторий разработчика.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Краткий заголовок проблемы/фичи." },
+        body: { type: Type.STRING, description: "Подробное ТЗ или шаги воспроизведения бага в формате Markdown." },
+        labels: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Массив тегов, выбери из ['bug', 'enhancement', 'design', 'ai_logic']." }
+      },
+      required: ["title", "body"]
+    }
   }
 ];
 

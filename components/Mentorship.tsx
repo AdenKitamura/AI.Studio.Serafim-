@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
 import { createMentorChat, generateProactiveMessage, generateSpeech, polishText, transcribeAudio } from '../services/geminiService';
+import { createGithubIssue } from '../services/githubService';
 import * as googleService from '../services/googleService'; 
 import { logger, SystemLog } from '../services/logger';
 import { 
@@ -552,6 +553,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       if (args.command === 'set_theme' && args.themeName) onSetTheme(args.themeName as ThemeKey);
                       if (args.command === 'start_focus') onStartFocus(args.duration || 25);
                       if (args.command === 'enable_asmr') applyASMR(); 
+                      break;
+                    case 'create_dev_ticket':
+                      try {
+                          const url = await createGithubIssue(args.title, args.body, args.labels || []);
+                          logger.log('Tool', `Issue created successfully at ${url}`, 'success');
+                      } catch (e: any) {
+                          logger.log('Tool', `Failed to create issue: ${e.message}`, 'error');
+                      }
                       break;
                   }
                 } catch (e: any) {
