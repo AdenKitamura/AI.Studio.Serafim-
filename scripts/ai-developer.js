@@ -6,7 +6,13 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.error('Error: GEMINI_API_KEY environment variable is not set.');
+  process.exit(1);
+}
+
+const ai = new GoogleGenAI({ apiKey });
 
 function getFiles(dir, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
@@ -102,4 +108,7 @@ async function run() {
   }
 }
 
-run().catch(console.error);
+run().catch((error) => {
+  console.error('Fatal error in AI Developer script:', error);
+  process.exit(1);
+});

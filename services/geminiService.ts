@@ -23,8 +23,7 @@ const SAFETY_SETTINGS: any = [
   { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
   { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
   { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
 ];
 
 const tools: FunctionDeclaration[] = [
@@ -151,9 +150,8 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
     model: modelName,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: tools }, { googleSearch: {} }, { codeExecution: {} }],
+      tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
       temperature: 1.0,
-      safetySettings: SAFETY_SETTINGS, // <--- ОТКЛЮЧАЕМ ФИЛЬТРЫ ЗДЕСЬ
     }
   });
 };
@@ -303,7 +301,8 @@ export const polishText = async (text: string): Promise<string> => {
 
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
     try {
-        const apiKey = process.env.VITE_GOOGLE_API_KEY || localStorage.getItem('google_api_key') || '';
+        const apiKey = getApiKey();
+        if (!apiKey) throw new Error("API Key missing");
         const ai = new GoogleGenAI({ apiKey });
 
         // Важно: если mimeType пустой, ставим дефолтный (обычно это Chrome)
@@ -313,7 +312,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
 
         const response = await ai.models.generateContent({
             // Используем Flash, он быстрый и отлично понимает звук
-            model: 'gemini-1.5-flash', 
+            model: 'gemini-3-flash-preview', 
             contents: [
                 {
                     role: 'user',

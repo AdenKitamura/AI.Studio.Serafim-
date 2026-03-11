@@ -427,7 +427,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
         const timeContext = `\n[Context: ${format(now, "HH:mm")}]`;
         let contents: any = cleanInput + timeContext;
         if (userMsg.image) {
-            contents = { parts: [{ text: cleanInput || "Analyze image" }, { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }] };
+            contents = [
+                { text: (cleanInput || "Analyze image") + timeContext },
+                { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }
+            ];
         }
 
         const responseStream = await chatSessionRef.current.sendMessageStream({ message: contents });
