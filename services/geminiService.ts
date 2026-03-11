@@ -150,7 +150,7 @@ export const createMentorChat = (context: any, modelPreference: GeminiModel = 'f
     model: modelName,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
-      tools: [{ functionDeclarations: tools }, { googleSearch: {} }],
+      tools: [{ functionDeclarations: tools }],
       temperature: 1.0,
     }
   });
