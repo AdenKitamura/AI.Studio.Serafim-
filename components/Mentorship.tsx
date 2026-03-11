@@ -443,6 +443,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
         const initialModelMsg: ChatMessage = { id: modelMsgId, role: 'model', content: "", timestamp: Date.now() };
         onUpdateMessages([...newHistory, initialModelMsg]);
 
+        let functionCalls: any[] = [];
+        let groundingChunks: any[] = [];
+
         for await (const chunk of responseStream) {
             const chunkText = chunk.text;
             if (chunkText) {
@@ -452,14 +455,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
                 const updatedMsg: ChatMessage = { id: modelMsgId, role: 'model', content: fullResponseText, timestamp: Date.now() };
                 onUpdateMessages([...newHistory, updatedMsg]);
             }
+            if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+                functionCalls = chunk.functionCalls;
+            }
+            const chunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+            if (chunks && chunks.length > 0) {
+                groundingChunks = chunks;
+            }
         }
         
-        const aggregatedResponse = await responseStream.response;
-
         // Extract Google Search grounding metadata
-        const chunks = aggregatedResponse.candidates?.[0]?.groundingMetadata?.groundingChunks;
-        if (chunks && chunks.length > 0) {
-            const links = chunks.map((c: any) => c.web?.uri || c.web?.title).filter(Boolean);
+        if (groundingChunks && groundingChunks.length > 0) {
+            const links = groundingChunks.map((c: any) => c.web?.uri || c.web?.title).filter(Boolean);
             if (links.length > 0) {
                 fullResponseText += "\n\n**Источники:**\n" + links.map((l: string) => `- [${l}](${l})`).join('\n');
                 const updatedMsg: ChatMessage = { id: modelMsgId, role: 'model', content: fullResponseText, timestamp: Date.now() };
@@ -467,9 +474,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
             }
         }
 
-        if (aggregatedResponse.functionCalls) {
+        if (functionCalls.length > 0) {
             setIsProcessingTool(true);
-            for (const fc of aggregatedResponse.functionCalls) {
+            for (const fc of functionCalls) {
                 const args = fc.args as any;
                 try {
                   switch (fc.name) {
