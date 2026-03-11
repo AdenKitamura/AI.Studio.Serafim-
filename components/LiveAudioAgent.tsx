@@ -536,7 +536,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                
                for (const call of toolCalls) {
                  logger.log('LiveTool', `Calling ${call.name}`, 'info');
-                 let result = { result: "Success" };
+                 let result: Record<string, any> = { result: "Success" };
                  const args = call.args as any;
 
                  try {
@@ -553,8 +553,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                    switch (call.name) {
                      case 'manage_task':
                        if (args.action === 'create') {
-                         onAddTask({ id: Date.now().toString(), title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() });
-                         result = { result: `Task "${args.title}" created.` };
+                         const newId = Date.now().toString();
+                         onAddTask({ id: newId, title: args.title, priority: args.priority || Priority.MEDIUM, dueDate: args.dueDate || null, isCompleted: false, projectId: args.projectId, createdAt: new Date().toISOString() });
+                         result = { result: `Task "${args.title}" created.`, id: newId };
                        } else if (args.action === 'complete' && args.id) {
                          onUpdateTask(args.id, { isCompleted: true });
                          result = { result: `Task marked as completed.` };
@@ -583,9 +584,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                            const title = args.title || (args.content ? args.content.slice(0, 50) + (args.content.length > 50 ? '...' : '') : 'Новая заметка');
                            const sectionTitle = 'Заметки';
                            const sectionContent = args.content || '';
+                           const newId = Date.now().toString();
                            
                            onAddThought({ 
-                               id: Date.now().toString(), 
+                               id: newId, 
                                content: title, 
                                notes: sectionContent, 
                                sections: [{ id: 'default', title: sectionTitle, content: sectionContent }],
@@ -593,7 +595,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                                tags: (args.tags || []).map((t: string) => t.toLowerCase().trim()), 
                                createdAt: new Date().toISOString() 
                            });
-                           result = { result: `Note "${title}" created.` };
+                           result = { result: `Note "${title}" created.`, id: newId };
                        } else if (args.action === 'update') {
                            let targetId = args.id;
                            
@@ -684,13 +686,14 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        break;
                      case 'manage_memory':
                        if (args.action === 'create') {
+                           const newId = Date.now().toString();
                            onAddMemory({ 
-                               id: Date.now().toString(), 
+                               id: newId, 
                                content: args.content, 
                                type: args.type || 'short_term',
                                createdAt: new Date().toISOString() 
                            });
-                           result = { result: "Memory created." };
+                           result = { result: "Memory created.", id: newId };
                        } else if (args.action === 'update' && args.id) {
                            onUpdateMemory(args.id, { content: args.content, type: args.type });
                            result = { result: "Memory updated." };
@@ -711,8 +714,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                        break;
                      case 'manage_project':
                        if (args.action === 'create') {
-                           onAddProject({ id: Date.now().toString(), title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
-                           result = { result: `Project "${args.title}" created.` };
+                           const newId = Date.now().toString();
+                           onAddProject({ id: newId, title: args.title, description: args.description, color: args.color || '#6366f1', createdAt: new Date().toISOString() });
+                           result = { result: `Project "${args.title}" created.`, id: newId };
                        } else if (args.action === 'update' && args.id) {
                            const updates = cleanUpdates({ title: args.title, description: args.description, color: args.color });
                            onUpdateProject(args.id, updates);
