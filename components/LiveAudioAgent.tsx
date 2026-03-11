@@ -626,10 +626,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
                            if (args.content) {
                                const sections = existing.sections ? [...existing.sections] : [{ id: 'default', title: 'Заметки', content: existing.notes || '' }];
-                               const targetSectionTitle = 'Заметки';
+                               const targetSectionTitle = args.sectionTitle || 'Заметки';
                                let targetSectionIndex = sections.findIndex(s => s.title === targetSectionTitle);
                                
-                               if (targetSectionIndex === -1) {
+                               if (targetSectionIndex === -1 && !args.sectionTitle) {
                                    targetSectionIndex = 0; // Default to first section
                                }
 
@@ -645,6 +645,12 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                                        }
                                    }
                                    sections[targetSectionIndex] = { ...section, content: newContent };
+                               } else {
+                                   sections.push({
+                                       id: Date.now().toString(),
+                                       title: targetSectionTitle,
+                                       content: args.content
+                                   });
                                }
                                updates.sections = sections;
                                if (sections[0]) updates.notes = sections[0].content;

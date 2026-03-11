@@ -539,7 +539,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
                                               const section = sections[targetSectionIndex];
                                               let newContent = args.content;
                                               if (args.mode === 'append') {
-                                                  newContent = section.content + '\n' + args.content;
+                                                  if (args.content && !section.content.includes(args.content)) {
+                                                      newContent = section.content + '\n' + args.content;
+                                                  } else {
+                                                      newContent = args.content;
+                                                  }
                                               }
                                               sections[targetSectionIndex] = { ...section, content: newContent };
                                           } else {
