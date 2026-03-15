@@ -20,12 +20,10 @@ const Login = () => {
     const redirectUrl = window.location.origin;
 
     try {
-        // Use skipBrowserRedirect to get the URL first
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
             redirectTo: redirectUrl,
-            skipBrowserRedirect: true, // Get URL instead of auto-redirect
             scopes: 'https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar',
             queryParams: {
               access_type: 'offline',
@@ -35,14 +33,6 @@ const Login = () => {
         });
         
         if (error) throw error;
-
-        if (data?.url) {
-            console.log('Auth URL generated:', data.url);
-            // Manually navigate
-            window.location.href = data.url;
-        } else {
-            throw new Error('No auth URL returned');
-        }
 
     } catch (error: any) {
       console.error('Login Error:', error.message);
