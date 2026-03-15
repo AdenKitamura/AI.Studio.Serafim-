@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import LiveAudioAgent from './components/LiveAudioAgent';
+import { useBackHandler } from './hooks/useBackHandler';
 
 import { generateSessionSummary } from './services/geminiService';
 
@@ -83,6 +84,11 @@ const App = () => {
   useEffect(() => {
     window.history.replaceState({ view: 'dashboard' }, '');
     const handlePopState = (event: PopStateEvent) => {
+      if (event.state?.modal) {
+        // Ignore popstate events that land on a modal state.
+        // The modal's own useBackHandler will handle closing the modal that was popped.
+        return;
+      }
       if (event.state && event.state.view) {
         setView(event.state.view);
       } else {
@@ -95,9 +101,23 @@ const App = () => {
 
   const navigateTo = (newView: ViewState) => {
     if (newView === view) return;
-    window.history.pushState({ view: newView }, '', '');
+    
+    if (window.history.state?.modal) {
+        // If we are navigating from a modal state (e.g. sidebar link), replace the modal state
+        window.history.replaceState({ view: newView }, '', '');
+    } else {
+        window.history.pushState({ view: newView }, '', '');
+    }
     setView(newView);
   };
+
+  useBackHandler(showSettings, () => setShowSettings(false));
+  useBackHandler(showTimer, () => setShowTimer(false));
+  useBackHandler(showPWAInstall, () => setShowPWAInstall(false));
+  useBackHandler(showQuotes, () => setShowQuotes(false));
+  useBackHandler(showChatHistory, () => setShowChatHistory(false));
+  useBackHandler(showLiveAgent, () => setShowLiveAgent(false));
+  useBackHandler(isSidebarOpen, () => setIsSidebarOpen(false));
 
   // --- AUTH INITIALIZATION ---
   useEffect(() => {

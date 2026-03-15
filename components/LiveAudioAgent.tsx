@@ -183,22 +183,24 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const playbackQueueRef = useRef<Float32Array[]>([]);
   const sessionTranscriptRef = useRef<ChatMessage[]>([]);
-  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const activeSourcesRef = useRef<AudioBufferSourceNode[]>([]);
 
   const stopAudioPlayback = () => {
-      if (activeSourceRef.current) {
+      activeSourcesRef.current.forEach(source => {
           try {
-              activeSourceRef.current.stop();
+              source.stop();
           } catch (e) {
               // Ignore
           }
-          activeSourceRef.current = null;
-      }
+      });
+      activeSourcesRef.current = [];
       
       // Reset scheduling
       if (audioContextRef.current) {
@@ -292,14 +294,27 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       if (!audioContextRef.current) {
         audioContextRef.current = new AudioContext();
         gainNodeRef.current = audioContextRef.current.createGain();
-        gainNodeRef.current.connect(audioContextRef.current.destination);
+        
+        // Route audio through an HTMLAudioElement to force media volume and main speaker
+        audioDestRef.current = audioContextRef.current.createMediaStreamDestination();
+        gainNodeRef.current.connect(audioDestRef.current);
+        
+        audioElementRef.current = new Audio();
+        audioElementRef.current.srcObject = audioDestRef.current.stream;
+        audioElementRef.current.play().catch(e => console.error("Audio play error:", e));
       }
       
       if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
       } 
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } 
+      });
       streamRef.current = stream;
 
       sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
@@ -524,7 +539,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
 
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (base64Audio) {
+            if (base64Audio && !message.serverContent?.interrupted) {
               playAudioChunk(base64Audio);
             }
 
@@ -856,12 +871,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    activeSourceRef.current = source;
+    activeSourcesRef.current.push(source);
     
     source.onended = () => {
-        if (activeSourceRef.current === source) {
-            activeSourceRef.current = null;
-        }
+        activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
     };
 
     if (gainNodeRef.current) {
@@ -900,6 +913,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
+    }
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.srcObject = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close();

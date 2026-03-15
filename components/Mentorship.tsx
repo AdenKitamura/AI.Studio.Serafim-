@@ -773,7 +773,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
                  value={input} 
                  onFocus={handleInputFocus}
                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`; }} 
-                 onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}} 
                  placeholder={isThinking ? "Серафим думает..." : isRecording ? "Говорите..." : "Задай вопрос..."} 
                  disabled={isThinking || isProcessingAudio || isRecording} 
                  className="w-full bg-transparent text-[15px] text-white placeholder:text-zinc-500 font-medium outline-none resize-none no-scrollbar min-h-[24px] max-h-[160px] leading-relaxed"

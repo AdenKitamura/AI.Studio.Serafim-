@@ -9,6 +9,7 @@ import {
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
 import NavigationPill from './NavigationPill';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 interface ThoughtsViewProps {
   thoughts: Thought[];
@@ -32,6 +33,9 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const diaryFileInputRef = useRef<HTMLInputElement>(null);
+
+  useBackHandler(!!viewingThought, () => setViewingThought(null));
+  useBackHandler(isAdding, () => setIsAdding(false));
 
   // Derive popular tags from thoughts
   const popularTags = useMemo(() => {

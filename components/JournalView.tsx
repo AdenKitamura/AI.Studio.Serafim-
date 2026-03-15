@@ -7,6 +7,7 @@ import { Mic, MicOff, Sparkles, ChevronDown, Target, Heart, ShieldAlert, Rocket,
 import CalendarView from './CalendarView';
 import { fixGrammar, transcribeAudio } from '../services/geminiService';
 import NavigationPill from './NavigationPill';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 interface JournalViewProps {
   journal: JournalEntry[];
@@ -29,6 +30,9 @@ const JournalView: React.FC<JournalViewProps> = ({ journal, tasks = [], onSave, 
   
   const autoSaveTimeoutRef = useRef<any>(null);
   const reflectionRef = useRef<HTMLDivElement>(null);
+
+  useBackHandler(showCalendar, () => setShowCalendar(false));
+  useBackHandler(showReflection, () => setShowReflection(false));
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const entry = journal.find(j => j.date === dateStr);

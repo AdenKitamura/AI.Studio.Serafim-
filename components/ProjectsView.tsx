@@ -4,6 +4,7 @@ import { Project, Task, Thought, Priority, Attachment } from '../types';
 import { Folder, Plus, Trash2, ArrowLeft, Clock, Paperclip, Palette, X, Eye, FileText, GripVertical, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import NavigationPill from './NavigationPill';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 interface ExtendedProjectsViewProps {
   projects: Project[];
@@ -47,6 +48,12 @@ const ProjectsView: React.FC<ExtendedProjectsViewProps> = ({
   const [editingColTitle, setEditingColTitle] = useState('');
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
+
+  useBackHandler(!!previewAttachment, () => setPreviewAttachment(null));
+  useBackHandler(!!viewingTask, () => setViewingTask(null));
+  useBackHandler(isTaskCreateOpen, () => setIsTaskCreateOpen(false));
+  useBackHandler(isCreatingProject, () => setIsCreatingProject(false));
+  useBackHandler(!!selectedProjectId, () => setSelectedProjectId(null));
 
   useEffect(() => {
     if (selectedProject) {

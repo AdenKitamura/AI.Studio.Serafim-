@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale/ru';
 import { Plus, Check, Zap, Target, Clock, X, ChevronDown, Trash2, Calendar as CalendarIcon, Save } from 'lucide-react';
 import NavigationPill from './NavigationPill';
+import { useBackHandler } from '../hooks/useBackHandler';
 
 interface PlannerViewProps {
   tasks: Task[];
@@ -40,6 +41,10 @@ const PlannerView: React.FC<PlannerViewProps> = ({
   const [editTitle, setEditTitle] = useState('');
   const [editTime, setEditTime] = useState('');
   const [editDate, setEditDate] = useState('');
+
+  useBackHandler(showCalendar, () => setShowCalendar(false));
+  useBackHandler(isAdding, () => setIsAdding(false));
+  useBackHandler(!!editingTask, () => setEditingTask(null));
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const tasksForSelected = useMemo(() => tasks.filter(t => t.dueDate && format(new Date(t.dueDate), 'yyyy-MM-dd') === dateStr).sort((a, b) => Number(a.isCompleted) - Number(b.isCompleted)), [tasks, dateStr]);
