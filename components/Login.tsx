@@ -17,7 +17,8 @@ const Login = () => {
         // Don't block login, just warn
     }
 
-    const redirectUrl = window.location.origin;
+    // Use current URL to ensure we return exactly here
+    const redirectUrl = window.location.href;
 
     try {
         const { data, error } = await supabase.auth.signInWithOAuth({
