@@ -108,7 +108,7 @@ const Login = () => {
         
         <button 
             onClick={checkConnection}
-            className="mt-4 text-[10px] text-zinc-500 hover:text-white underline decoration-zinc-700 hover:decoration-white transition-colors"
+            className="mt-4 text-[10px] text-zinc-500 hover:text-[var(--text-on-accent)] underline decoration-zinc-700 hover:decoration-white transition-colors"
         >
             [DIAGNOSTIC MODE]
         </button>

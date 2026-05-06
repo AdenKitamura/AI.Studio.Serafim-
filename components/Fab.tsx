@@ -27,8 +27,8 @@ const Fab: React.FC<FabProps> = ({
   const navItemClass = (isActive: boolean) => `
     relative flex flex-col items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200
     ${isActive 
-      ? 'text-white' 
-      : 'text-white/40 hover:text-white hover:bg-white/5'}
+      ? 'text-[var(--text-on-accent)]' 
+      : 'text-[var(--text-on-accent)]/40 hover:text-[var(--text-on-accent)] hover:bg-white/5'}
   `;
 
   return (
@@ -65,7 +65,7 @@ const Fab: React.FC<FabProps> = ({
                 className={`
                     w-14 h-14 rounded-full flex items-center justify-center
                     bg-gradient-to-tr from-[var(--accent)] to-indigo-500
-                    text-white shadow-lg shadow-indigo-500/30
+                    text-[var(--text-on-accent)] shadow-lg shadow-indigo-500/30
                     transition-transform duration-200 hover:scale-105 active:scale-95
                     relative -my-4 mx-1 z-10 ring-4 ring-[#000]
                 `}

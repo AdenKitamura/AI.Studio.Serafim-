@@ -57,9 +57,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ tasks, onDateClick }) => {
           const hasTasks = tasks.some(t => t.dueDate && isSameDay(new Date(t.dueDate), day));
           return (
             <button key={day.toISOString()} onClick={(e) => { e.stopPropagation(); onDateClick(day); setCurrentDate(day); }}
-              className={`relative flex flex-col items-center justify-center h-10 rounded-xl transition-all border ${isSelected ? 'bg-[var(--accent)] text-white border-transparent shadow-lg scale-110 z-10' : 'bg-transparent text-[var(--text-main)] border-transparent hover:bg-[var(--bg-main)] hover:border-[var(--border-color)]'} ${format(day, 'MM') !== format(currentDate, 'MM') && !isSelected ? 'opacity-10' : ''}`}
+              className={`relative flex flex-col items-center justify-center h-10 rounded-xl transition-all border ${isSelected ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-transparent shadow-lg scale-110 z-10' : 'bg-transparent text-[var(--text-main)] border-transparent hover:bg-[var(--bg-main)] hover:border-[var(--border-color)]'} ${format(day, 'MM') !== format(currentDate, 'MM') && !isSelected ? 'opacity-10' : ''}`}
             >
-              <span className={`text-[11px] font-black ${isSelected ? 'text-white' : 'text-[var(--text-main)]'}`}>{format(day, 'd')}</span>
+              <span className={`text-[11px] font-black ${isSelected ? 'text-[var(--text-on-accent)]' : 'text-[var(--text-main)]'}`}>{format(day, 'd')}</span>
               {hasTasks && <div className={`absolute bottom-1.5 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-[var(--text-muted)]'}`}></div>}
             </button>
           );

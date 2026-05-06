@@ -251,7 +251,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
              )}
           </div>
 
-          <button onClick={() => { setAddType('thought'); setIsAdding(true); }} className="p-2 bg-[var(--accent)] rounded-full text-white shadow-lg hover:opacity-90 transition-all shrink-0">
+          <button onClick={() => { setAddType('thought'); setIsAdding(true); }} className="p-2 bg-[var(--accent)] rounded-full text-[var(--text-on-accent)] shadow-lg hover:opacity-90 transition-all shrink-0">
             <Plus size={20} />
           </button>
         </div>
@@ -260,7 +260,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 items-center">
           <button 
               onClick={() => setActiveTag(null)} 
-              className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${!activeTag ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${!activeTag ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
           >
               <Globe size={12}/> ВСЕ
           </button>
@@ -269,7 +269,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
             <button 
               key={tag} 
               onClick={() => setActiveTag(activeTag === tag ? null : tag)} 
-              className={`px-3 py-1.5 rounded-lg flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap border ${activeTag === tag ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap border ${activeTag === tag ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)] shadow-md' : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'}`}
             >
               <Hash size={10} className="opacity-50"/> {tag}
             </button>
@@ -323,7 +323,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                     <span 
                       key={tag} 
                       onClick={(e) => { e.stopPropagation(); setActiveTag(tag === activeTag ? null : tag); }}
-                      className={`text-[9px] font-bold cursor-pointer transition-colors ${activeTag === tag ? 'text-white bg-[var(--accent)] px-2 py-0.5 rounded-md' : 'text-[var(--accent)] hover:underline'}`}
+                      className={`text-[9px] font-bold cursor-pointer transition-colors ${activeTag === tag ? 'text-[var(--text-on-accent)] bg-[var(--accent)] px-2 py-0.5 rounded-md' : 'text-[var(--accent)] hover:underline'}`}
                     >
                       #{tag}
                     </span>
@@ -354,7 +354,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
             
             <div className="flex bg-[var(--bg-item)] p-1 rounded-2xl mb-6 border border-[var(--border-color)]">
               {[{ id: 'thought', label: 'Мысль', icon: <Brain size={14}/> }, { id: 'link', label: 'Ссылка', icon: <LinkIcon size={14}/> }, { id: 'file', label: 'Файл', icon: <Paperclip size={14}/> }].map(opt => (
-                <button key={opt.id} onClick={() => setAddType(opt.id as any)} className={`flex-1 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${addType === opt.id ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+                <button key={opt.id} onClick={() => setAddType(opt.id as any)} className={`flex-1 py-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${addType === opt.id ? 'bg-[var(--accent)] text-[var(--text-on-accent)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
                   {opt.icon} {opt.label}
                 </button>
               ))}
@@ -382,7 +382,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                   <div className="flex gap-2">
                     <input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="Теги (через запятую)..." className="flex-1 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-2xl p-4 text-sm text-[var(--text-main)] focus:border-[var(--accent)] outline-none"/>
                   </div>
-                  <button onClick={handleManualAdd} className="w-full py-4 bg-[var(--accent)] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent)]/20 active:scale-95 transition-all">
+                  <button onClick={handleManualAdd} className="w-full py-4 bg-[var(--accent)] text-[var(--text-on-accent)] rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[var(--accent)]/20 active:scale-95 transition-all">
                     Добавить
                   </button>
                 </>
@@ -475,7 +475,7 @@ const ThoughtsView: React.FC<ThoughtsViewProps> = ({ thoughts, onAdd, onUpdate, 
                         }}
                         className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border ${
                           (activeSectionId === section.id || (!activeSectionId && idx === 0)) 
-                            ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-md' 
+                            ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)] shadow-md' 
                             : 'bg-[var(--bg-item)] text-[var(--text-muted)] border-[var(--border-color)] hover:bg-[var(--bg-item)]/80'
                         }`}
                       >

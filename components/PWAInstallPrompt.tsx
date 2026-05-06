@@ -90,7 +90,7 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) => {
         ) : (
           <button
             onClick={handleInstallClick}
-            className="w-full py-5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl glass-btn"
+            className="w-full py-5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-on-accent)] rounded-2xl font-black text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl glass-btn"
           >
             <Smartphone size={20} />
             Скачать

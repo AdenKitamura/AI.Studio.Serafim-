@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { themes } from '../themes';
-import { ThemeKey, IconWeight, GeminiModel } from '../types';
+import { ThemeKey, IconWeight, GeminiModel, FontFamily } from '../types';
 import { 
   CheckCircle, Palette, Database, Download, Upload, 
   AlertTriangle, PenTool, Zap, Brain, RefreshCw
@@ -17,6 +17,8 @@ interface SettingsProps {
   customization: {
     iconWeight: IconWeight;
     setIconWeight: (w: IconWeight) => void;
+    font: FontFamily;
+    setFont: (f: FontFamily) => void;
   };
 }
 
@@ -94,7 +96,7 @@ const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <button 
                     onClick={handleUpdateApp}
-                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
+                    className="px-4 py-2 bg-emerald-500 text-[var(--text-on-accent)] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
                 >
                     Обновить
                 </button>
@@ -168,6 +170,28 @@ const Settings: React.FC<SettingsProps> = ({
           </div>
         </section>
 
+        {/* --- TYPOGRAPHY --- */}
+        <section>
+          <div className="flex items-center gap-3 mb-4 px-2">
+            <PenTool size={16} className="text-[var(--accent)]" />
+            <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Шрифт</h3>
+          </div>
+          <div className="glass-panel p-2 rounded-2xl">
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto no-scrollbar">
+              {(['JetBrains Mono', 'Inter', 'SF Pro Text', 'Roboto', 'Outfit', 'Space Grotesk', 'Playfair Display', 'Fira Code', 'system-ui'] as FontFamily[]).map(font => (
+                 <button
+                    key={font}
+                    onClick={() => customization.setFont(font)}
+                    className={`py-3 px-4 rounded-xl text-xs font-bold text-left transition-all ${customization.font === font ? 'bg-[var(--bg-main)] text-[var(--text-main)] border border-[var(--border-color)] shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--bg-item)] border border-transparent'}`}
+                    style={{ fontFamily: font === 'JetBrains Mono' ? '"JetBrains Mono", monospace' : font === 'Inter' ? '"Inter", sans-serif' : font === 'SF Pro Text' ? '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif' : font === 'Roboto' ? '"Roboto", sans-serif' : font === 'Outfit' ? '"Outfit", sans-serif' : font === 'Space Grotesk' ? '"Space Grotesk", sans-serif' : font === 'Playfair Display' ? '"Playfair Display", serif' : font === 'Fira Code' ? '"Fira Code", monospace' : 'system-ui, sans-serif' }}
+                 >
+                    {font}
+                 </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* --- ICON WEIGHT --- */}
         <section>
           <div className="flex items-center gap-3 mb-4 px-2">
@@ -179,7 +203,7 @@ const Settings: React.FC<SettingsProps> = ({
                   <button
                       key={w.id}
                       onClick={() => customization.setIconWeight(w.id)}
-                      className={`flex-1 py-2 rounded-lg flex items-center justify-center transition-all ${customization.iconWeight === w.id ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                      className={`flex-1 py-2 rounded-lg flex items-center justify-center transition-all ${customization.iconWeight === w.id ? 'bg-[var(--accent)] text-[var(--text-on-accent)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
                   >
                       <div className="w-4 h-4 rounded-full border border-current" style={{ borderWidth: w.id }}></div>
                   </button>

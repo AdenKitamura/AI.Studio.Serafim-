@@ -34,7 +34,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
         {/* 1. Menu (Fixed Left) */}
         <button 
           onClick={onOpenMenu}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-white/40 hover:text-white transition-colors active:scale-95 hover:bg-white/5"
+          className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--text-on-accent)]/40 hover:text-[var(--text-on-accent)] transition-colors active:scale-95 hover:bg-white/5"
         >
           <Menu size={22} strokeWidth={2.5} />
         </button>
@@ -45,7 +45,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
                 <button 
                     onClick={toolL.onClick}
                     disabled={toolL.disabled}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 ${toolL.active ? 'bg-white text-black shadow-lg scale-105' : 'text-white hover:bg-white/10 hover:text-white'}`}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 ${toolL.active ? 'bg-white text-black shadow-lg scale-105' : 'text-[var(--text-on-accent)] hover:bg-white/10 hover:text-[var(--text-on-accent)]'}`}
                 >
                     {toolL.icon}
                 </button>
@@ -66,7 +66,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
                 <button 
                     onClick={toolR.onClick}
                     disabled={toolR.disabled}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 ${toolR.active ? 'bg-white text-black shadow-lg scale-105' : 'text-white hover:bg-white/10 hover:text-white'} ${toolR.disabled ? 'opacity-30' : ''}`}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 ${toolR.active ? 'bg-white text-black shadow-lg scale-105' : 'text-[var(--text-on-accent)] hover:bg-white/10 hover:text-[var(--text-on-accent)]'} ${toolR.disabled ? 'opacity-30' : ''}`}
                 >
                     {toolR.icon}
                 </button>
@@ -76,7 +76,7 @@ const NavigationPill: React.FC<NavigationPillProps> = ({
         {/* 5. Navigation Anchor (Right) */}
         <button 
           onClick={() => onNavigate(currentView === 'dashboard' ? 'projects' : 'dashboard')}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 hover:bg-white/5 ${currentView === 'projects' ? 'text-[var(--accent)]' : 'text-white/40 hover:text-white'}`}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors active:scale-95 hover:bg-white/5 ${currentView === 'projects' ? 'text-[var(--accent)]' : 'text-[var(--text-on-accent)]/40 hover:text-[var(--text-on-accent)]'}`}
         >
           {currentView === 'dashboard' ? <Folder size={22} strokeWidth={2.5} /> : <LayoutGrid size={22} strokeWidth={2.5} />}
         </button>

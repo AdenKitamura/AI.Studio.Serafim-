@@ -81,7 +81,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
 
               {/* Header: Title & Check */}
               <div className="flex justify-between items-start mb-4 relative z-10">
-                 <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all shadow-lg ${isDone ? 'border-transparent text-white scale-110' : 'border-white/10 bg-black/20 text-transparent'}`}
+                 <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all shadow-lg ${isDone ? 'border-transparent text-[var(--text-on-accent)] scale-110' : 'border-white/10 bg-black/20 text-transparent'}`}
                       style={isDone ? { backgroundColor: habit.color, boxShadow: `0 0 15px ${habit.color}60` } : {}}>
                     <Check size={16} strokeWidth={4} />
                  </div>
@@ -94,7 +94,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
 
               {/* Content */}
               <div className="relative z-10">
-                <h4 className={`text-sm font-bold mb-3 truncate transition-colors ${isDone ? 'text-white' : 'text-[var(--text-muted)] group-hover:text-[var(--text-main)]'}`}>
+                <h4 className={`text-sm font-bold mb-3 truncate transition-colors ${isDone ? 'text-[var(--text-on-accent)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-main)]'}`}>
                   {habit.title}
                 </h4>
                 
@@ -126,7 +126,7 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
         {/* Add Button */}
         <button 
           onClick={() => setIsAdding(true)}
-          className="group min-h-[120px] rounded-3xl bg-white/[0.02] border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 text-[var(--text-muted)] hover:text-white hover:border-[var(--accent)] transition-all hover:bg-white/[0.05] backdrop-blur-sm"
+          className="group min-h-[120px] rounded-3xl bg-white/[0.02] border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 text-[var(--text-muted)] hover:text-[var(--text-on-accent)] hover:border-[var(--accent)] transition-all hover:bg-white/[0.05] backdrop-blur-sm"
         >
           <div className="w-10 h-10 bg-black/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform border border-white/5">
              <Plus size={20} />
@@ -140,19 +140,19 @@ const HabitTracker: React.FC<HabitTrackerProps> = ({ habits, selectedDate, onTog
           <div className="w-full max-w-xs bg-[#0c0c0c] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative">
             <div className="flex justify-between items-center mb-8">
               <span className="text-[10px] font-black text-[var(--accent)] uppercase tracking-widest">Создание привычки</span>
-              <button onClick={() => setIsAdding(false)} className="p-2 bg-white/5 rounded-full hover:bg-white/10"><X size={16} className="text-white/50 hover:text-white" /></button>
+              <button onClick={() => setIsAdding(false)} className="p-2 bg-white/5 rounded-full hover:bg-white/10"><X size={16} className="text-[var(--text-on-accent)]/50 hover:text-[var(--text-on-accent)]" /></button>
             </div>
             
             <div className="mb-8 text-center">
                 <div className="w-20 h-20 rounded-[2rem] mx-auto mb-6 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-colors border border-white/5" style={{ backgroundColor: newColor }}>
-                    <Activity size={32} className="text-white drop-shadow-md" />
+                    <Activity size={32} className="text-[var(--text-on-accent)] drop-shadow-md" />
                 </div>
                 <input 
                   autoFocus
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Название..."
-                  className="w-full bg-transparent text-2xl font-bold text-center text-white outline-none placeholder:text-white/10 border-b border-white/10 pb-4 focus:border-[var(--accent)] transition-colors"
+                  className="w-full bg-transparent text-2xl font-bold text-center text-[var(--text-on-accent)] outline-none placeholder:text-[var(--text-on-accent)]/10 border-b border-white/10 pb-4 focus:border-[var(--accent)] transition-colors"
                 />
             </div>
 

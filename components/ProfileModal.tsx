@@ -202,7 +202,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                         <h2 className="text-xl font-black text-[var(--text-main)]">Serafim Identity</h2>
                         <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-widest mt-1 mb-6">Авторизован</p>
                         
-                        <button onClick={handleLogout} className="w-full py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                        <button onClick={handleLogout} className="w-full py-4 bg-rose-500/10 text-rose-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-[var(--text-on-accent)] transition-all flex items-center justify-center gap-2">
                             <LogOut size={16} /> Выйти из системы
                         </button>
                     </div>
@@ -314,7 +314,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                       {connectionStatus.google} {statusIcon(connectionStatus.google)}
                                   </div>
                               ) : (
-                                  <button onClick={handleConnectGoogle} className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent)] text-white rounded-lg text-[8px] font-bold uppercase hover:bg-[var(--accent-hover)] transition-all">
+                                  <button onClick={handleConnectGoogle} className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent)] text-[var(--text-on-accent)] rounded-lg text-[8px] font-bold uppercase hover:bg-[var(--accent-hover)] transition-all">
                                       <PlugZap size={10} /> Подключить
                                   </button>
                               )}
@@ -329,7 +329,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                             <Terminal size={12} className="text-[var(--accent)]" />
                             <span className="text-[10px] font-black uppercase text-[var(--text-muted)] tracking-widest">Live Kernel Output</span>
                           </div>
-                          <button onClick={() => logger.clear()} className="text-[9px] font-bold uppercase text-[var(--text-muted)] hover:text-white bg-white/5 px-2 py-1 rounded">Clear</button>
+                          <button onClick={() => logger.clear()} className="text-[9px] font-bold uppercase text-[var(--text-muted)] hover:text-[var(--text-on-accent)] bg-white/5 px-2 py-1 rounded">Clear</button>
                       </div>
                       <div className="flex-1 overflow-y-auto p-4 space-y-1.5 font-mono text-[10px] bg-black/80 rounded-b-xl scrollbar-thin scrollbar-thumb-white/20">
                           {logs.length === 0 && <span className="text-[var(--text-muted)] opacity-50 italic">{'>'}{'>'} System initialized. Waiting for input...</span>}

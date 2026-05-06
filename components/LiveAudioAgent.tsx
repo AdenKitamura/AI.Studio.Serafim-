@@ -915,7 +915,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                   </div>
 
                   {/* Controls */}
-                  <button onClick={(e) => { e.stopPropagation(); handleClose(); }} className="absolute -top-1 -right-1 w-6 h-6 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors backdrop-blur-md">
+                  <button onClick={(e) => { e.stopPropagation(); handleClose(); }} className="absolute -top-1 -right-1 w-6 h-6 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center text-[var(--text-on-accent)]/50 hover:text-[var(--text-on-accent)] transition-colors backdrop-blur-md">
                       <X size={12} />
                   </button>
               </div>
@@ -928,13 +928,13 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
       <div className="absolute top-6 right-6 flex gap-4">
           <button 
             onClick={() => setIsMinimized(true)}
-            className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all"
+            className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-[var(--text-on-accent)]/70 hover:text-[var(--text-on-accent)] transition-all"
           >
             <Minimize2 size={24} />
           </button>
           <button 
             onClick={handleClose}
-            className="p-3 bg-white/5 hover:bg-red-500/20 hover:text-red-400 rounded-full text-white/70 transition-all"
+            className="p-3 bg-white/5 hover:bg-red-500/20 hover:text-red-400 rounded-full text-[var(--text-on-accent)]/70 transition-all"
           >
             <X size={24} />
           </button>
@@ -977,10 +977,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-3xl font-black text-white tracking-widest uppercase font-mono">
+          <h2 className="text-3xl font-black text-[var(--text-on-accent)] tracking-widest uppercase font-mono">
             {isSpeaking ? 'Серафим говорит' : 'Слушаю...'}
           </h2>
-          <p className="text-white/40 font-mono text-sm max-w-xs mx-auto leading-relaxed">
+          <p className="text-[var(--text-on-accent)]/40 font-mono text-sm max-w-xs mx-auto leading-relaxed">
             {statusMessage ? statusMessage :
              isConnecting ? 'Установка нейронного моста...' : 
              error ? error : 

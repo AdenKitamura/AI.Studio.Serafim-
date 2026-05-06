@@ -136,7 +136,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, googleUser }) => {
                  </div>
              )}
              
-             <button onClick={() => onComplete(name)} className="text-[#52525b] text-xs font-bold hover:text-white transition-colors uppercase tracking-widest mt-4">
+             <button onClick={() => onComplete(name)} className="text-[#52525b] text-xs font-bold hover:text-[var(--text-on-accent)] transition-colors uppercase tracking-widest mt-4">
                  Пропустить (Оффлайн режим)
              </button>
           </div>
@@ -147,7 +147,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, googleUser }) => {
             <button
                 onClick={handleNext}
                 disabled={isNameStep && !name.trim()}
-                className="w-full py-5 bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all disabled:opacity-20 disabled:scale-95 shadow-[0_20px_50px_rgba(99,102,241,0.3)] active:scale-95"
+                className="w-full py-5 bg-[#6366f1] hover:bg-[#4f46e5] text-[var(--text-on-accent)] rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all disabled:opacity-20 disabled:scale-95 shadow-[0_20px_50px_rgba(99,102,241,0.3)] active:scale-95"
             >
                 Продолжить <ArrowRight size={24} strokeWidth={3} />
             </button>
@@ -155,7 +155,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, googleUser }) => {
           {isGoogleStep && googleConnected && (
              <button
                 onClick={() => onComplete(name)}
-                className="w-full py-5 bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all shadow-[0_20px_50px_rgba(99,102,241,0.3)] active:scale-95 animate-in fade-in"
+                className="w-full py-5 bg-[#6366f1] hover:bg-[#4f46e5] text-[var(--text-on-accent)] rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 transition-all shadow-[0_20px_50px_rgba(99,102,241,0.3)] active:scale-95 animate-in fade-in"
             >
                 Начать работу <Check size={24} strokeWidth={3} />
             </button>

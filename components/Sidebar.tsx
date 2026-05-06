@@ -89,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Header / Logo */}
         <div className="p-8 pb-6 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-[var(--accent-glow)]">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-indigo-600 flex items-center justify-center text-[var(--text-on-accent)] shadow-lg shadow-[var(--accent-glow)]">
                <span className="font-black text-lg">S</span>
             </div>
             <div>
@@ -104,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           {/* Close Button (Mobile Only) */}
           <button 
             onClick={onClose}
-            className="md:hidden p-2 text-[var(--text-muted)] hover:text-white"
+            className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-on-accent)]"
           >
             <X size={24} />
           </button>
@@ -126,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={`
                   w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group relative overflow-hidden
                   ${isActive 
-                    ? 'bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]' 
+                    ? 'bg-[var(--accent)] text-[var(--text-on-accent)] shadow-lg shadow-[var(--accent-glow)]' 
                     : 'text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)]'}
                 `}
               >

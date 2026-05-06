@@ -93,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                   <button 
                       onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, { isCompleted: !task.isCompleted }); }} 
-                      className="w-12 h-12 rounded-full bg-[var(--accent)] text-white shadow-[0_0_20px_var(--accent-glow)] flex items-center justify-center transition-all active:scale-90 hover:scale-105"
+                      className="w-12 h-12 rounded-full bg-[var(--accent)] text-[var(--text-on-accent)] shadow-[0_0_20px_var(--accent-glow)] flex items-center justify-center transition-all active:scale-90 hover:scale-105"
                   >
                       <CheckCircle2 size={24} />
                   </button>
@@ -133,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               
               <div className="flex items-center justify-between mb-6 relative z-10">
                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center shadow-[0_0_15px_var(--accent-glow)]">
+                      <div className="w-10 h-10 bg-[var(--accent)] text-[var(--text-on-accent)] rounded-2xl flex items-center justify-center shadow-[0_0_15px_var(--accent-glow)]">
                           <Target size={20} />
                       </div>
                       <h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Фокус</h3>
@@ -196,7 +196,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               ) : (
                   <div className="flex-1 flex flex-col items-center justify-center py-6 text-[var(--text-muted)] opacity-50">
                       <p className="text-[10px] font-black uppercase mb-4 text-center">Дневник пуст</p>
-                      <button onClick={() => onNavigate('journal')} className="px-4 py-2 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-xl text-xs font-bold hover:bg-[var(--accent)] hover:text-white transition-all">
+                      <button onClick={() => onNavigate('journal')} className="px-4 py-2 bg-[var(--bg-item)] border border-[var(--border-color)] rounded-xl text-xs font-bold hover:bg-[var(--accent)] hover:text-[var(--text-on-accent)] transition-all">
                           Записать мысли
                       </button>
                   </div>
@@ -209,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <section>
           <div className="flex items-center justify-between mb-4 px-2">
               <h3 className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">Проекты</h3>
-              <button onClick={() => onNavigate('projects')} className="w-8 h-8 rounded-full bg-[var(--bg-item)] flex items-center justify-center text-[var(--text-muted)] hover:text-white transition-all">
+              <button onClick={() => onNavigate('projects')} className="w-8 h-8 rounded-full bg-[var(--bg-item)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-on-accent)] transition-all">
                   <Folder size={14} />
               </button>
           </div>

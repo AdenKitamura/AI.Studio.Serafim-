@@ -633,9 +633,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
       <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
-         <button onClick={onOpenHistory} className="p-2 rounded-xl backdrop-blur-md border bg-black/20 text-white/50 border-white/10 hover:text-white transition-all"><History size={16} /></button>
-         <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><SlidersHorizontal size={16} /></button>
-         <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'bg-black/20 text-white/50 border-white/10 hover:text-white'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
+         <button onClick={onOpenHistory} className="p-2 rounded-xl backdrop-blur-md border bg-black/20 text-white/50 border-white/10 hover:text-[var(--text-on-accent)] transition-all"><History size={16} /></button>
+         <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><SlidersHorizontal size={16} /></button>
+         <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
       </div>
 
       {showLiveAgent && (
@@ -684,7 +684,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                       <Settings2 size={16} />
                       <h4 className="text-[10px] font-black uppercase tracking-widest">Аудио Ядро</h4>
                   </div>
-                  <button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-white"><X size={16}/></button>
+                  <button onClick={() => setShowVoiceSettings(false)} className="text-[var(--text-muted)] hover:text-[var(--text-on-accent)]"><X size={16}/></button>
               </div>
               
               <div className="space-y-1 mb-6">
@@ -720,8 +720,8 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       {showTerminal && (
           <div className="absolute top-0 left-0 w-full h-[60%] z-[60] bg-[#0c0c0c]/95 backdrop-blur-xl border-b border-[var(--border-color)] animate-in slide-in-from-top-10 flex flex-col font-mono text-xs shadow-2xl">
-              <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-white/5"><div className="flex items-center gap-2 text-emerald-500"><Terminal size={14} /><span className="font-bold uppercase tracking-widest">Serafim Core System</span></div><div className="flex gap-2"><button onClick={() => logger.clear()} className="text-[var(--text-muted)] hover:text-white px-2">Clear</button><button onClick={() => setShowTerminal(false)} className="text-[var(--text-muted)] hover:text-white"><X size={16}/></button></div></div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-white/20">{systemLogs.map(log => (<div key={log.id} className="flex gap-2 animate-in fade-in"><span className="text-white/30 shrink-0">[{log.timestamp}]</span><span className={`break-all ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : log.type === 'warning' ? 'text-amber-400' : 'text-blue-300'}`}>{log.message}</span></div>))}{isThinking && (<div className="flex gap-2 animate-pulse text-purple-400 mt-2"><span className="text-white/30">{`[${new Date().toLocaleTimeString()}]`}</span><span>{isProcessingTool ? 'EXECUTING KERNEL FUNCTION...' : 'NEURAL PROCESSING...'}</span></div>)}<div ref={terminalEndRef} /></div>
+              <div className="flex justify-between items-center px-4 py-2 border-b border-white/10 bg-white/5"><div className="flex items-center gap-2 text-emerald-500"><Terminal size={14} /><span className="font-bold uppercase tracking-widest">Serafim Core System</span></div><div className="flex gap-2"><button onClick={() => logger.clear()} className="text-[var(--text-muted)] hover:text-[var(--text-on-accent)] px-2">Clear</button><button onClick={() => setShowTerminal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-on-accent)]"><X size={16}/></button></div></div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-white/20">{systemLogs.map(log => (<div key={log.id} className="flex gap-2 animate-in fade-in"><span className="text-[var(--text-on-accent)]/30 shrink-0">[{log.timestamp}]</span><span className={`break-all ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : log.type === 'warning' ? 'text-amber-400' : 'text-blue-300'}`}>{log.message}</span></div>))}{isThinking && (<div className="flex gap-2 animate-pulse text-purple-400 mt-2"><span className="text-[var(--text-on-accent)]/30">{`[${new Date().toLocaleTimeString()}]`}</span><span>{isProcessingTool ? 'EXECUTING KERNEL FUNCTION...' : 'NEURAL PROCESSING...'}</span></div>)}<div ref={terminalEndRef} /></div>
           </div>
       )}
 
@@ -729,11 +729,11 @@ const Mentorship: React.FC<MentorshipProps> = ({
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-40">
           {activeSession?.messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-white shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
+              <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-[var(--text-on-accent)] shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}
                 <div className="text-sm leading-relaxed whitespace-pre-wrap font-sans font-medium">{msg.content}</div>
                 {msg.role === 'model' && (
-                    <button onClick={() => isPlaying ? stopAudio() : playGeminiAudio(msg.content)} className={`absolute -bottom-8 left-2 p-2 rounded-full transition-all cursor-pointer ${isPlaying ? 'bg-[var(--accent)] text-white shadow-lg scale-110' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)]'}`}>
+                    <button onClick={() => isPlaying ? stopAudio() : playGeminiAudio(msg.content)} className={`absolute -bottom-8 left-2 p-2 rounded-full transition-all cursor-pointer ${isPlaying ? 'bg-[var(--accent)] text-[var(--text-on-accent)] shadow-lg scale-110' : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-item)]'}`}>
                         {isPlaying ? <VolumeX size={16} className="animate-pulse" /> : <Volume2 size={16} />}
                     </button>
                 )}
@@ -749,7 +749,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
          
          {(isRecording || isProcessingAudio) && (
              <div className="absolute -top-16 left-0 w-full px-4 flex justify-center animate-in slide-in-from-bottom-5">
-                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3">
+                 <div className="bg-[#0c0c0c]/90 backdrop-blur-xl border border-[var(--accent)] text-[var(--text-on-accent)] p-3 rounded-2xl shadow-2xl flex items-center gap-3">
                      {isProcessingAudio ? (
                          <>
                             <Wand2 size={18} className="text-[var(--accent)] animate-spin" />
@@ -758,7 +758,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
                      ) : (
                          <>
                             <div className="w-3 h-3 rounded-full bg-red-500 animate-[pulse_1s_infinite] shadow-[0_0_15px_red]"></div>
-                            <span className="text-xs font-bold text-white uppercase tracking-widest">Запись...</span>
+                            <span className="text-xs font-bold text-[var(--text-on-accent)] uppercase tracking-widest">Запись...</span>
                          </>
                      )}
                  </div>
@@ -769,7 +769,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
              {attachedImage && (
                  <div className="mb-4 relative inline-block animate-in zoom-in slide-in-from-bottom-2">
                      <img src={attachedImage} className="h-16 w-16 rounded-xl object-cover border border-white/10 shadow-lg" alt="attachment" />
-                     <button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1.5 shadow-md hover:bg-rose-600 transition-colors"><X size={10} strokeWidth={3} /></button>
+                     <button onClick={() => setAttachedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-[var(--text-on-accent)] rounded-full p-1.5 shadow-md hover:bg-rose-600 transition-colors"><X size={10} strokeWidth={3} /></button>
                  </div>
              )}
              <textarea 
@@ -784,20 +784,20 @@ const Mentorship: React.FC<MentorshipProps> = ({
              />
              <div className="flex items-center justify-between mt-4 pt-2">
                  <div className="flex items-center gap-1">
-                      <button onClick={openMenu} className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"><Menu size={20} strokeWidth={2} /></button>
+                      <button onClick={openMenu} className="p-2.5 text-zinc-400 hover:text-[var(--text-on-accent)] hover:bg-white/5 rounded-xl transition-all active:scale-95"><Menu size={20} strokeWidth={2} /></button>
                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageAttach} />
-                      <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all active:scale-95"><Paperclip size={20} strokeWidth={2} /></button>
+                      <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-zinc-400 hover:text-[var(--text-on-accent)] hover:bg-white/5 rounded-xl transition-all active:scale-95"><Paperclip size={20} strokeWidth={2} /></button>
                  </div>
                  <div className="flex items-center gap-2">
                       <button 
                         onClick={onStartLiveAudio} 
-                        className="p-2.5 rounded-xl transition-all active:scale-95 text-emerald-400 hover:text-white hover:bg-emerald-500/20"
+                        className="p-2.5 rounded-xl transition-all active:scale-95 text-emerald-400 hover:text-[var(--text-on-accent)] hover:bg-emerald-500/20"
                       >
                           <AudioLines size={20} />
                       </button>
                       <button 
                         onClick={toggleRecording} 
-                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-white shadow-lg animate-pulse' : isProcessingAudio ? 'bg-indigo-500 text-white animate-spin' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-[var(--text-on-accent)] shadow-lg animate-pulse' : isProcessingAudio ? 'bg-indigo-500 text-[var(--text-on-accent)] animate-spin' : 'text-zinc-400 hover:text-[var(--text-on-accent)] hover:bg-white/5'}`}
                       >
                           {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                       </button>

@@ -124,13 +124,13 @@ const InteractiveTour: React.FC<InteractiveTourProps> = ({ onComplete }) => {
           <div className="flex gap-2">
             <button 
               onClick={onComplete}
-              className="px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] hover:text-white uppercase transition-colors"
+              className="px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-on-accent)] uppercase transition-colors"
             >
               Пропустить
             </button>
             <button 
               onClick={handleNext}
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg transition-all active:scale-95"
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-[var(--text-on-accent)] text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg transition-all active:scale-95"
             >
               {currentStep === steps.length - 1 ? 'Начать' : 'Далее'} <ArrowRight size={12} />
             </button>

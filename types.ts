@@ -9,8 +9,8 @@ export enum Priority {
 export type ChatCategory = 'general' | 'strategy' | 'productivity' | 'learning' | 'mental';
 export type LinkType = 'related' | 'cause' | 'effect' | 'hypothesis' | 'blocker';
 export type ViewState = 'dashboard' | 'chat' | 'journal' | 'thoughts' | 'planner' | 'settings' | 'projects' | 'analytics';
-export type ThemeKey = 'emerald' | 'amber' | 'neon' | 'ocean' | 'obsidian' | 'crimson' | 'cloud' | 'paper' | 'deep-purple' | 'matrix' | 'cyber-sunset';
-export type FontFamily = 'JetBrains Mono';
+export type ThemeKey = 'emerald' | 'amber' | 'neon' | 'ocean' | 'obsidian' | 'crimson' | 'cloud' | 'paper' | 'deep-purple' | 'matrix' | 'cyber-sunset' | 'mint' | 'latte' | 'turquoise' | 'ash';
+export type FontFamily = 'JetBrains Mono' | 'Inter' | 'SF Pro Text' | 'Roboto' | 'Outfit' | 'Space Grotesk' | 'Playfair Display' | 'Fira Code' | 'system-ui';
 export type IconWeight = '1px' | '1.5px' | '2px' | '2.5px' | '3px';
 export type TextureType = 'custom' | 'none';
 export type CalendarMode = 'week' | 'month';

@@ -39,7 +39,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({ task, onClose, on
            <div className="space-y-3">
                <button 
                   onClick={onComplete}
-                  className="w-full py-5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl glass-btn"
+                  className="w-full py-5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-on-accent)] rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl glass-btn"
                >
                    <CheckCircle size={20} strokeWidth={3} />
                    Выполнено

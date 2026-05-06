@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel } from './types';
+import { ViewState, Task, Thought, JournalEntry, Project, Habit, ChatSession, ThemeKey, IconWeight, Memory, GeminiModel, FontFamily } from './types';
 import Mentorship from './components/Mentorship';
 import PlannerView from './components/PlannerView';
 import JournalView from './components/JournalView';
@@ -44,6 +44,7 @@ const App = () => {
   
   // Customization State
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(() => (localStorage.getItem('sb_theme') || 'emerald') as ThemeKey);
+  const [currentFont, setCurrentFont] = useState<FontFamily>(() => (localStorage.getItem('sb_font') || 'JetBrains Mono') as FontFamily);
   const [iconWeight, setIconWeight] = useState<IconWeight>(() => (localStorage.getItem('sb_icon_weight') || '2px') as IconWeight);
   const [geminiModel, setGeminiModel] = useState<GeminiModel>(() => (localStorage.getItem('sb_gemini_model') || 'flash') as GeminiModel);
 
@@ -376,7 +377,19 @@ const App = () => {
       root.style.setProperty(key, value as string);
     });
 
-    root.style.setProperty('--app-font', `"JetBrains Mono", monospace`);
+    const fontFamilies: Record<FontFamily, string> = {
+        'JetBrains Mono': '"JetBrains Mono", monospace',
+        'Inter': '"Inter", sans-serif',
+        'SF Pro Text': '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif',
+        'Roboto': '"Roboto", sans-serif',
+        'Outfit': '"Outfit", sans-serif',
+        'Space Grotesk': '"Space Grotesk", sans-serif',
+        'Playfair Display': '"Playfair Display", serif',
+        'Fira Code': '"Fira Code", monospace',
+        'system-ui': 'system-ui, sans-serif'
+    };
+
+    root.style.setProperty('--app-font', fontFamilies[currentFont] || fontFamilies['JetBrains Mono']);
     root.style.setProperty('--icon-weight', iconWeight);
     body.setAttribute('data-theme-type', theme.type);
 
@@ -387,10 +400,11 @@ const App = () => {
     }
     
     localStorage.setItem('sb_theme', validTheme);
+    localStorage.setItem('sb_font', currentFont);
     localStorage.setItem('sb_icon_weight', iconWeight);
     localStorage.setItem('sb_gemini_model', geminiModel);
 
-  }, [currentTheme, iconWeight, geminiModel]);
+  }, [currentTheme, currentFont, iconWeight, geminiModel]);
 
   // --- HANDLERS ---
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
@@ -788,7 +802,7 @@ const App = () => {
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []); persist('tasks', d.tasks || []); persist('thoughts', d.thoughts || []);}} 
           hasAiKey={hasAiKey}
           session={session}
-          customization={{ font: 'JetBrains Mono', setFont: () => {}, iconWeight, setIconWeight, texture: 'none', setTexture: () => {} }}
+          customization={{ font: currentFont, setFont: setCurrentFont, iconWeight, setIconWeight, texture: 'none', setTexture: () => {} }}
         />
       )}
 

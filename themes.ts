@@ -13,7 +13,8 @@ export interface ThemeColors {
   '--border-color': string;
   '--glass-opacity': string;
   '--shadow-sm': string;
-  '--bg-glass': string; // New variable for dynamic glass background
+  '--bg-glass': string;
+  '--text-on-accent': string;
 }
 
 export interface Theme {
@@ -39,6 +40,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
       '--bg-glass': 'rgba(255, 255, 255, 0.03)',
+      '--text-on-accent': '#ffffff',
     },
   },
   neon: {
@@ -57,6 +59,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 0 20px rgba(217, 70, 239, 0.2)',
       '--bg-glass': 'rgba(255, 255, 255, 0.03)',
+      '--text-on-accent': '#ffffff',
     }
   },
   obsidian: {
@@ -75,6 +78,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.95',
       '--shadow-sm': '0 4px 6px rgba(0,0,0,0.9)',
       '--bg-glass': 'rgba(255, 255, 255, 0.03)',
+      '--text-on-accent': '#000000',
     }
   },
   crimson: {
@@ -93,24 +97,26 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.6)',
       '--bg-glass': 'rgba(255, 255, 255, 0.03)',
+      '--text-on-accent': '#ffffff',
     }
   },
   ocean: {
     name: 'Океан (Dark)',
     type: 'dark',
     colors: {
-      '--bg-main': '#020617', 
-      '--bg-card': '#0f172a',
-      '--bg-item': '#1e293b',
-      '--text-main': '#f0f9ff',
+      '--bg-main': '#0a0f1c', 
+      '--bg-card': '#111827',
+      '--bg-item': '#1f2937',
+      '--text-main': '#f8fafc',
       '--text-muted': '#94a3b8',
-      '--accent': '#38bdf8',
-      '--accent-hover': '#0ea5e9',
-      '--accent-glow': 'rgba(56, 189, 248, 0.6)',
-      '--border-color': 'rgba(56,189,248,0.2)',
+      '--accent': '#3b82f6', // Classic blue
+      '--accent-hover': '#2563eb',
+      '--accent-glow': 'rgba(59, 130, 246, 0.6)',
+      '--border-color': 'rgba(59, 130, 246, 0.2)',
       '--glass-opacity': '0.85',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
       '--bg-glass': 'rgba(255, 255, 255, 0.03)',
+      '--text-on-accent': '#ffffff',
     },
   },
   amber: {
@@ -129,6 +135,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.85',
       '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
       '--bg-glass': 'rgba(255, 255, 255, 0.03)',
+      '--text-on-accent': '#000000',
     },
   },
   cloud: {
@@ -147,6 +154,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.7',
       '--shadow-sm': '0 4px 6px rgba(0,0,0,0.05)',
       '--bg-glass': 'rgba(255, 255, 255, 0.6)',
+      '--text-on-accent': '#ffffff',
     }
   },
   paper: {
@@ -164,7 +172,8 @@ export const themes: Record<ThemeKey, Theme> = {
       '--border-color': '#e4e4e7', // Zinc 200 - Visible border
       '--glass-opacity': '0.9',
       '--shadow-sm': '0 1px 2px rgba(0,0,0,0.05)',
-      '--bg-glass': 'rgba(255, 255, 255, 0.8)', // White glass
+      '--bg-glass': 'rgba(255, 255, 255, 0.8)',
+      '--text-on-accent': '#ffffff',
     }
   },
   'deep-purple': {
@@ -183,6 +192,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.7',
       '--shadow-sm': '0 8px 32px 0 rgba(31, 38, 135, 0.37);',
       '--bg-glass': 'rgba(5, 0, 20, 0.2)',
+      '--text-on-accent': '#ffffff',
     }
   },
   matrix: {
@@ -201,6 +211,7 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.7',
       '--shadow-sm': '0 8px 32px 0 rgba(0, 50, 0, 0.37);',
       '--bg-glass': 'rgba(0, 0, 0, 0.2)',
+      '--text-on-accent': '#000000',
     }
   },
   'cyber-sunset': {
@@ -219,6 +230,83 @@ export const themes: Record<ThemeKey, Theme> = {
       '--glass-opacity': '0.7',
       '--shadow-sm': '0 8px 32px 0 rgba(100, 20, 50, 0.37);',
       '--bg-glass': 'rgba(26, 11, 22, 0.2)',
+      '--text-on-accent': '#ffffff',
+    }
+  },
+  mint: {
+    name: 'Мята (Light)',
+    type: 'light',
+    colors: {
+      '--bg-main': '#f0fdf4',
+      '--bg-card': '#ffffff',
+      '--bg-item': '#dcfce7',
+      '--text-main': '#14532d',
+      '--text-muted': '#166534',
+      '--accent': '#22c55e',
+      '--accent-hover': '#16a34a',
+      '--accent-glow': 'rgba(34, 197, 94, 0.3)',
+      '--border-color': 'rgba(34, 197, 94, 0.2)',
+      '--glass-opacity': '0.8',
+      '--shadow-sm': '0 4px 6px rgba(0,0,0,0.05)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.7)',
+      '--text-on-accent': '#ffffff',
+    }
+  },
+  latte: {
+    name: 'Латте (Light)',
+    type: 'light',
+    colors: {
+      '--bg-main': '#faf8f5',
+      '--bg-card': '#ffffff',
+      '--bg-item': '#f5f0e6',
+      '--text-main': '#4338ca', // deep indigo/brown contrast
+      '--text-muted': '#78716c',
+      '--accent': '#d97706',
+      '--accent-hover': '#b45309',
+      '--accent-glow': 'rgba(217, 119, 6, 0.3)',
+      '--border-color': 'rgba(217, 119, 6, 0.2)',
+      '--glass-opacity': '0.8',
+      '--shadow-sm': '0 4px 6px rgba(0,0,0,0.05)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.7)',
+      '--text-on-accent': '#ffffff',
+    }
+  },
+  turquoise: {
+    name: 'Бирюза (Dark)',
+    type: 'dark',
+    colors: {
+      '--bg-main': '#041f24',
+      '--bg-card': '#0a2e36',
+      '--bg-item': '#114652',
+      '--text-main': '#ccfbf1',
+      '--text-muted': '#5eead4',
+      '--accent': '#14b8a6',
+      '--accent-hover': '#0d9488',
+      '--accent-glow': 'rgba(20, 184, 166, 0.6)',
+      '--border-color': 'rgba(20, 184, 166, 0.2)',
+      '--glass-opacity': '0.85',
+      '--shadow-sm': '0 4px 15px rgba(0,0,0,0.5)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.04)',
+      '--text-on-accent': '#ffffff',
+    }
+  },
+  ash: {
+    name: 'Пепел (Dark)',
+    type: 'dark',
+    colors: {
+      '--bg-main': '#121212',
+      '--bg-card': '#1e1e1e',
+      '--bg-item': '#2d2d2d',
+      '--text-main': '#f4f4f5',
+      '--text-muted': '#a1a1aa',
+      '--accent': '#71717a',
+      '--accent-hover': '#52525b',
+      '--accent-glow': 'rgba(161, 161, 170, 0.5)',
+      '--border-color': 'rgba(161, 161, 170, 0.2)',
+      '--glass-opacity': '0.9',
+      '--shadow-sm': '0 8px 32px 0 rgba(100, 100, 100, 0.1)',
+      '--bg-glass': 'rgba(255, 255, 255, 0.05)',
+      '--text-on-accent': '#ffffff',
     }
   }
 };
