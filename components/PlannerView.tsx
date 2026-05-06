@@ -107,12 +107,12 @@ const PlannerView: React.FC<PlannerViewProps> = ({
       </div>
 
       {showCalendar && (
-        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-main)]/95 backdrop-blur-md border-b border-[var(--border-color)] sticky top-[95px] z-20 shadow-xl">
+        <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300 bg-[var(--bg-card)]/90 backdrop-blur-3xl border-b border-[var(--border-color)] absolute top-[90px] left-0 w-full layer-3 shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[100]">
           <CalendarView tasks={tasks} onDateClick={(d) => { setSelectedDate(d); setShowCalendar(false); }} />
         </div>
       )}
 
-      <div className="px-6 py-6 pb-48 flex-1">
+      <div className="px-6 py-6 pb-48 flex-1 layer-1 overflow-y-auto no-scrollbar relative z-10">
         <section className="mb-10">
           <div className="flex items-baseline justify-between mb-6"><span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] opacity-60">{tasksForSelected.length} целей</span></div>
           <div className="space-y-3">

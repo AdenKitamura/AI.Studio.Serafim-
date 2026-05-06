@@ -166,5 +166,59 @@ export const themes: Record<ThemeKey, Theme> = {
       '--shadow-sm': '0 1px 2px rgba(0,0,0,0.05)',
       '--bg-glass': 'rgba(255, 255, 255, 0.8)', // White glass
     }
+  },
+  'deep-purple': {
+    name: 'Deep Purple (Cyber)',
+    type: 'dark',
+    colors: {
+      '--bg-main': '#050014',
+      '--bg-card': '#110022',
+      '--bg-item': 'rgba(51, 0, 102, 0.4)',
+      '--text-main': '#f3e8ff',
+      '--text-muted': '#c084fc',
+      '--accent': '#d946ef',
+      '--accent-hover': '#c026d3',
+      '--accent-glow': 'rgba(217, 70, 239, 0.8)',
+      '--border-color': 'rgba(217, 70, 239, 0.3)',
+      '--glass-opacity': '0.7',
+      '--shadow-sm': '0 8px 32px 0 rgba(31, 38, 135, 0.37);',
+      '--bg-glass': 'rgba(5, 0, 20, 0.2)',
+    }
+  },
+  matrix: {
+    name: 'Matrix Green (Cyber)',
+    type: 'dark',
+    colors: {
+      '--bg-main': '#000000',
+      '--bg-card': '#001400',
+      '--bg-item': 'rgba(0, 40, 0, 0.4)',
+      '--text-main': '#e5ffe5',
+      '--text-muted': '#4ade80',
+      '--accent': '#22c55e',
+      '--accent-hover': '#16a34a',
+      '--accent-glow': 'rgba(34, 197, 94, 0.8)',
+      '--border-color': 'rgba(34, 197, 94, 0.3)',
+      '--glass-opacity': '0.7',
+      '--shadow-sm': '0 8px 32px 0 rgba(0, 50, 0, 0.37);',
+      '--bg-glass': 'rgba(0, 0, 0, 0.2)',
+    }
+  },
+  'cyber-sunset': {
+    name: 'Cyber Sunset (Cyber)',
+    type: 'dark',
+    colors: {
+      '--bg-main': '#1a0b16',
+      '--bg-card': '#2a0a20',
+      '--bg-item': 'rgba(88, 28, 65, 0.4)',
+      '--text-main': '#ffe4e6',
+      '--text-muted': '#fbcfe8',
+      '--accent': '#f43f5e',
+      '--accent-hover': '#e11d48',
+      '--accent-glow': 'rgba(244, 63, 94, 0.8)',
+      '--border-color': 'rgba(244, 63, 94, 0.3)',
+      '--glass-opacity': '0.7',
+      '--shadow-sm': '0 8px 32px 0 rgba(100, 20, 50, 0.37);',
+      '--bg-glass': 'rgba(26, 11, 22, 0.2)',
+    }
   }
 };

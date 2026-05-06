@@ -79,3 +79,39 @@
 .dark {
   --background: 0 0% 0%;
 }
+
+.glass-panel {
+  background: var(--bg-glass, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  /* "Apple vs Material Blend" inner shadow for bevel */
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), var(--shadow-sm);
+}
+
+.glass-panel:hover {
+  background: var(--bg-card);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 0 20px var(--accent-glow);
+}
+
+.glass-btn {
+  background: var(--bg-glass, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+}
+
+/* Z-Index Architecture for Planner/Tasks */
+.layer-0 { z-index: 0; }
+.layer-1 { z-index: 10; } /* Main Content */
+.layer-2 { z-index: 50; } /* Fixed Toolbar */
+.layer-3 { z-index: 100; } /* Popups & Pickers */
+
+/* Task Container Fixes */
+.task-content-area {
+  flex-direction: column;
+  height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom, 80px); /* Avoid hiding behind toolbar */
+}
+
