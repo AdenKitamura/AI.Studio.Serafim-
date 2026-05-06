@@ -9,7 +9,6 @@ import ThoughtsView from './components/ThoughtsView';
 import ProfileModal from './components/ProfileModal';
 import FocusTimer from './components/FocusTimer';
 import Dashboard from './components/Dashboard';
-import AnalyticsView from './components/AnalyticsView';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import QuotesLibrary from './components/QuotesLibrary';
 import ChatHistoryModal from './components/ChatHistoryModal';
@@ -25,7 +24,6 @@ import {
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import LiveAudioAgent from './components/LiveAudioAgent';
-import { useBackHandler } from './hooks/useBackHandler';
 
 import { generateSessionSummary } from './services/geminiService';
 
@@ -80,21 +78,65 @@ const App = () => {
       liveTextTimeoutRef.current = setTimeout(() => setLiveStreamText(''), 4000);
   };
 
-  // --- NAVIGATION & HISTORY API ---
+  // --- НАДЕЖНАЯ НАВИГАЦИЯ (HISTORY API) ---
+  const openModal = (modalName: string) => {
+    window.history.pushState({ appState: true, page: view, modal: modalName }, '', '');
+    if (modalName === 'settings') setShowSettings(true);
+    else if (modalName === 'chatHistory') setShowChatHistory(true);
+    else if (modalName === 'quotes') setShowQuotes(true);
+    else if (modalName === 'timer') setShowTimer(true);
+    else if (modalName === 'liveAgent') setShowLiveAgent(true);
+    else if (modalName === 'sidebar') setIsSidebarOpen(true);
+    else if (modalName === 'pwaInstall') setShowPWAInstall(true);
+  };
+
+  const closeGlobalModal = () => {
+    const wasModalOpen = showSettings || showChatHistory || showQuotes || showTimer || showLiveAgent || isSidebarOpen || showPWAInstall;
+    setShowSettings(false);
+    setShowChatHistory(false);
+    setShowQuotes(false);
+    setShowTimer(false);
+    setShowLiveAgent(false);
+    setIsSidebarOpen(false);
+    setShowPWAInstall(false);
+    
+    // Пытаемся синхронизировать историю браузера, если там была наша модалка, и мы её закрываем вручную
+    if (wasModalOpen && window.history.state?.modal) {
+      window.history.back();
+    }
+  };
+
   useEffect(() => {
-    window.history.replaceState({ view: 'dashboard' }, '');
+    // При загрузке приложения инициализируем базовое состояние
+    if (!window.history.state?.appState) {
+        window.history.replaceState({ appState: true, page: 'dashboard', modal: null }, '', '');
+    }
+
     const handlePopState = (event: PopStateEvent) => {
-      if (event.state?.modal) {
-        // Ignore popstate events that land on a modal state.
-        // The modal's own useBackHandler will handle closing the modal that was popped.
-        return;
-      }
-      if (event.state && event.state.view) {
-        setView(event.state.view);
-      } else {
-        setView('dashboard');
+      const state = event.state;
+      if (state && state.appState) {
+         // Состояние валидно, применяем
+         setView(state.page || 'dashboard');
+         setShowSettings(state.modal === 'settings');
+         setShowChatHistory(state.modal === 'chatHistory');
+         setShowQuotes(state.modal === 'quotes');
+         setShowTimer(state.modal === 'timer');
+         setShowLiveAgent(state.modal === 'liveAgent');
+         setIsSidebarOpen(state.modal === 'sidebar');
+         setShowPWAInstall(state.modal === 'pwaInstall');
+      } else if (!state?.modal) {
+         // Юзер ушел слишком далеко назад, или это неизвестный стейт без child-модалки
+         setView('dashboard');
+         setShowSettings(false);
+         setShowChatHistory(false);
+         setShowQuotes(false);
+         setShowTimer(false);
+         setShowLiveAgent(false);
+         setIsSidebarOpen(false);
+         setShowPWAInstall(false);
       }
     };
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -102,22 +144,23 @@ const App = () => {
   const navigateTo = (newView: ViewState) => {
     if (newView === view) return;
     
-    if (window.history.state?.modal) {
-        // If we are navigating from a modal state (e.g. sidebar link), replace the modal state
-        window.history.replaceState({ view: newView }, '', '');
+    // Закрываем всё при переходе
+    setShowSettings(false);
+    setShowChatHistory(false);
+    setShowQuotes(false);
+    setShowTimer(false);
+    setShowLiveAgent(false);
+    setIsSidebarOpen(false);
+    setShowPWAInstall(false);
+    
+    if (view === 'dashboard') {
+      window.history.pushState({ appState: true, page: newView, modal: null }, '', '');
     } else {
-        window.history.pushState({ view: newView }, '', '');
+      window.history.replaceState({ appState: true, page: newView, modal: null }, '', '');
     }
+    
     setView(newView);
   };
-
-  useBackHandler(showSettings, () => setShowSettings(false));
-  useBackHandler(showTimer, () => setShowTimer(false));
-  useBackHandler(showPWAInstall, () => setShowPWAInstall(false));
-  useBackHandler(showQuotes, () => setShowQuotes(false));
-  useBackHandler(showChatHistory, () => setShowChatHistory(false));
-  useBackHandler(showLiveAgent, () => setShowLiveAgent(false));
-  useBackHandler(isSidebarOpen, () => setIsSidebarOpen(false));
 
   // --- AUTH INITIALIZATION ---
   useEffect(() => {
@@ -426,7 +469,7 @@ const App = () => {
       persist('journal', newEntry);
   };
 
-  const handleStartFocus = (mins?: number) => { setShowTimer(true); };
+  const handleStartFocus = (mins?: number) => { openModal('timer'); };
   
   const hasAiKey = useMemo(() => {
      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GOOGLE_API_KEY) return true;
@@ -459,7 +502,7 @@ const App = () => {
       {/* Global Live Agent */}
       {showLiveAgent && (
         <LiveAudioAgent 
-          onClose={() => setShowLiveAgent(false)} 
+          onClose={closeGlobalModal} 
           userName={userName}
           tasks={tasks}
           thoughts={thoughts}
@@ -495,19 +538,19 @@ const App = () => {
       )}
 
       {/* Hidden button for programmatic trigger from Dashboard */}
-      <button id="sidebar-trigger" className="hidden" onClick={() => setIsSidebarOpen(true)}></button>
+      <button id="sidebar-trigger" className="hidden" onClick={() => openModal('sidebar')}></button>
 
       {/* SIDEBAR (Responsive) */}
       <Sidebar 
         currentView={view} 
         onNavigate={navigateTo} 
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenHistory={() => setShowChatHistory(true)}
-        onVoiceChat={() => setShowLiveAgent(true)} 
+        onOpenSettings={() => openModal('settings')}
+        onOpenHistory={() => openModal('chatHistory')}
+        onVoiceChat={() => openModal('liveAgent')} 
         onStartFocus={handleStartFocus}
         userName={userName}
         isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
+        onClose={closeGlobalModal}
       />
 
       {/* MAIN CONTENT AREA */}
@@ -532,8 +575,8 @@ const App = () => {
                   onAddHabit={handleAddHabit}
                   onToggleHabit={handleToggleHabit}
                   onDeleteHabit={handleDeleteHabit}
-                  onOpenQuotes={() => setShowQuotes(true)}
-                  onStartLiveAudio={() => setShowLiveAgent(true)} // Pass handler
+                  onOpenQuotes={() => openModal('quotes')}
+                  onStartLiveAudio={() => openModal('liveAgent')} // Pass handler
               />
           )}
           {view === 'chat' && (
@@ -567,12 +610,12 @@ const App = () => {
               onSetTheme={setCurrentTheme}
               onStartFocus={handleStartFocus}
               hasAiKey={hasAiKey}
-              onConnectAI={() => setShowSettings(true)}
+              onConnectAI={() => openModal('settings')}
               voiceTrigger={voiceTrigger}
               userName={userName}
               session={session}
-              onStartLiveAudio={() => setShowLiveAgent(true)} 
-              onOpenHistory={() => setShowChatHistory(true)}
+              onStartLiveAudio={() => openModal('liveAgent')} 
+              onOpenHistory={() => openModal('chatHistory')}
             />
           )}
           {/* ... other views ... */}
@@ -654,11 +697,10 @@ const App = () => {
               onNavigate={navigateTo}
             />
           )}
-          {view === 'analytics' && <AnalyticsView tasks={tasks} habits={habits} journal={journal} currentTheme={currentTheme} onNavigate={navigateTo} />}
         </main>
       </div>
 
-      {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
+      {showTimer && <FocusTimer onClose={closeGlobalModal} />}
       {showQuotes && (
           <QuotesLibrary 
             myQuotes={thoughts} 
@@ -676,7 +718,7 @@ const App = () => {
                 persist('thoughts', q); 
             }} 
             onDeleteQuote={(id) => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
-            onClose={() => setShowQuotes(false)} 
+            onClose={closeGlobalModal} 
           />
       )}
       
@@ -685,13 +727,13 @@ const App = () => {
           sessions={sessions} 
           activeSessionId={activeSessionId}
           projects={projects}
-          onSelectSession={(id) => { handleSelectSession(id); navigateTo('chat'); setShowChatHistory(false); }}
+          onSelectSession={(id) => { handleSelectSession(id); navigateTo('chat'); }}
           onNewSession={(title, projectId) => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
-             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat'); setShowChatHistory(false);
+             setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat');
           }}
           onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
-          onClose={() => setShowChatHistory(false)}
+          onClose={closeGlobalModal}
         />
       )}
 
@@ -703,7 +745,7 @@ const App = () => {
           setTheme={setCurrentTheme} 
           geminiModel={geminiModel}
           setGeminiModel={setGeminiModel}
-          onClose={() => setShowSettings(false)} 
+          onClose={closeGlobalModal} 
           onImport={d => {setTasks(d.tasks || []); setThoughts(d.thoughts || []); persist('tasks', d.tasks || []); persist('thoughts', d.thoughts || []);}} 
           hasAiKey={hasAiKey}
           session={session}
@@ -711,7 +753,7 @@ const App = () => {
         />
       )}
 
-      {showPWAInstall && <PWAInstallPrompt onClose={() => setShowPWAInstall(false)} />}
+      {showPWAInstall && <PWAInstallPrompt onClose={closeGlobalModal} />}
     </div>
   );
 };
