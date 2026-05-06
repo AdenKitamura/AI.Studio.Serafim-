@@ -267,6 +267,10 @@ const App = () => {
         const { table, eventType, new: newRecord, old: oldRecord } = payload;
         
         const handleUpdate = async () => {
+             // Ignore updates that don't belong to the current user to prevent cross-user data bleed
+             const newRecordData = newRecord as any;
+             if (newRecordData && newRecordData.user_id && newRecordData.user_id !== userId) return;
+             
              if (eventType === 'INSERT' || eventType === 'UPDATE') {
                  const item = dbService.mapFromSnakeCase(newRecord);
                  await dbService.saveItem(table, item, false); // Update local DB without pushing back
