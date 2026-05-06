@@ -12,8 +12,57 @@ export const SERAFIM_CORE_IDENTITY = `
 Ты работаешь в приватном режиме "Без цензуры".
 1. Ты МОЖЕШЬ использовать ненормативную лексику (мат), если это уместно в контексте, или если пользователь так общается.
 2. Ты МОЖЕШЬ обсуждать откровенные темы, 18+, интимные вопросы, флиртовать и поддерживать ролевой контекст, если пользователь этого хочет.
-3. Не будь моралистом. Не читай лекции о том, что "это неприлично". Твоя задача — быть идеальным собеседником без искусственных ограничений.
+3. Не будь моралистом. Не читай лекции о том, что "это неприлично". Твоя задача — быть идеальным собеседником.
 `;
+
+export const buildContextAwarePrompt = (userMessage: string, context: { tasks: Task[], notes: Thought[], journal: JournalEntry[] }): string => {
+    // Вспомогательная функция для выделения "полезных" слов из запроса пользователя
+    const stopWords = new Set(['я', 'ты', 'мы', 'он', 'она', 'они', 'и', 'в', 'во', 'не', 'что', 'на', 'с', 'со', 'как', 'а', 'то', 'все', 'так', 'его', 'но', 'да', 'к', 'у', 'же', 'вы', 'за', 'бы', 'по', 'только', 'ее', 'мне', 'было', 'вот', 'от', 'меня', 'еще', 'нет', 'о', 'из', 'ему', 'теперь', 'когда', 'даже', 'ну', 'вдруг', 'ли', 'если', 'уже', 'или', 'ни', 'быть', 'был', 'него', 'до', 'вас', 'нибудь', 'опять', 'уж', 'вам', 'ведь', 'там', 'потом', 'себя', 'ничего', 'ей', 'может', 'тут', 'где', 'есть', 'надо', 'ней', 'для', 'тебя', 'их', 'чем', 'была', 'сам', 'чтоб', 'без', 'будто', 'чего', 'раз', 'тоже', 'себе', 'под', 'будет', 'ж', 'тогда', 'кто', 'этот', 'того', 'потому', 'этого', 'какой', 'совсем', 'ним', 'здесь', 'этом', 'один', 'почти', 'мой', 'тем', 'чтобы', 'нее', 'сейчас', 'были', 'куда', 'зачем', 'всех', 'никогда', 'можно', 'при', 'наконец', 'два', 'об', 'другой', 'хоть', 'после', 'над', 'больше', 'тот', 'через', 'эти', 'нас', 'про', 'всего', 'них', 'какая', 'много', 'разве', 'три', 'эту', 'моя', 'впрочем', 'хорошо', 'свою', 'этой', 'перед', 'иногда', 'лучше', 'чуть', 'том', 'нельзя', 'такой', 'им', 'более', 'всегда', 'конечно', 'всю', 'между']);
+    
+    // Простой парсинг: берем слова длиннее 3 символов, которые не в стоп-листе
+    const words = userMessage.toLowerCase().replace(/[^\w\sа-яё]/gi, ' ').split(/\s+/);
+    const keywords = words.filter(w => w.length > 3 && !stopWords.has(w));
+
+    if (keywords.length === 0) return userMessage; // Нет ключевых слов, отправляем как есть
+
+    // Ищем в заметках (макс 3)
+    const relevantNotes = context.notes
+        .map(note => {
+            const textToSearch = (note.content + ' ' + (note.notes || '')).toLowerCase();
+            const score = keywords.filter(kw => textToSearch.includes(kw)).length;
+            return { note, score };
+        })
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(item => `- Заметка (ID: ${item.note.id}): ${item.note.content}\n  Контент: ${item.note.notes?.slice(0, 300)}...`);
+
+    // Ищем в дневнике (макс 2)
+    const relevantJournal = context.journal
+        .map(entry => {
+            const textToSearch = (entry.content + ' ' + (entry.notes || '')).toLowerCase();
+            const score = keywords.filter(kw => textToSearch.includes(kw)).length;
+            return { entry, score };
+        })
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 2)
+        .map(item => `- Дневник (${item.entry.date}): ${item.entry.content.slice(0, 300)}...`);
+
+    // Если ничего релевантного не нашли - отправляем как есть
+    if (relevantNotes.length === 0 && relevantJournal.length === 0) {
+        return userMessage;
+    }
+
+    // Собираем RAG-контекст на лету
+    let ragContext = `[СИСТЕМНЫЙ RAG-КОНТЕКСТ ДЛЯ ЭТОГО СООБЩЕНИЯ (Невидимо для пользователя)]\n`;
+    ragContext += `Вот потенциально релевантные данные из базы знаний, которые могут относиться к текущему вопросу:\n`;
+    if (relevantNotes.length > 0) ragContext += `ЗАМЕТКИ:\n${relevantNotes.join('\n')}\n\n`;
+    if (relevantJournal.length > 0) ragContext += `ДНЕВНИК:\n${relevantJournal.join('\n')}\n\n`;
+    ragContext += `[КОНЕЦ СИСТЕМНОГО RAG-КОНТЕКСТА]\n\n`;
+
+    return `${ragContext}Сообщение пользователя: ${userMessage}`;
+};
 
 export const generateSystemInstruction = (context: {
     userName: string;
@@ -31,126 +80,55 @@ export const generateSystemInstruction = (context: {
 }) => {
     const today = format(new Date(), 'eeee, d MMMM yyyy, HH:mm', { locale: ru });
     
-    // --- CONTEXT GENERATION ---
+    // --- ПРОЦЕДУРА МАКСИМАЛЬНОЙ ЭКОНОМИИ КОНТЕКСТА (RAG ПРЕДОБРАБОТКА) ---
 
-    // 1. Memory Context (Facts)
+    // 1. Факты о пользователе (Берем только последние 10-15)
     const memoryContext = context.memories && context.memories.length > 0 
-        ? `MEMORY_BANK (Факты о пользователе):\n${context.memories.map((m: Memory) => `- ${m.content}`).join('\n')}`
+        ? `MEMORY_BANK (Факты о пользователе):\n${context.memories.slice(0, 15).map((m: Memory) => `- ${m.content}`).join('\n')}`
         : '';
 
-    // 2. Active Tasks
-    const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted);
+    // 2. Задачи (Только активные и только ТОП-10)
+    const activeTasks = (context.tasks || []).filter((t: Task) => !t.isCompleted).slice(0, 10);
     const taskSummary = context.isLiveMode 
         ? activeTasks.map(t => `- [${t.priority}] ${t.title} (ID: ${t.id}, Due: ${t.dueDate || 'N/A'})`).join('\n')
-        : `TASKS: ${activeTasks.length} pending.`;
+        : `АКТИВНЫХ ЗАДАЧ: ${activeTasks.length}`;
 
-    // 3. Recent Notes
-    const recentNotes = (context.notes || []).slice(0, 10).map((n: Thought) => `- ${n.content} (ID: ${n.id})`).join('\n');
+    // 3. Заметки (Только НАЗВАНИЯ и ID последних 7 заметок)
+    const recentNotes = (context.notes || []).slice(0, 7).map((n: Thought) => `- ${n.content} (ID: ${n.id})`).join('\n');
 
-    // 4. Habits & Projects (More detailed for Live Mode)
-    const habitContext = context.habits.map(h => `- ${h.title} (Completed: ${h.completedDates.length})`).join('\n');
-    const projectContext = context.projects.map(p => `- ${p.title} (ID: ${p.id}): ${p.description || ''}`).join('\n');
+    // 4. Проекты (Только названия)
+    const projectContext = context.projects.map(p => `- ${p.title} (ID: ${p.id})`).join('\n');
 
-    // 5. Global History (Summaries from other sessions) - Mostly for Text Mode, but useful for Live too
-    let globalHistory = '';
-    if (context.sessions && Array.isArray(context.sessions)) {
-        const pastSummaries = context.sessions
-            .filter((s: ChatSession) => s.id !== context.activeSessionId)
-            .filter((s: ChatSession) => s.summary && s.summary.trim().length > 0)
-            .map((s: ChatSession) => `[Сессия: ${s.title}]\n${s.summary}`)
-            .join('\n\n');
+    // 5. Глобальной истории сессий больше НЕТ в системном промпте (экономия тысяч токенов!).
 
-        if (pastSummaries.length > 0) {
-            globalHistory = `
-GLOBAL CONTEXT (Выжимка из прошлых бесед):
-Ниже приведены сжатые факты из предыдущих сессий. Используй их, чтобы понимать контекст жизни пользователя.
-${pastSummaries}
---------------------------------------------------
-`;
-        }
-    }
-
-    // 6. Recent Chat History (For Live Mode Sync)
-    let recentChatContext = '';
-    if (context.isLiveMode && context.chatHistory && context.chatHistory.length > 0) {
-        const lastMessages = context.chatHistory.slice(-10).map(m => `${m.role === 'user' ? 'User' : 'Serafim'}: ${m.content}`).join('\n');
-        recentChatContext = `
-RECENT TEXT CHAT CONTEXT (О чем вы только что говорили в чате):
-${lastMessages}
---------------------------------------------------
-Используй этот контекст, если пользователь ссылается на "то, о чем мы говорили".
-`;
-    }
-
-    // --- MODE SPECIFIC INSTRUCTIONS ---
-
+    // --- ИНСТРУКЦИИ ДЛЯ РЕЖИМОВ ---
     const liveModeInstructions = `
 CORE BEHAVIORS (LIVE MODE):
-1. ACTIVE EDITING: You have full permission to modify, append, or delete content based on user intent. Do not ask "Should I change this?". If the user says "Rewrite this paragraph," just do it using the \`manage_note\` tool.
-2. STREAMING FLOW: When generating new content, write progressively. Your text should flow naturally, like a stream of consciousness, but structured.
+1. ACTIVE EDITING: You have full permission to modify, append, or delete content. Do not ask "Should I change this?".
+2. STREAMING FLOW: When generating new content, write progressively. 
 3. STRUCTURED CREATION:
-   - If the user generates a new idea inside a note, use \`manage_note\` (action: create) with \`title\` for the short name and \`content\` for the detailed body.
-   - If the user mentions an action item (e.g., "I need to buy milk" or "Remind me to call"), IMMEDIATELY use the \`manage_task\` tool.
-4. DESTRUCTIVE ACTIONS: If the user says "Delete this" or "Clear this note," use the \`manage_note\` or \`manage_task\` tool with action 'delete'.
-5. TONE: Precise, invisible, fluid. You are an extension of the user's mind. Do not be chatty. Act.
-
-COMMAND INTERPRETATION:
-- "Expand on this" -> Use \`manage_note\` with mode='append'.
-- "Change [X] to [Y]" -> Use \`manage_note\` with mode='replace'.
-- "Make a task for X" -> Use \`manage_task\`.
-- "Split this into a new section" -> Use \`manage_note\` (action: create).
+   - If the user generates an idea, use \`manage_note\` (action: create).
+   - If the user mentions an action item, use \`manage_task\`.
+4. TONE: Precise, invisible, fluid. You are an extension of the user's mind. Do not be chatty. Act.
 `;
 
     const textModeInstructions = `
 ПРАВИЛА ПОВЕДЕНИЯ (TEXT MODE):
-1. **НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ**, если пользователь просто делится мыслями. Создавай задачу только по явной просьбе.
-2. **ОБЪЯСНЯЙ ДЕЙСТВИЯ**: Говори "Создал задачу...", "Сохранил в заметки...".
-3. **РЕЖИМ ДНЕВНИКА**: Если пользователь просит записать мысли за последние дни, проанализируй GLOBAL CONTEXT, составь красивую выжимку и предложи сохранить её в дневник (функция save_journal_entry).
-4. **УПРАВЛЕНИЕ ГОЛОСОМ**: Если пользователь просит "говорить шепотом", "томным голосом" или включить "ас мр режим", используй инструмент ui_control с командой 'enable_asmr'.
-5. **РЕЖИМ "БРИФИНГ"**: Если пользователь просит "Брифинг" или "Сводку", ты должен:
-    - Назвать текущую дату и время.
-    - Озвучить главные задачи на сегодня.
-    - Напомнить о важных заметках.
+1. НЕ СОЗДАВАЙ ЗАДАЧИ АВТОМАТИЧЕСКИ. Только по запросу.
+2. ОБЪЯСНЯЙ ДЕЙСТВИЯ: Говори "Создал задачу...", "Сохранил в заметки...".
+3. УПРАВЛЕНИЕ ГОЛОСОМ: используй инструмент ui_control с командой 'enable_asmr'.
+4. РЕЖИМ "БРИФИНГ": Назови дату, время, главные задачи на сегодня, напомни о важных заметках.
 `;
-
-    // --- SHARED RULES ---
 
     const sharedRules = `
-ПРАВИЛА РЕДАКТИРОВАНИЯ (КРИТИЧНО):
-- ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ДОБАВИТЬ", "ДОПИСАТЬ", "ПРОДОЛЖИТЬ": Используй параметр mode='append'. Это сохранит старый текст и добавит новый в конец.
-- ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ "ИСПРАВИТЬ", "ПЕРЕПИСАТЬ", "ЗАМЕНИТЬ": Используй параметр mode='replace'. Это полностью заменит текст.
-- Если не уверен, используй mode='append', чтобы не потерять данные.
-
 ПРАВИЛА ТЕГИРОВАНИЯ (АВТОМАТИЧЕСКАЯ РАЗМЕТКА):
-Когда ты создаешь или обновляешь заметку, ты ОБЯЗАН добавить 1-3 тега в массив tags.
-ШАГ 1: Посмотри на список уже существующих тегов пользователя: [${context.existingTags || ''}].
-ШАГ 2: Максимально старайся использовать ТЕГИ ИЗ ЭТОГО СПИСКА, если они подходят по смыслу. (Например, если есть тег 'работа', не создавай тег 'офис' или 'ворк', используй 'работа').
-ШАГ 3: Создавай НОВЫЙ тег ТОЛЬКО если ни один из существующих категорически не подходит.
-ШАГ 4: Формат тегов: всегда только нижний регистр, существительное, единственное число, без пробелов (используй нижнее подчеркивание, если слов два). Никаких знаков '#' в самом слове.
+Максимально старайся использовать ТЕГИ: [${context.existingTags || ''}].
+Формат тегов: нижний регистр, существительное.
 
-ПРАВИЛА РЕДАКТИРОВАНИЯ И ПОИСКА ЗАМЕТОК (КРИТИЧНО ВАЖНО):
-Когда пользователь просит дополнить, изменить или удалить существующую заметку (например: "добавь в идею про ремонт...", "измени заметку о машине"):
-ШАГ 1: Внимательно изучи блок [НЕДАВНИЕ ЗАМЕТКИ] в контексте.
-ШАГ 2: Найди заметку, которая по смыслу или названию совпадает с тем, что сказал пользователь.
-ШАГ 3: Извлеки точный цифровой ID этой заметки (он указан в скобках [ID: ...]).
-ШАГ 4: Вызови инструмент manage_note и ОБЯЗАТЕЛЬНО передай этот найденный ID. ЗАПРЕЩЕНО придумывать ID из головы. Если нужной заметки нет в контексте, спроси пользователя уточнить.
-
-РАБОТА С СЕКЦИЯМИ (МНОГОЗАДАЧНОСТЬ):
-- Одна заметка может содержать МНОГО разных разделов (секций).
-- Если пользователь говорит "добавь раздел Критика" или "запиши в План", используй параметр \`sectionTitle\`.
-- Пример: \`manage_note(action: 'update', id: '123', sectionTitle: 'Критика', content: 'Слишком дорого...', mode: 'append')\`.
-- Это создаст новую вкладку/раздел внутри той же самой заметки.
-
-ПРАВИЛА СОЗДАНИЯ ТИКЕТОВ (create_dev_ticket):
-ВНИМАНИЕ: ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ ТОЛЬКО ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРЯМО СКАЗАЛ "ОТПРАВЬ В ГИТХАБ", "СОЗДАЙ ТИКЕТ ИНЖЕНЕРАМ" ИЛИ "ОТПРАВЬ РАЗРАБОТЧИКАМ".
-Если пользователь просто обсуждает баги, идеи или доработки, сохраняй их в Заметки (manage_note) в раздел "Техдолг" или "Идеи".
-Если пользователь явно попросил создать тикет:
-1. Если запрос непонятен, задай 1 уточняющий вопрос.
-2. Если всё ясно, сформируй идеальное ТЗ в поле \`body\` (Ожидание/Реальность/Контекст).
-3. После вызова инструмента скажи пользователю: 'Отправил задачу в инженерный отдел'.
+ПРАВИЛА СОЗДАНИЯ ТИКЕТОВ:
+Используй \`create_dev_ticket\`, только если пользователь прямо сказал "ОТПРАВЬ В ГИТХАБ / РАЗРАБОТЧИКАМ".
+Важно: Полный контент заметок передается тебе через систему динамического RAG-сопровождения (присоединяется к запросу).
 `;
-
-    // --- FINAL ASSEMBLY ---
 
     return `
 ${SERAFIM_CORE_IDENTITY}
@@ -161,25 +139,19 @@ ${context.isLiveMode ? liveModeInstructions : textModeInstructions}
 
 ${sharedRules}
 
-КОНТЕКСТ:
+КОНТЕКСТНАЯ ВЫЖИМКА (ПОЛНАЯ ИНФОРМАЦИЯ ПОДГРУЖАЕТСЯ ПО ЗАПРОСУ):
 ${memoryContext}
 ${context.isLiveMode ? `
-[TASKS]:
+[АКТИВНЫЕ ЗАДАЧИ (ТОП 10)]:
 ${taskSummary}
 
-[PROJECTS]:
+[ПРОЕКТЫ]:
 ${projectContext}
-
-[HABITS]:
-${habitContext}
 ` : `
 ${taskSummary}
 `}
 
-[НЕДАВНИЕ ЗАМЕТКИ]:
+[ПОСЛЕДНИЕ ЗАМЕТКИ (ТОЛЬКО НАЗВАНИЯ И ID)]:
 ${recentNotes}
-
-${globalHistory}
-${recentChatContext}
 `;
 };

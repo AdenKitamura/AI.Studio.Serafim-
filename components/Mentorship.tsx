@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Task, Thought, JournalEntry, Project, Habit, ChatSession, ChatCategory, Priority, ThemeKey, Memory } from '../types';
 import { createMentorChat, generateProactiveMessage, generateSpeech, polishText, transcribeAudio } from '../services/geminiService';
+import { buildContextAwarePrompt } from '../services/serafimPersona';
 import { createGithubIssue } from '../services/githubService';
 import * as googleService from '../services/googleService'; 
 import { logger, SystemLog } from '../services/logger';
@@ -425,10 +426,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
         
         const now = new Date();
         const timeContext = `\n[Context: ${format(now, "HH:mm")}]`;
-        let contents: any = cleanInput + timeContext;
+        
+        let expandedInput = buildContextAwarePrompt(cleanInput, { tasks, notes: thoughts, journal });
+        let contents: any = expandedInput + timeContext;
+        
         if (userMsg.image) {
             contents = [
-                { text: (cleanInput || "Analyze image") + timeContext },
+                { text: (expandedInput || "Analyze image") + timeContext },
                 { inlineData: { data: userMsg.image.split(',')[1], mimeType: 'image/jpeg' } }
             ];
         }

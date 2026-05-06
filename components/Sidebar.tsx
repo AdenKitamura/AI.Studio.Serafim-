@@ -78,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <aside 
         className={`
-          fixed top-0 bottom-0 left-0 z-[100] w-72 bg-[var(--bg-main)] border-r border-[var(--border-color)] 
+          fixed top-0 left-0 z-[100] w-72 h-[100dvh] bg-[var(--bg-main)] border-r border-[var(--border-color)] 
           transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:flex flex-col
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
@@ -159,7 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* User Profile Footer */}
-        <div className="p-4 mt-auto">
+        <div className="p-4 mt-auto pb-8 md:pb-4">
            <div className="glass-panel p-4 rounded-3xl border border-[var(--border-color)] bg-[var(--bg-card)]/50 relative overflow-hidden group">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none"></div>
               
