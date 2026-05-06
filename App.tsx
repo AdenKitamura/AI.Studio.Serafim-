@@ -78,20 +78,30 @@ const App = () => {
       liveTextTimeoutRef.current = setTimeout(() => setLiveStreamText(''), 4000);
   };
 
-  // --- НАДЕЖНАЯ НАВИГАЦИЯ (HISTORY API) ---
+  // --- SECURE GESTURE & NAVIGATION MANAGER (HISTORY API) ---
   const openModal = (modalName: string) => {
-    window.history.pushState({ appState: true, page: view, modal: modalName }, '', '');
-    if (modalName === 'settings') setShowSettings(true);
-    else if (modalName === 'chatHistory') setShowChatHistory(true);
-    else if (modalName === 'quotes') setShowQuotes(true);
-    else if (modalName === 'timer') setShowTimer(true);
-    else if (modalName === 'liveAgent') setShowLiveAgent(true);
-    else if (modalName === 'sidebar') setIsSidebarOpen(true);
-    else if (modalName === 'pwaInstall') setShowPWAInstall(true);
+    const isAnyModalOpen = showSettings || showChatHistory || showQuotes || showTimer || showLiveAgent || isSidebarOpen || showPWAInstall;
+    
+    // PUSH state to stack BEFORE updating UI. Replace only if switching modals.
+    if (isAnyModalOpen) {
+       window.history.replaceState({ appState: true, page: view, modal: modalName }, '', '');
+    } else {
+       window.history.pushState({ appState: true, page: view, modal: modalName }, '', '');
+    }
+
+    setShowSettings(modalName === 'settings');
+    setShowChatHistory(modalName === 'chatHistory');
+    setShowQuotes(modalName === 'quotes');
+    setShowTimer(modalName === 'timer');
+    setShowLiveAgent(modalName === 'liveAgent');
+    setIsSidebarOpen(modalName === 'sidebar');
+    setShowPWAInstall(modalName === 'pwaInstall');
   };
 
   const closeGlobalModal = () => {
     const wasModalOpen = showSettings || showChatHistory || showQuotes || showTimer || showLiveAgent || isSidebarOpen || showPWAInstall;
+    if (!wasModalOpen) return;
+
     setShowSettings(false);
     setShowChatHistory(false);
     setShowQuotes(false);
@@ -99,15 +109,14 @@ const App = () => {
     setShowLiveAgent(false);
     setIsSidebarOpen(false);
     setShowPWAInstall(false);
-    
-    // Пытаемся синхронизировать историю браузера, если там была наша модалка, и мы её закрываем вручную
-    if (wasModalOpen && window.history.state?.modal) {
-      window.history.back();
+
+    // Only back if browser actually has our state
+    if (window.history.state?.appState && window.history.state?.modal) {
+        window.history.back();
     }
   };
 
   useEffect(() => {
-    // При загрузке приложения инициализируем базовое состояние
     if (!window.history.state?.appState) {
         window.history.replaceState({ appState: true, page: 'dashboard', modal: null }, '', '');
     }
@@ -115,7 +124,6 @@ const App = () => {
     const handlePopState = (event: PopStateEvent) => {
       const state = event.state;
       if (state && state.appState) {
-         // Состояние валидно, применяем
          setView(state.page || 'dashboard');
          setShowSettings(state.modal === 'settings');
          setShowChatHistory(state.modal === 'chatHistory');
@@ -124,19 +132,19 @@ const App = () => {
          setShowLiveAgent(state.modal === 'liveAgent');
          setIsSidebarOpen(state.modal === 'sidebar');
          setShowPWAInstall(state.modal === 'pwaInstall');
-      } else if (!state?.modal) {
-         // Юзер ушел слишком далеко назад, или это неизвестный стейт без child-модалки
-         setView('dashboard');
-         setShowSettings(false);
-         setShowChatHistory(false);
-         setShowQuotes(false);
-         setShowTimer(false);
-         setShowLiveAgent(false);
-         setIsSidebarOpen(false);
-         setShowPWAInstall(false);
+      } else {
+         // Fallback gracefully without instantly closing if state is unknown (e.g. useBackHandler)
+         if (!state || !state.modal_id) {
+            setView('dashboard');
+            setShowSettings(false);
+            setShowChatHistory(false);
+            setShowQuotes(false);
+            setShowTimer(false);
+            setShowLiveAgent(false);
+            setIsSidebarOpen(false);
+         }
       }
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -144,7 +152,7 @@ const App = () => {
   const navigateTo = (newView: ViewState) => {
     if (newView === view) return;
     
-    // Закрываем всё при переходе
+    // When changing main views, we replace or push main state without modals
     setShowSettings(false);
     setShowChatHistory(false);
     setShowQuotes(false);

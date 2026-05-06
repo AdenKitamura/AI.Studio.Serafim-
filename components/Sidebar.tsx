@@ -63,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     } else {
       onNavigate(item.id as ViewState);
     }
-    onClose();
+    // onClose removed to prevent immediate unmounting of opened modals
   };
 
   return (
@@ -149,7 +149,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <button 
-            onClick={() => { onStartFocus(); onClose(); }}
+            onClick={() => { onStartFocus(); }}
             className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-[var(--text-main)] transition-all group"
           >
              <Clock size={20} className="group-hover:text-orange-400 transition-colors" />
@@ -174,7 +174,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                 <button onClick={() => { onOpenSettings(); onClose(); }} className="py-2 bg-[var(--bg-item)] rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all">
+                 <button onClick={() => { onOpenSettings(); }} className="py-2 bg-[var(--bg-item)] rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all">
                     <Settings size={16} />
                  </button>
                  <button onClick={handleLogout} className="py-2 bg-[var(--bg-item)] rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 transition-all">
