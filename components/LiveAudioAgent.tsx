@@ -133,12 +133,12 @@ const tools: FunctionDeclaration[] = [
   },
   {
     name: "ui_control",
-    description: "Управление интерфейсом (темы, фокус-таймер).",
+    description: "Управление интерфейсом (темы, фокус-таймер, голос).",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        command: { type: Type.STRING, enum: ["set_theme", "start_focus"] },
-        value: { type: Type.STRING, description: "Название темы или минуты для таймера" }
+        command: { type: Type.STRING, enum: ["set_theme", "start_focus", "change_voice"] },
+        value: { type: Type.STRING, description: "Название темы, минуты для таймера или имя голоса (Fenrir, Charon, Kore, Puck, Zephyr)" }
       },
       required: ["command"]
     }
@@ -361,12 +361,14 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
           isLiveMode: true
       });
 
+      const savedVoice = localStorage.getItem('sb_voice') || 'Charon';
+
       const sessionPromise = ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: savedVoice } },
           },
           systemInstruction: SYSTEM_INSTRUCTION,
           tools: [{ functionDeclarations: tools }],
@@ -706,7 +708,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                      case 'ui_control':
                        if (args.command === 'set_theme' && args.value) onSetTheme(args.value as ThemeKey);
                        if (args.command === 'start_focus') onStartFocus(parseInt(args.value || '25'));
-                       result = { result: "UI updated." };
+                       if (args.command === "change_voice") { const val=args.value||""; const cap= ["Kore", "Puck", "Fenrir", "Charon", "Zephyr"].find(n => n.toLowerCase() === val.toLowerCase()); if(cap) { localStorage.setItem("sb_voice", cap); window.dispatchEvent(new Event("voice_changed")); result = { result: "Voice changed. Tell user to hang up and call again to apply." }; } else { result = { result: "Voice not found." }; } } else { result = { result: "UI updated." }; }
                        break;
                      case 'create_dev_ticket':
                        try {

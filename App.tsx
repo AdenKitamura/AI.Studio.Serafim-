@@ -81,7 +81,12 @@ const App = () => {
 
   // --- SECURE GESTURE & NAVIGATION MANAGER (HISTORY API) ---
   const openModal = (modalName: string) => {
-    const isAnyModalOpen = showSettings || showChatHistory || showQuotes || showTimer || showLiveAgent || isSidebarOpen || showPWAInstall;
+    if (modalName === 'liveAgent') {
+      setShowLiveAgent(true);
+      return; 
+    }
+
+    const isAnyModalOpen = showSettings || showChatHistory || showQuotes || showTimer || isSidebarOpen || showPWAInstall;
     
     // PUSH state to stack BEFORE updating UI. Replace only if switching modals.
     if (isAnyModalOpen) {
@@ -94,20 +99,18 @@ const App = () => {
     setShowChatHistory(modalName === 'chatHistory');
     setShowQuotes(modalName === 'quotes');
     setShowTimer(modalName === 'timer');
-    setShowLiveAgent(modalName === 'liveAgent');
     setIsSidebarOpen(modalName === 'sidebar');
     setShowPWAInstall(modalName === 'pwaInstall');
   };
 
   const closeGlobalModal = () => {
-    const wasModalOpen = showSettings || showChatHistory || showQuotes || showTimer || showLiveAgent || isSidebarOpen || showPWAInstall;
+    const wasModalOpen = showSettings || showChatHistory || showQuotes || showTimer || isSidebarOpen || showPWAInstall;
     if (!wasModalOpen) return;
 
     setShowSettings(false);
     setShowChatHistory(false);
     setShowQuotes(false);
     setShowTimer(false);
-    setShowLiveAgent(false);
     setIsSidebarOpen(false);
     setShowPWAInstall(false);
 
@@ -130,7 +133,6 @@ const App = () => {
          setShowChatHistory(state.modal === 'chatHistory');
          setShowQuotes(state.modal === 'quotes');
          setShowTimer(state.modal === 'timer');
-         setShowLiveAgent(state.modal === 'liveAgent');
          setIsSidebarOpen(state.modal === 'sidebar');
          setShowPWAInstall(state.modal === 'pwaInstall');
       } else {
@@ -141,7 +143,6 @@ const App = () => {
             setShowChatHistory(false);
             setShowQuotes(false);
             setShowTimer(false);
-            setShowLiveAgent(false);
             setIsSidebarOpen(false);
          }
       }
@@ -158,7 +159,6 @@ const App = () => {
     setShowChatHistory(false);
     setShowQuotes(false);
     setShowTimer(false);
-    setShowLiveAgent(false);
     setIsSidebarOpen(false);
     setShowPWAInstall(false);
     
@@ -555,7 +555,7 @@ const App = () => {
       {/* Global Live Agent */}
       {showLiveAgent && (
         <LiveAudioAgent 
-          onClose={closeGlobalModal} 
+          onClose={() => setShowLiveAgent(false)} 
           userName={userName}
           tasks={tasks}
           thoughts={thoughts}

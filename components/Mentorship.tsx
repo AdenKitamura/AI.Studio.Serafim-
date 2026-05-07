@@ -73,6 +73,15 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const [isProcessingAudio, setIsProcessingAudio] = useState(false); 
   const [isPlaying, setIsPlaying] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [totalTokens, setTotalTokens] = useState(() => parseInt(localStorage.getItem('sb_total_tokens') || '0'));
+
+  const updateTokenUsage = (newTokens: number) => {
+      setTotalTokens(prev => {
+          const val = prev + newTokens;
+          localStorage.setItem('sb_total_tokens', val.toString());
+          return val;
+      });
+  };
   const [isProcessingTool, setIsProcessingTool] = useState(false);
   
   // Voice Recognition State (MediaRecorder)
@@ -83,7 +92,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const safetyTimeoutRef = useRef<any>(null);
   
   // Gemini Voice Settings
-  const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Kore');
+  const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Charon');
   const [autoVoice, setAutoVoice] = useState<boolean>(() => localStorage.getItem('sb_auto_voice') !== 'false');
   const [voiceSpeed, setVoiceSpeed] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_speed') || '1.0'));
   const [voiceVolume, setVoiceVolume] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_volume') || '1.0'));
@@ -449,6 +458,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
         let functionCalls: any[] = [];
         let groundingChunks: any[] = [];
+        let sessionTokens = 0;
 
         for await (const chunk of responseStream) {
             const chunkText = chunk.text;
@@ -466,6 +476,14 @@ const Mentorship: React.FC<MentorshipProps> = ({
             if (chunks && chunks.length > 0) {
                 groundingChunks = chunks;
             }
+            // Actually usageMetadata is available at the end of the stream, usually in the last chunk
+            if (chunk.usageMetadata && chunk.usageMetadata.totalTokenCount) {
+                 sessionTokens = chunk.usageMetadata.totalTokenCount;
+            }
+        }
+        
+        if (sessionTokens > 0) {
+            updateTokenUsage(sessionTokens);
         }
         
         // Extract Google Search grounding metadata
@@ -632,10 +650,17 @@ const Mentorship: React.FC<MentorshipProps> = ({
   return (
     <div className="flex flex-col h-full bg-transparent relative overflow-hidden">
       
-      <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
-         <button onClick={onOpenHistory} className="p-2 rounded-xl backdrop-blur-md border bg-black/20 text-white/50 border-white/10 hover:text-[var(--text-on-accent)] transition-all"><History size={16} /></button>
-         <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showVoiceSettings ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><SlidersHorizontal size={16} /></button>
-         <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all ${showTerminal ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
+      <div className="absolute top-20 right-4 z-50 flex flex-col gap-2 items-end">
+         <button onClick={onOpenHistory} className="p-2 rounded-xl backdrop-blur-md border bg-black/20 text-white/50 border-white/10 hover:text-[var(--text-on-accent)] transition-all pointer-events-auto"><History size={16} /></button>
+         <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all pointer-events-auto ${showVoiceSettings ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><SlidersHorizontal size={16} /></button>
+         <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all pointer-events-auto ${showTerminal ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
+         
+         {(totalTokens > 0) && (
+            <div className="px-2 py-1 bg-black/40 backdrop-blur-md border border-white/10 text-white/50 rounded-lg text-[9px] font-mono tracking-wider text-right shadow-lg">
+                <div>{(totalTokens / 1000).toFixed(1)}k TOKENS</div>
+                <div className="text-emerald-400/80">${((totalTokens / 1000000) * 0.15).toFixed(4)}</div>
+            </div>
+         )}
       </div>
 
       {showLiveAgent && (
