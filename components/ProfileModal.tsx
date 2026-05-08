@@ -299,8 +299,19 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                                   <Terminal size={14} className="text-purple-500" />
                                   <span className="text-[10px] font-bold text-[var(--text-main)]">Gemini API</span>
                               </div>
-                              <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.gemini)}`}>
-                                  {connectionStatus.gemini} {statusIcon(connectionStatus.gemini)}
+                              <div className="flex items-center gap-4">
+                                  {(() => {
+                                      const tokens = parseInt(localStorage.getItem('sb_total_tokens') || '0');
+                                      return tokens > 0 ? (
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[8px] font-mono text-emerald-400">{(tokens/1000).toFixed(1)}k TOKENS</span>
+                                            <span className="text-[8px] font-mono text-emerald-400/50">${((tokens/1000000)*0.15).toFixed(4)}</span>
+                                        </div>
+                                      ) : null;
+                                  })()}
+                                  <div className={`flex items-center gap-2 text-[9px] font-black uppercase ${statusColor(connectionStatus.gemini)}`}>
+                                      {connectionStatus.gemini} {statusIcon(connectionStatus.gemini)}
+                                  </div>
                               </div>
                           </div>
 

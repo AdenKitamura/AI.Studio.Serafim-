@@ -663,45 +663,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
          )}
       </div>
 
-      {showLiveAgent && (
-        <LiveAudioAgent 
-          onClose={() => setShowLiveAgent(false)} 
-          userName={userName}
-          tasks={tasks}
-          thoughts={thoughts}
-          journal={journal}
-          projects={projects}
-          habits={habits}
-          memories={memories}
-          chatHistory={activeSession?.messages.slice(-20)}
-          onLiveSessionEnd={(summary) => {
-              if (summary && activeSession) {
-                  const summaryMsg: ChatMessage = {
-                      id: Date.now().toString(),
-                      role: 'model',
-                      content: `🎙️ **Итоги голосовой сессии:**\n${summary}`,
-                      timestamp: Date.now()
-                  };
-                  onUpdateMessages([...activeSession.messages, summaryMsg]);
-              }
-          }}
-          onAddTask={onAddTask}
-          onUpdateTask={onUpdateTask}
-          onDeleteTask={onDeleteTask}
-          onAddThought={onAddThought}
-          onUpdateThought={onUpdateThought}
-          onDeleteThought={onDeleteThought}
-          onAddJournal={onAddJournal}
-          onAddProject={onAddProject}
-          onUpdateProject={onUpdateProject}
-          onAddMemory={onAddMemory}
-          onUpdateMemory={onUpdateMemory}
-          onDeleteMemory={onDeleteMemory}
-          onSetTheme={onSetTheme}
-          onStartFocus={onStartFocus}
-        />
-      )}
-
+      {/* Main Container */}
       {showVoiceSettings && (
           <div className="absolute top-32 right-4 z-50 w-72 bg-[#0c0c0c]/95 backdrop-blur-xl border border-[var(--border-color)] rounded-3xl p-5 shadow-2xl animate-in fade-in slide-in-from-right-5">
               <div className="flex justify-between items-center mb-5">

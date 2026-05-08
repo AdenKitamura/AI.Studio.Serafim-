@@ -249,6 +249,7 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
   const reconnectAttemptsRef = useRef(0);
   const startTimeRef = useRef<number>(0);
   const isManualCloseRef = useRef(false);
+  const lastVolumeUpdateRef = useRef<number>(0);
 
   // --- REFS FOR STALE CLOSURE FIX ---
   const tasksRef = useRef(tasks);
@@ -308,6 +309,10 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
         await audioContextRef.current.resume();
       } 
 
+      if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
@@ -316,6 +321,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
         } 
       });
       streamRef.current = stream;
+
+      if (sourceRef.current) sourceRef.current.disconnect();
+      if (processorRef.current) processorRef.current.disconnect();
 
       sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
       processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
@@ -409,7 +417,12 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                 audioContextRef.current.resume();
             }
 
+            let liveSession: any = null;
+            sessionPromise.then(s => liveSession = s);
+            
             processorRef.current!.onaudioprocess = (e) => {
+              if (!liveSession) return;
+              
               const inputData = e.inputBuffer.getChannelData(0);
               const inputSampleRate = audioContextRef.current?.sampleRate || 48000;
               const targetSampleRate = 16000;
@@ -425,12 +438,21 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                   }
               }
 
-              // Calculate volume for UI (using original data for better resolution)
-              let sum = 0;
-              for (let i = 0; i < inputData.length; i++) {
-                sum += inputData[i] * inputData[i];
+              // Calculate volume for UI (throttle state update)
+              const now = Date.now();
+              if (now - lastVolumeUpdateRef.current > 100) {
+                 let sum = 0;
+                 let validSamples = 0;
+                 for (let i = 0; i < inputData.length; i++) {
+                   if (!isNaN(inputData[i])) {
+                       sum += inputData[i] * inputData[i];
+                       validSamples++;
+                   }
+                 }
+                 const newVolume = validSamples > 0 ? Math.sqrt(sum / validSamples) : 0;
+                 setVolume(Number.isFinite(newVolume) ? newVolume : 0);
+                 lastVolumeUpdateRef.current = now;
               }
-              setVolume(Math.sqrt(sum / inputData.length));
 
               // Convert Float32 to Int16 PCM
               const pcm16 = new Int16Array(processedData.length);
@@ -439,22 +461,20 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
                 pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
               }
 
-              // Base64 encode
+              // Base64 encode efficiently
               const buffer = new Uint8Array(pcm16.buffer);
-              let binary = '';
-              const len = buffer.byteLength;
-              for (let i = 0; i < len; i++) {
-                binary += String.fromCharCode(buffer[i]);
+              const chunks: string[] = [];
+              for (let i = 0; i < buffer.length; i += 0x8000) {
+                  // @ts-ignore
+                  chunks.push(String.fromCharCode.apply(null, buffer.subarray(i, i + 0x8000)));
               }
-              const base64Data = btoa(binary);
+              const base64Data = btoa(chunks.join(''));
 
-              sessionPromise.then((session) => {
-                session.sendRealtimeInput({
-                  media: {
-                    mimeType: `audio/pcm;rate=${targetSampleRate}`,
-                    data: base64Data
-                  }
-                });
+              liveSession.sendRealtimeInput({
+                media: {
+                  mimeType: `audio/pcm;rate=${targetSampleRate}`,
+                  data: base64Data
+                }
               });
             };
           },
@@ -826,6 +846,8 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
         totalLen += chunk.length;
     }
 
+    if (totalLen === 0) return;
+
     const combinedData = new Float32Array(totalLen);
     let offset = 0;
     for (const chunk of chunks) {
@@ -833,39 +855,43 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
         offset += chunk.length;
     }
 
-    const buffer = ctx.createBuffer(1, combinedData.length, 24000);
-    buffer.copyToChannel(combinedData, 0);
+    try {
+        const buffer = ctx.createBuffer(1, combinedData.length, 24000);
+        buffer.copyToChannel(combinedData, 0);
 
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    activeSourcesRef.current.push(source);
-    
-    source.onended = () => {
-        activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
-    };
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        activeSourcesRef.current.push(source);
+        
+        source.onended = () => {
+            activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
+        };
 
-    if (gainNodeRef.current) {
-        source.connect(gainNodeRef.current);
-    } else {
-        source.connect(ctx.destination);
+        if (gainNodeRef.current) {
+            source.connect(gainNodeRef.current);
+        } else {
+            source.connect(ctx.destination);
+        }
+
+        if (nextPlayTimeRef.current < ctx.currentTime) {
+            nextPlayTimeRef.current = ctx.currentTime + 0.05;
+        }
+
+        source.start(nextPlayTimeRef.current);
+        nextPlayTimeRef.current += buffer.duration;
+
+        // Update UI state
+        setIsSpeaking(true);
+        
+        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        
+        const timeUntilEnd = (nextPlayTimeRef.current - ctx.currentTime) * 1000;
+        silenceTimeoutRef.current = setTimeout(() => {
+            setIsSpeaking(false);
+        }, Math.max(0, timeUntilEnd + 200)); 
+    } catch (err) {
+        console.error("Audio playback error:", err);
     }
-
-    if (nextPlayTimeRef.current < ctx.currentTime) {
-        nextPlayTimeRef.current = ctx.currentTime + 0.05;
-    }
-
-    source.start(nextPlayTimeRef.current);
-    nextPlayTimeRef.current += buffer.duration;
-
-    // Update UI state
-    setIsSpeaking(true);
-    
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-    
-    const timeUntilEnd = (nextPlayTimeRef.current - ctx.currentTime) * 1000;
-    silenceTimeoutRef.current = setTimeout(() => {
-        setIsSpeaking(false);
-    }, timeUntilEnd + 200); // Increased buffer slightly
   };
 
   const stopLiveSession = () => {
