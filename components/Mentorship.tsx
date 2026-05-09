@@ -373,7 +373,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
       stopAudio();
   }, [activeSessionId]);
 
-  useEffect(() => { scrollToBottom('smooth'); }, [activeSession?.messages.length, isThinking]);
+  useEffect(() => { scrollToBottom('smooth'); }, [(activeSession?.messages || []).length, isThinking]);
 
   const handleImageAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -403,7 +403,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
         stopAudio(); 
 
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: cleanInput, image: attachedImage || undefined, timestamp: Date.now() };
-        const currentHistory = activeSession ? activeSession.messages : [];
+        const currentHistory = activeSession?.messages || [];
         const newHistory = [...currentHistory, userMsg];
         
         // Optimistic update
@@ -654,13 +654,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
          <button onClick={onOpenHistory} className="p-2 rounded-xl backdrop-blur-md border bg-black/20 text-white/50 border-white/10 hover:text-[var(--text-on-accent)] transition-all pointer-events-auto"><History size={16} /></button>
          <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className={`p-2 rounded-xl backdrop-blur-md border transition-all pointer-events-auto ${showVoiceSettings ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><SlidersHorizontal size={16} /></button>
          <button onClick={() => setShowTerminal(!showTerminal)} className={`p-2 rounded-xl backdrop-blur-md border transition-all pointer-events-auto ${showTerminal ? 'bg-[var(--accent)] text-[var(--text-on-accent)] border-[var(--accent)]' : 'bg-black/20 text-[var(--text-on-accent)]/50 border-white/10 hover:text-[var(--text-on-accent)]'}`}><div className="relative"><Terminal size={16} />{isThinking && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>}</div></button>
-         
-         {(totalTokens > 0) && (
-            <div className="px-2 py-1 bg-black/40 backdrop-blur-md border border-white/10 text-white/50 rounded-lg text-[9px] font-mono tracking-wider text-right shadow-lg">
-                <div>{(totalTokens / 1000).toFixed(1)}k TOKENS</div>
-                <div className="text-emerald-400/80">${((totalTokens / 1000000) * 0.15).toFixed(4)}</div>
-            </div>
-         )}
       </div>
 
       {/* Main Container */}
@@ -714,7 +707,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
 
       <div className="flex-1 relative overflow-hidden z-10">
         <div className="h-full overflow-y-auto p-6 space-y-6 no-scrollbar pb-40">
-          {activeSession?.messages.map((msg) => (
+          {(activeSession?.messages || []).map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`max-w-[85%] relative group ${msg.role === 'user' ? 'bg-[var(--accent)] text-[var(--text-on-accent)] shadow-xl rounded-t-3xl rounded-bl-3xl p-4' : 'glass-panel text-[var(--text-main)] rounded-t-3xl rounded-br-3xl p-4 border border-[var(--border-color)]'}`}>
                 {msg.image && <img src={msg.image} className="w-full rounded-2xl mb-3 opacity-95" alt="input" />}

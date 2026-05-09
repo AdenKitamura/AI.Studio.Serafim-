@@ -62,9 +62,9 @@ export class ErrorBoundary extends Component<Props, State> {
                      localStorage.clear();
                      window.location.reload();
                  }} 
-                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-black/50 text-white/50 hover:bg-black hover:text-white transition-all border border-white/10"
+                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-transparent text-white/40 hover:bg-black/30 hover:text-white transition-all border border-transparent hover:border-white/10"
                >
-                 Сбросить вообще всё (Опасно)
+                 Сбросить локальные данные
                </button>
                <button 
                  onClick={() => window.location.reload()} 

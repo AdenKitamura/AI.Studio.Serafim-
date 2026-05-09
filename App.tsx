@@ -434,7 +434,7 @@ const App = () => {
       if (oldSessionId && oldSessionId !== newId) {
           const oldSession = sessions.find(s => s.id === oldSessionId);
           // Сжимаем, только если там больше 4 сообщений и еще нет саммари (или оно устарело, но пока просто если нет)
-          if (oldSession && oldSession.messages.length >= 4 && !oldSession.summary) {
+          if (oldSession && (oldSession.messages || []).length >= 4 && !oldSession.summary) {
               logger.log('Memory', `Compressing session ${oldSession.title}...`, 'info');
               // Запускаем без await, чтобы не блочить UI, но нам нужен результат для сохранения
               // Поэтому делаем это в отдельном промисе
