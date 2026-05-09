@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 
 import LiveAudioAgent from './LiveAudioAgent';
+import { useChatAudio } from '../hooks/useChatAudio';
 
 interface MentorshipProps {
   tasks: Task[];
@@ -69,9 +70,6 @@ const Mentorship: React.FC<MentorshipProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessingAudio, setIsProcessingAudio] = useState(false); 
-  const [isPlaying, setIsPlaying] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [totalTokens, setTotalTokens] = useState(() => parseInt(localStorage.getItem('sb_total_tokens') || '0'));
 
@@ -83,21 +81,18 @@ const Mentorship: React.FC<MentorshipProps> = ({
       });
   };
   const [isProcessingTool, setIsProcessingTool] = useState(false);
-  
-  // Voice Recognition State (MediaRecorder)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  const mimeTypeRef = useRef<string>(''); 
   const safetyTimeoutRef = useRef<any>(null);
   
-  // Gemini Voice Settings
-  const [selectedVoice, setSelectedVoice] = useState<string>(() => localStorage.getItem('sb_voice') || 'Charon');
-  const [autoVoice, setAutoVoice] = useState<boolean>(() => localStorage.getItem('sb_auto_voice') !== 'false');
-  const [voiceSpeed, setVoiceSpeed] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_speed') || '1.0'));
-  const [voiceVolume, setVoiceVolume] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_volume') || '1.0'));
-  const [voicePitch, setVoicePitch] = useState<number>(() => parseFloat(localStorage.getItem('sb_voice_pitch') || '0'));
-  
+  const {
+      isRecording, isProcessingAudio, isPlaying,
+      selectedVoice, setSelectedVoice,
+      autoVoice, setAutoVoice,
+      voiceSpeed, setVoiceSpeed,
+      voiceVolume, setVoiceVolume,
+      voicePitch, setVoicePitch,
+      applyASMR, stopAudio, playGeminiAudio, toggleRecording
+  } = useChatAudio();
+
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   // Terminal State
@@ -109,113 +104,9 @@ const Mentorship: React.FC<MentorshipProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
   
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const getStoredModel = () => (localStorage.getItem('sb_gemini_model') || 'flash') as 'flash' | 'pro';
-
-  // --- AUDIO OUTPUT (PCM Decoder & Optimizer) ---
-  const initAudioContext = () => {
-      if (!audioContextRef.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          audioContextRef.current = new AudioContext({ sampleRate: 24000 });
-          
-          // Initialize Gain Node for Volume Control
-          gainNodeRef.current = audioContextRef.current.createGain();
-          gainNodeRef.current.connect(audioContextRef.current.destination);
-      }
-      if (audioContextRef.current.state === 'suspended') {
-          audioContextRef.current.resume();
-      }
-      return audioContextRef.current;
-  };
-
-  // Hidden function triggered by AI command
-  const applyASMR = () => {
-      logger.log('Audio', 'Activating ASMR Mode...', 'info');
-      setVoiceSpeed(0.85); // Slower
-      setVoicePitch(-500); // Deeper (-5 semitones approx)
-      setVoiceVolume(1.3); // Louder to compensate for breathiness
-      // Persist
-      localStorage.setItem('sb_voice_speed', '0.85');
-      localStorage.setItem('sb_voice_pitch', '-500');
-      localStorage.setItem('sb_voice_volume', '1.3');
-  };
-
-  const playGeminiAudio = async (text: string) => {
-      if (isPlaying) stopAudio();
-      
-      const ctx = initAudioContext();
-      if (ctx.state === 'suspended') await ctx.resume();
-
-      try {
-          setIsPlaying(true);
-          
-          const base64Audio = await generateSpeech(text, selectedVoice);
-          if (!base64Audio) {
-              setIsPlaying(false);
-              return;
-          }
-
-          // Decode Raw PCM (16-bit signed integer)
-          const binaryString = atob(base64Audio);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-          }
-          
-          const int16Data = new Int16Array(bytes.buffer);
-          const float32Data = new Float32Array(int16Data.length);
-          
-          // Convert Int16 to Float32 [-1.0, 1.0]
-          for (let i = 0; i < int16Data.length; i++) {
-              float32Data[i] = int16Data[i] / 32768.0;
-          }
-
-          const buffer = ctx.createBuffer(1, float32Data.length, 24000);
-          buffer.copyToChannel(float32Data, 0);
-
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          
-          // APPLY USER SETTINGS (Real-time DSP)
-          // Speed optimization: playbackRate is efficient native implementation
-          source.playbackRate.value = voiceSpeed; 
-          
-          // Pitch optimization: detune (cents) allows adjusting pitch without complex resampling
-          source.detune.value = voicePitch; 
-
-          if (gainNodeRef.current) {
-              gainNodeRef.current.gain.value = voiceVolume;
-              source.connect(gainNodeRef.current);
-          } else {
-              source.connect(ctx.destination);
-          }
-          
-          source.onended = () => {
-              setIsPlaying(false);
-              activeSourceRef.current = null;
-          };
-          
-          source.start(0);
-          activeSourceRef.current = source;
-
-      } catch (e) {
-          console.error("Audio Playback Error:", e);
-          setIsPlaying(false);
-      }
-  };
-
-  const stopAudio = () => {
-      if (activeSourceRef.current) {
-          try { activeSourceRef.current.stop(); } catch(e){}
-          activeSourceRef.current = null;
-      }
-      setIsPlaying(false);
-  };
 
   // --- LOGGING ---
   useEffect(() => {
@@ -231,134 +122,13 @@ const Mentorship: React.FC<MentorshipProps> = ({
   // --- VOICE INPUT (RECORDING) ---
   
   useEffect(() => {
-     if (voiceTrigger && voiceTrigger > 0 && !isRecording) toggleRecording();
+     if (voiceTrigger && voiceTrigger > 0 && !isRecording) {
+         toggleRecording(async (text) => {
+             setInput(text);
+             handleSend(text);
+         });
+     }
   }, [voiceTrigger]);
-
-  const toggleRecording = async () => {
-    // 1. STOPPING
-    if (isRecording) {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop(); // This triggers onstop
-        }
-        setIsRecording(false);
-        return;
-    } 
-    
-    // 2. STARTING
-    try { 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
-        
-        // Strict prioritized MIME types
-        const mimeTypes = [
-            'audio/webm', // Chrome default - Best for Gemini
-            'audio/mp4', // iOS fallback
-            'audio/ogg',
-            'audio/wav'
-        ];
-        
-        let selectedMime = '';
-        for (const type of mimeTypes) {
-            if (MediaRecorder.isTypeSupported(type)) {
-                selectedMime = type;
-                break;
-            }
-        }
-        
-        if (!selectedMime) console.warn("No specific audio MIME type supported, using default.");
-        
-        mimeTypeRef.current = selectedMime;
-        console.log(`🎙️ Starting recording. Mime: ${selectedMime}`);
-        
-        const options = selectedMime ? { mimeType: selectedMime } : undefined;
-        const mediaRecorder = new MediaRecorder(stream, options);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-                audioChunksRef.current.push(event.data);
-            }
-        };
-
-        mediaRecorder.onstop = async () => {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
-            }
-            
-            const finalMime = mimeTypeRef.current || 'audio/webm';
-            const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
-            
-            if (audioBlob.size > 500) { 
-                await processAudioBlob(audioBlob);
-            } else {
-                logger.log('Audio', 'Recording too short or empty.', 'warning');
-            }
-        };
-
-        mediaRecorder.start(); 
-        setIsRecording(true);
-
-    } catch(e: any) { 
-        console.error("Mic Error", e);
-        logger.log("Audio", `Mic Access Error: ${e.message}`, "error");
-        setIsRecording(false); 
-    } 
-  };
-
-  const processAudioBlob = async (blob: Blob) => {
-      setIsProcessingAudio(true);
-      logger.log('Audio', `Начало обработки. Размер: ${blob.size} байт, Тип: ${blob.type}`, 'info');
-
-      if (blob.size < 500) {
-          logger.log('Audio', 'Аудио слишком короткое, отмена.', 'warning');
-          setIsProcessingAudio(false);
-          return;
-      }
-
-      try {
-          const reader = new FileReader();
-          reader.readAsDataURL(blob);
-          
-          reader.onloadend = async () => {
-              const result = reader.result as string;
-              // ВАЖНО: Отрезаем "data:audio/webm;base64,"
-              const base64Audio = result.split(',')[1]; 
-              
-              if (!base64Audio) {
-                  logger.log('Audio', 'Ошибка: не удалось получить Base64', 'error');
-                  setIsProcessingAudio(false);
-                  return;
-              }
-
-              logger.log('Audio', 'Отправка в Gemini для транскрибации...', 'info');
-              
-              // Вызываем функцию из geminiService
-              const text = await transcribeAudio(base64Audio, blob.type);
-              
-              if (text && text.trim().length > 0) {
-                  logger.log('Audio', `Распознано: "${text}"`, 'success');
-                  // Отправляем текст в чат (или вставляем в инпут)
-                  handleSend(text); 
-              } else {
-                  logger.log('Audio', 'Gemini вернул пустой текст', 'warning');
-              }
-              setIsProcessingAudio(false);
-          };
-
-          reader.onerror = (e) => {
-              console.error("FileReader error:", e);
-              logger.log('Audio', 'Ошибка чтения файла', 'error');
-              setIsProcessingAudio(false);
-          }
-
-      } catch (e: any) {
-          console.error("Audio Processing Error:", e);
-          logger.log('Audio', `Сбой обработки: ${e.message}`, 'error');
-          setIsProcessingAudio(false);
-      }
-  };
-
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
       if (messagesEndRef.current) {
           requestAnimationFrame(() => {
@@ -389,10 +159,7 @@ const Mentorship: React.FC<MentorshipProps> = ({
     
     try {
         if (isRecording) {
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop();
-            }
-            setIsRecording(false);
+            toggleRecording(() => {}); 
             if (!manualText) return; 
         }
 
@@ -776,7 +543,10 @@ const Mentorship: React.FC<MentorshipProps> = ({
                           <AudioLines size={20} />
                       </button>
                       <button 
-                        onClick={toggleRecording} 
+                        onClick={() => toggleRecording(text => { 
+                             setInput(text); 
+                             handleSend(text); 
+                        })} 
                         className={`p-2.5 rounded-xl transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-[var(--text-on-accent)] shadow-lg animate-pulse' : isProcessingAudio ? 'bg-indigo-500 text-[var(--text-on-accent)] animate-spin' : 'text-zinc-400 hover:text-[var(--text-on-accent)] hover:bg-white/5'}`}
                       >
                           {isProcessingAudio ? <Loader2 size={20} /> : isRecording ? <MicOff size={20} /> : <Mic size={20} />}
