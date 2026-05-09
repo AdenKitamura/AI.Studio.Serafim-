@@ -24,8 +24,10 @@ import {
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import LiveAudioAgent from './components/LiveAudioAgent';
+import TrashModal from './components/TrashModal';
 
 import { generateSessionSummary } from './services/geminiService';
+import { TrashItem } from './types';
 
 declare global {
   interface Window {
@@ -55,6 +57,7 @@ const App = () => {
   const [showQuotes, setShowQuotes] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [showLiveAgent, setShowLiveAgent] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
 
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -99,18 +102,20 @@ const App = () => {
     setShowChatHistory(modalName === 'chatHistory');
     setShowQuotes(modalName === 'quotes');
     setShowTimer(modalName === 'timer');
+    setShowTrash(modalName === 'trash');
     setIsSidebarOpen(modalName === 'sidebar');
     setShowPWAInstall(modalName === 'pwaInstall');
   };
 
   const closeGlobalModal = () => {
-    const wasModalOpen = showSettings || showChatHistory || showQuotes || showTimer || isSidebarOpen || showPWAInstall;
+    const wasModalOpen = showSettings || showChatHistory || showQuotes || showTimer || isSidebarOpen || showPWAInstall || showTrash;
     if (!wasModalOpen) return;
 
     setShowSettings(false);
     setShowChatHistory(false);
     setShowQuotes(false);
     setShowTimer(false);
+    setShowTrash(false);
     setIsSidebarOpen(false);
     setShowPWAInstall(false);
 
@@ -410,6 +415,20 @@ const App = () => {
   const persist = (store: string, item: any) => { dbService.saveItem(store, item); };
   const remove = (store: string, id: string) => { dbService.deleteItem(store, id); };
 
+  const removeToTrash = (store: string, id: string, itemList: any[]) => {
+      const item = itemList.find(i => i.id === id);
+      if (item) {
+          const trashItem: TrashItem = {
+              id: item.id,
+              storeName: store,
+              originalItem: item,
+              deletedAt: new Date().toISOString()
+          };
+          dbService.saveItem('trash', trashItem, false);
+      }
+      remove(store, id);
+  };
+
   const handleUpdateMemory = (id: string, updates: Partial<Memory>) => {
     setMemories(prev => {
       const existing = prev.find(m => m.id === id);
@@ -422,7 +441,7 @@ const App = () => {
 
   const handleDeleteMemory = (id: string) => {
     setMemories(prev => prev.filter(m => m.id !== id));
-    remove('memories', id);
+    removeToTrash('memories', id, memories);
   };
 
   // NEW: Handle Session Switching with Background Summarization
@@ -469,7 +488,7 @@ const App = () => {
 
   const handleDeleteTask = (id: string) => {
       setTasks(prev => prev.filter(t => t.id !== id));
-      remove('tasks', id);
+      removeToTrash('tasks', id, tasks);
   };
 
   const handleUpdateProject = (id: string, updates: Partial<Project>) => {
@@ -482,15 +501,29 @@ const App = () => {
   };
   const handleDeleteThought = (id: string) => {
     setThoughts(prev => prev.filter(t => t.id !== id));
-    remove('thoughts', id);
+    removeToTrash('thoughts', id, thoughts);
   };
   const handleAddHabit = (habit: Habit) => { setHabits(prev => [habit, ...prev]); persist('habits', habit); };
   const handleToggleHabit = (id: string, date: string) => {
     const habit = habits.find(h => h.id === id);
     if (habit) { const exists = habit.completedDates.includes(date); const newHabit = { ...habit, completedDates: exists ? habit.completedDates.filter(d => d !== date) : [...habit.completedDates, date] }; setHabits(prev => prev.map(h => h.id === id ? newHabit : h)); persist('habits', newHabit); }
   };
-  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); remove('habits', id); };
+  const handleDeleteHabit = (id: string) => { setHabits(prev => prev.filter(h => h.id !== id)); removeToTrash('habits', id, habits); };
   
+  const handleRestoreTrash = (item: TrashItem) => {
+     dbService.saveItem(item.storeName, item.originalItem);
+     switch(item.storeName) {
+        case 'tasks': setTasks(prev => [...prev, item.originalItem]); break;
+        case 'thoughts': setThoughts(prev => [...prev, item.originalItem]); break;
+        case 'projects': setProjects(prev => [...prev, item.originalItem]); break;
+        case 'habits': setHabits(prev => [...prev, item.originalItem]); break;
+        case 'memories': setMemories(prev => [...prev, item.originalItem]); break;
+        case 'chat_sessions': setSessions(prev => [...prev, item.originalItem]); break;
+        case 'journal': setJournal(prev => [...prev, item.originalItem]); break;
+     }
+     dbService.deleteItem('trash', item.id, false);
+  };
+
   // NEW: Handle Journal Entry via Chat
   const handleAddJournalEntry = (entry: Partial<JournalEntry>) => {
       const date = entry.date || new Date().toISOString().split('T')[0];
@@ -599,6 +632,7 @@ const App = () => {
         onNavigate={navigateTo} 
         onOpenSettings={() => openModal('settings')}
         onOpenHistory={() => openModal('chatHistory')}
+        onOpenTrash={() => openModal('trash')}
         onVoiceChat={() => openModal('liveAgent')} 
         onStartFocus={handleStartFocus}
         userName={userName}
@@ -646,7 +680,7 @@ const App = () => {
                   persist('chat_sessions', updatedSession);
               }}
               onNewSession={(title, cat) => { const ns = { id: Date.now().toString(), title, category: cat, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() }; setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); }}
-              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
+              onDeleteSession={id => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); removeToTrash('chat_sessions', id, sessions); }}
               onAddTask={handleAddTask}
               onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteTask}
@@ -710,7 +744,7 @@ const App = () => {
                   persist('thoughts', newItem);
               }} 
               onUpdate={handleUpdateThought}
-              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
+              onDelete={id => { setThoughts(thoughts.filter(t => t.id !== id)); removeToTrash('thoughts', id, thoughts); }} 
               onNavigate={navigateTo}
             />
           )}
@@ -725,7 +759,7 @@ const App = () => {
               onDeleteTask={handleDeleteTask}
               onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
               onUpdateThought={handleUpdateThought}
-              onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}
+              onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); removeToTrash('thoughts', id, thoughts); }}
               onAddHabit={handleAddHabit}
               onToggleHabit={handleToggleHabit}
               onDeleteHabit={handleDeleteHabit}
@@ -739,14 +773,14 @@ const App = () => {
               thoughts={thoughts} 
               onAddProject={p => { setProjects([p, ...projects]); persist('projects', p); }} 
               onUpdateProject={handleUpdateProject}
-              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); remove('projects', id); }} 
+              onDeleteProject={id => { setProjects(prev => prev.filter(p => p.id !== id)); removeToTrash('projects', id, projects); }} 
               onAddTask={handleAddTask} 
               onUpdateTask={handleUpdateTask} 
               onToggleTask={id => handleUpdateTask(id, { isCompleted: !tasks.find(t=>t.id===id)?.isCompleted })} 
               onDeleteTask={handleDeleteTask} 
               onAddThought={t => { setThoughts([t, ...thoughts]); persist('thoughts', t); }}
               onUpdateThought={handleUpdateThought}
-              onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); remove('thoughts', id); }}
+              onDeleteThought={id => { setThoughts(prev => prev.filter(t => t.id !== id)); removeToTrash('thoughts', id, thoughts); }}
               onNavigate={navigateTo}
             />
           )}
@@ -770,7 +804,7 @@ const App = () => {
                 setThoughts([q, ...thoughts]); 
                 persist('thoughts', q); 
             }} 
-            onDeleteQuote={(id) => { setThoughts(thoughts.filter(t => t.id !== id)); remove('thoughts', id); }} 
+            onDeleteQuote={(id) => { setThoughts(thoughts.filter(t => t.id !== id)); removeToTrash('thoughts', id, thoughts); }} 
             onClose={closeGlobalModal} 
           />
       )}
@@ -785,8 +819,15 @@ const App = () => {
              const ns: ChatSession = { id: Date.now().toString(), title, category: 'general', projectId: projectId, messages: [], lastInteraction: Date.now(), createdAt: new Date().toISOString() };
              setSessions(prev => [ns, ...prev]); setActiveSessionId(ns.id); persist('chat_sessions', ns); navigateTo('chat');
           }}
-          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); remove('chat_sessions', id); }}
+          onDeleteSession={(id) => { setSessions(prev => prev.filter(s => s.id !== id)); if(activeSessionId === id) setActiveSessionId(null); removeToTrash('chat_sessions', id, sessions); }}
           onClose={closeGlobalModal}
+        />
+      )}
+
+      {showTrash && (
+        <TrashModal 
+          onClose={closeGlobalModal} 
+          onRestore={handleRestoreTrash} 
         />
       )}
 

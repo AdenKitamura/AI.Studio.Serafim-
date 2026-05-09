@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient';
 import { logger } from './logger';
 
 const DB_NAME = 'SerafimOS_DB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 class DBService {
   private db: IDBDatabase | null = null;
@@ -25,7 +25,7 @@ class DBService {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        const stores = ['tasks', 'thoughts', 'journal', 'projects', 'habits', 'chat_sessions', 'memories'];
+        const stores = ['tasks', 'thoughts', 'journal', 'projects', 'habits', 'chat_sessions', 'memories', 'trash'];
         stores.forEach(store => {
           if (!db.objectStoreNames.contains(store)) db.createObjectStore(store, { keyPath: 'id' });
         });

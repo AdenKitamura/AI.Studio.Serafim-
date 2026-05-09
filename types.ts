@@ -156,3 +156,10 @@ export interface AppState {
   habits: Habit[];
   view: ViewState;
 }
+
+export interface TrashItem {
+  id: string; // original id
+  storeName: string; // e.g. 'tasks', 'thoughts', etc.
+  originalItem: any; // the whole object
+  deletedAt: string;
+}

@@ -315,9 +315,9 @@ const LiveAudioAgent: React.FC<LiveAudioAgentProps> = ({
 
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
         } 
       });
       streamRef.current = stream;

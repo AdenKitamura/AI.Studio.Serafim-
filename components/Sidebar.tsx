@@ -13,7 +13,8 @@ import {
   LogOut,
   X,
   Mic,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
@@ -22,6 +23,7 @@ interface SidebarProps {
   onNavigate: (view: ViewState) => void;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
+  onOpenTrash: () => void;
   onVoiceChat: () => void;
   onStartFocus: () => void; // New prop
   userName: string;
@@ -34,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigate, 
   onOpenSettings, 
   onOpenHistory, 
+  onOpenTrash,
   onVoiceChat,
   onStartFocus,
   userName,
@@ -154,6 +157,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           >
              <Clock size={20} className="group-hover:text-orange-400 transition-colors" />
              <span className="text-sm font-bold">Фокус-Таймер</span>
+          </button>
+
+          <button 
+            onClick={() => { onOpenTrash(); }}
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-[var(--text-muted)] hover:bg-[var(--bg-item)] hover:text-red-400 transition-all group"
+          >
+             <Trash2 size={20} className="group-hover:text-red-400 transition-colors" />
+             <span className="text-sm font-bold">Корзина</span>
           </button>
 
         </nav>
