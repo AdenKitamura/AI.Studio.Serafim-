@@ -1,4 +1,10 @@
 
+declare global {
+  interface Window {
+    deferredPrompt: any;
+  }
+}
+
 // Enums and Basic Types first
 export enum Priority {
   LOW = 'Low',
